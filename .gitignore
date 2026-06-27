@@ -1,0 +1,59 @@
+# Secrets & environment
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+
+# Database & data files
+data/db.sqlite
+data/*.sqlite
+data/*.db
+*.sqlite
+*.sqlite3
+*.db
+
+# PDFs and uploaded documents (potentially sensitive)
+*.pdf
+
+# Node / frontend
+node_modules/
+frontend-new/node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend-new/dist/
+*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local state (not secrets, but project-specific)
+.claude/
