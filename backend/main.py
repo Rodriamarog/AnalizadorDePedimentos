@@ -6,6 +6,7 @@ import re
 import secrets
 import tempfile
 import unicodedata
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -13,14 +14,15 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 import httpx
 from sqlmodel import Session, select
 from sqlalchemy import text as sa_text
-
-from datetime import date, datetime
 
 from .database import create_db, get_session, engine
 from .facturapi import get_client
@@ -31,14 +33,18 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 app = FastAPI(title="Analizador de Pedimentos")
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
-_active_tokens: dict[str, str] = {}  # token -> email
+_TOKEN_TTL = timedelta(hours=24)
+_active_tokens: dict[str, tuple[str, datetime]] = {}  # token -> (email, expires_at)
 _bearer = HTTPBearer(auto_error=False)
 
-_INITIAL_USERS = [
-    ("camaror@gmail.com", "Recovery23++"),
-]
+_INITIAL_USER_EMAIL = os.environ.get("INITIAL_USER_EMAIL", "").strip().lower()
+_INITIAL_USER_PASSWORD = os.environ.get("INITIAL_USER_PASSWORD", "")
 
 
 def _hash_password(password: str) -> str:
@@ -57,11 +63,19 @@ def _verify_password(password: str, hashed: str) -> bool:
 
 
 def _seed_users(session: Session) -> None:
-    for email, password in _INITIAL_USERS:
-        existing = session.exec(select(User).where(User.email == email)).first()
-        if not existing:
-            session.add(User(email=email, hashed_password=_hash_password(password)))
-    session.commit()
+    if not _INITIAL_USER_EMAIL or not _INITIAL_USER_PASSWORD:
+        return
+    existing = session.exec(select(User).where(User.email == _INITIAL_USER_EMAIL)).first()
+    if not existing:
+        session.add(User(email=_INITIAL_USER_EMAIL, hashed_password=_hash_password(_INITIAL_USER_PASSWORD)))
+        session.commit()
+
+
+def _prune_tokens() -> None:
+    now = datetime.now(timezone.utc)
+    expired = [t for t, (_, exp) in _active_tokens.items() if exp <= now]
+    for t in expired:
+        del _active_tokens[t]
 
 
 _PUBLIC_PATHS = {"/auth/login", "/"}
@@ -72,24 +86,32 @@ def require_auth(
     token = credentials.credentials if credentials else None
     if not token or token not in _active_tokens:
         raise HTTPException(status_code=401, detail="No autenticado")
-    return _active_tokens[token]
+    email, expires_at = _active_tokens[token]
+    if datetime.now(timezone.utc) >= expires_at:
+        del _active_tokens[token]
+        raise HTTPException(status_code=401, detail="Sesión expirada")
+    return email
 
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
-    # Allow public paths and static assets
-    if path in _PUBLIC_PATHS or path.startswith("/static") or path.startswith("/auth/"):
+    if path in _PUBLIC_PATHS or path.startswith("/static/") or path.startswith("/assets/"):
         return await call_next(request)
-    # Check bearer token
     auth_header = request.headers.get("Authorization", "")
     token = auth_header.removeprefix("Bearer ").strip() if auth_header.startswith("Bearer ") else None
     if not token or token not in _active_tokens:
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=401, content={"detail": "No autenticado"})
+    _, expires_at = _active_tokens[token]
+    if datetime.now(timezone.utc) >= expires_at:
+        del _active_tokens[token]
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=401, content={"detail": "Sesión expirada"})
     return await call_next(request)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 
 
 # ── SAT search helpers ────────────────────────────────────────────────────────
@@ -273,19 +295,22 @@ def on_startup():
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 
 @app.post("/auth/login")
-def login(body: dict, session: Session = Depends(get_session)):
+@limiter.limit("5/minute")
+def login(request: Request, body: dict, session: Session = Depends(get_session)):
     email = (body.get("email") or "").strip().lower()
     password = body.get("password") or ""
     user = session.exec(select(User).where(User.email == email)).first()
     if not user or not _verify_password(password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     token = secrets.token_hex(32)
-    _active_tokens[token] = email
+    expires_at = datetime.now(timezone.utc) + _TOKEN_TTL
+    _active_tokens[token] = (email, expires_at)
+    _prune_tokens()
     return {"token": token, "email": email}
 
 
 @app.post("/auth/logout")
-def logout(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)):
+def logout(_: str = Depends(require_auth), credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)):
     token = credentials.credentials if credentials else None
     if token and token in _active_tokens:
         del _active_tokens[token]
@@ -302,13 +327,17 @@ def me(email: str = Depends(require_auth)):
 @app.post("/parse")
 async def parse(
     file: UploadFile = File(...),
+    _: str = Depends(require_auth),
     session: Session = Depends(get_session),
 ):
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "El archivo excede el tamaño máximo permitido (20 MB)")
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Solo se aceptan archivos PDF")
 
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-        tmp.write(await file.read())
+        tmp.write(content)
         tmp_path = tmp.name
 
     try:
@@ -372,7 +401,7 @@ async def parse(
 
 
 @app.get("/pedimentos")
-def list_pedimentos(session: Session = Depends(get_session)):
+def list_pedimentos(_: str = Depends(require_auth), session: Session = Depends(get_session)):
     from sqlalchemy import text as sa_text, func
     rows = session.exec(select(Pedimento).order_by(Pedimento.fecha_upload.desc())).all()
     counts = dict(session.execute(
@@ -393,7 +422,7 @@ def list_pedimentos(session: Session = Depends(get_session)):
 
 
 @app.get("/pedimentos/{pedimento_id}")
-def get_pedimento(pedimento_id: int, session: Session = Depends(get_session)):
+def get_pedimento(pedimento_id: int, _: str = Depends(require_auth), session: Session = Depends(get_session)):
     pedimento = session.get(Pedimento, pedimento_id)
     if not pedimento:
         raise HTTPException(404, "Pedimento no encontrado")
@@ -425,7 +454,7 @@ def get_pedimento(pedimento_id: int, session: Session = Depends(get_session)):
 
 
 @app.post("/pedimentos/{pedimento_id}/automap")
-async def automap_claves(pedimento_id: int, session: Session = Depends(get_session)):
+async def automap_claves(pedimento_id: int, _: str = Depends(require_auth), session: Session = Depends(get_session)):
     from google import genai
     from google.genai import types
     import json
@@ -726,7 +755,7 @@ async def automap_claves(pedimento_id: int, session: Session = Depends(get_sessi
 
 
 @app.delete("/pedimentos/{pedimento_id}")
-def delete_pedimento(pedimento_id: int, session: Session = Depends(get_session)):
+def delete_pedimento(pedimento_id: int, _: str = Depends(require_auth), session: Session = Depends(get_session)):
     pedimento = session.get(Pedimento, pedimento_id)
     if not pedimento:
         raise HTTPException(404, "Pedimento no encontrado")
@@ -740,12 +769,12 @@ def delete_pedimento(pedimento_id: int, session: Session = Depends(get_session))
 # ── Productos ─────────────────────────────────────────────────────────────────
 
 @app.get("/productos")
-def list_productos(session: Session = Depends(get_session)):
+def list_productos(_: str = Depends(require_auth), session: Session = Depends(get_session)):
     return session.exec(select(Producto)).all()
 
 
 @app.get("/productos/{fraccion}")
-def get_producto(fraccion: str, session: Session = Depends(get_session)):
+def get_producto(fraccion: str, _: str = Depends(require_auth), session: Session = Depends(get_session)):
     p = session.exec(select(Producto).where(Producto.fraccion == fraccion)).first()
     if not p:
         raise HTTPException(404, "Fracción no encontrada")
@@ -753,7 +782,7 @@ def get_producto(fraccion: str, session: Session = Depends(get_session)):
 
 
 @app.post("/productos", status_code=201)
-def create_producto(body: dict, session: Session = Depends(get_session)):
+def create_producto(body: dict, _: str = Depends(require_auth), session: Session = Depends(get_session)):
     existing = session.exec(select(Producto).where(Producto.fraccion == body["fraccion"])).first()
     if existing:
         raise HTTPException(409, "Ya existe un producto con esa fracción")
@@ -772,7 +801,7 @@ def create_producto(body: dict, session: Session = Depends(get_session)):
 
 
 @app.put("/productos/{fraccion}")
-def update_producto(fraccion: str, body: dict, session: Session = Depends(get_session)):
+def update_producto(fraccion: str, body: dict, _: str = Depends(require_auth), session: Session = Depends(get_session)):
     p = session.exec(select(Producto).where(Producto.fraccion == fraccion)).first()
     if not p:
         raise HTTPException(404, "Fracción no encontrada")
@@ -789,7 +818,7 @@ def update_producto(fraccion: str, body: dict, session: Session = Depends(get_se
 
 
 @app.delete("/productos/{fraccion}", status_code=204)
-def delete_producto(fraccion: str, session: Session = Depends(get_session)):
+def delete_producto(fraccion: str, _: str = Depends(require_auth), session: Session = Depends(get_session)):
     p = session.exec(select(Producto).where(Producto.fraccion == fraccion)).first()
     if not p:
         raise HTTPException(404, "Fracción no encontrada")
@@ -801,6 +830,7 @@ def delete_producto(fraccion: str, session: Session = Depends(get_session)):
 
 @app.get("/clientes")
 async def list_clientes(q: str = "", page: int = 1, limit: int = 20,
+                        _: str = Depends(require_auth),
                         client: httpx.AsyncClient = Depends(get_client)):
     async with client:
         r = await client.get("customers", params={"q": q, "page": page, "limit": limit})
@@ -810,7 +840,7 @@ async def list_clientes(q: str = "", page: int = 1, limit: int = 20,
 
 
 @app.post("/clientes", status_code=201)
-async def create_cliente(body: dict, client: httpx.AsyncClient = Depends(get_client)):
+async def create_cliente(body: dict, _: str = Depends(require_auth), client: httpx.AsyncClient = Depends(get_client)):
     async with client:
         r = await client.post("customers", json=body)
     if r.status_code not in (200, 201):
@@ -819,7 +849,7 @@ async def create_cliente(body: dict, client: httpx.AsyncClient = Depends(get_cli
 
 
 @app.get("/clientes/{cliente_id}")
-async def get_cliente(cliente_id: str, client: httpx.AsyncClient = Depends(get_client)):
+async def get_cliente(cliente_id: str, _: str = Depends(require_auth), client: httpx.AsyncClient = Depends(get_client)):
     async with client:
         r = await client.get(f"customers/{cliente_id}")
     if r.status_code != 200:
@@ -829,6 +859,7 @@ async def get_cliente(cliente_id: str, client: httpx.AsyncClient = Depends(get_c
 
 @app.put("/clientes/{cliente_id}")
 async def update_cliente(cliente_id: str, body: dict,
+                         _: str = Depends(require_auth),
                          client: httpx.AsyncClient = Depends(get_client)):
     async with client:
         r = await client.put(f"customers/{cliente_id}", json=body)
@@ -874,6 +905,7 @@ def _save_factura(inv: dict, pedimento_id: int | None, session: Session) -> Fact
 @app.get("/facturas")
 async def list_facturas(q: str = "", page: int = 1, limit: int = 50,
                         payment_method: str = "",
+                        _: str = Depends(require_auth),
                         client: httpx.AsyncClient = Depends(get_client),
                         session: Session = Depends(get_session)):
     params: dict = {"page": page, "limit": limit, "type": "I"}
@@ -891,6 +923,7 @@ async def list_facturas(q: str = "", page: int = 1, limit: int = 50,
 
 @app.post("/facturas", status_code=201)
 async def create_factura(body: dict,
+                         _: str = Depends(require_auth),
                          client: httpx.AsyncClient = Depends(get_client),
                          session: Session = Depends(get_session)):
     pedimento_id = body.pop("pedimento_id", None)
@@ -909,7 +942,7 @@ async def create_factura(body: dict,
 
 
 @app.post("/facturas/preview")
-async def preview_factura(body: dict, client: httpx.AsyncClient = Depends(get_client)):
+async def preview_factura(body: dict, _: str = Depends(require_auth), client: httpx.AsyncClient = Depends(get_client)):
     async with client:
         r = await client.post("invoices/preview/pdf", json=body)
     if r.status_code != 200:
@@ -923,7 +956,7 @@ async def preview_factura(body: dict, client: httpx.AsyncClient = Depends(get_cl
 
 
 @app.get("/facturas/{factura_id}/pdf")
-async def download_pdf(factura_id: str, client: httpx.AsyncClient = Depends(get_client)):
+async def download_pdf(factura_id: str, _: str = Depends(require_auth), client: httpx.AsyncClient = Depends(get_client)):
     async with client:
         r = await client.get(f"invoices/{factura_id}/pdf")
     if r.status_code != 200:
@@ -933,7 +966,7 @@ async def download_pdf(factura_id: str, client: httpx.AsyncClient = Depends(get_
 
 
 @app.get("/facturas/{factura_id}/xml")
-async def download_xml(factura_id: str, client: httpx.AsyncClient = Depends(get_client)):
+async def download_xml(factura_id: str, _: str = Depends(require_auth), client: httpx.AsyncClient = Depends(get_client)):
     async with client:
         r = await client.get(f"invoices/{factura_id}/xml")
     if r.status_code != 200:
@@ -944,6 +977,7 @@ async def download_xml(factura_id: str, client: httpx.AsyncClient = Depends(get_
 
 @app.post("/facturas/{factura_id}/email")
 async def send_factura_email(factura_id: str, body: dict = {},
+                             _: str = Depends(require_auth),
                              client: httpx.AsyncClient = Depends(get_client)):
     async with client:
         r = await client.post(f"invoices/{factura_id}/email", json=body)
@@ -955,6 +989,7 @@ async def send_factura_email(factura_id: str, body: dict = {},
 @app.delete("/facturas/{factura_id}")
 async def cancel_factura(factura_id: str, motive: str = "02",
                          substitution: str = "",
+                         _: str = Depends(require_auth),
                          client: httpx.AsyncClient = Depends(get_client),
                          session: Session = Depends(get_session)):
     params: dict = {"motive": motive}
@@ -982,7 +1017,7 @@ async def cancel_factura(factura_id: str, motive: str = "02",
 # ── Complementos de Pago ──────────────────────────────────────────────────────
 
 @app.get("/complementos")
-def list_complementos(session: Session = Depends(get_session)):
+def list_complementos(_: str = Depends(require_auth), session: Session = Depends(get_session)):
     rows = session.exec(select(ComplementoPago)).all()
     return [
         {
@@ -1001,6 +1036,7 @@ def list_complementos(session: Session = Depends(get_session)):
 
 @app.post("/complementos", status_code=201)
 async def create_complemento(body: dict,
+                              _: str = Depends(require_auth),
                               client: httpx.AsyncClient = Depends(get_client),
                               session: Session = Depends(get_session)):
     factura_facturapi_id = body["factura_facturapi_id"]
@@ -1086,7 +1122,7 @@ async def create_complemento(body: dict,
 # ── Catalogs (FacturAPI proxy) ─────────────────────────────────────────────────
 
 @app.get("/catalogs/products")
-def catalog_products(q: str = "", session: Session = Depends(get_session)):
+def catalog_products(q: str = "", _: str = Depends(require_auth), session: Session = Depends(get_session)):
     if not q or len(q) < 2:
         return {"data": []}
     q = q.strip()
@@ -1106,7 +1142,7 @@ def catalog_products(q: str = "", session: Session = Depends(get_session)):
 
 
 @app.get("/catalogs/units")
-def catalog_units(q: str = "", session: Session = Depends(get_session)):
+def catalog_units(q: str = "", _: str = Depends(require_auth), session: Session = Depends(get_session)):
     if not q or len(q) < 1:
         return {"data": []}
     q = q.strip()
@@ -1129,7 +1165,7 @@ def catalog_units(q: str = "", session: Session = Depends(get_session)):
 # ── Export ────────────────────────────────────────────────────────────────────
 
 @app.post("/export")
-async def export_xlsx(request: Request):
+async def export_xlsx(request: Request, _: str = Depends(require_auth)):
     data = await request.json()
     partidas = data.get("partidas", [])
     tc = data.get("tipo_cambio", 0)
