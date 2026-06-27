@@ -2819,6 +2819,7 @@ function buildInvoiceBody() {
         product_key: clave,
         price: parseFloat(document.querySelector(`.item-price[data-idx="${i}"]`).value) || 0,
         unit_key: document.querySelector(`.item-unit[data-idx="${i}"]`).value.trim() || 'H87',
+        tax_included: false,
         taxes,
       }
     };
@@ -2842,6 +2843,7 @@ function buildInvoiceBody() {
           product_key: '93161608',
           price,
           unit_key: 'ACT',
+          tax_included: false,
           taxes: [ivaTax],
         }
       });
