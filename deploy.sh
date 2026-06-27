@@ -26,6 +26,6 @@ scp -i ~/.ssh/id_ed25519 \
   windows-mini-pc:"C:/Users/rodri/pedimentos/requirements.txt"
 
 ssh -i ~/.ssh/id_ed25519 windows-mini-pc \
-  "taskkill /F /IM uvicorn.exe & schtasks /run /tn PedimentosApp"
+  "C:\\Users\\rodri\\venvs\\pedimentos\\Scripts\\pip install -q -r C:\\Users\\rodri\\pedimentos\\requirements.txt && taskkill /F /IM uvicorn.exe & schtasks /run /tn PedimentosApp"
 
 echo "Done. App restarting at https://pedimentos.neurocrow.com"

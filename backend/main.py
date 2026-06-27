@@ -550,7 +550,7 @@ async def automap_claves(pedimento_id: int, _: str = Depends(require_auth), sess
         parse_attempts = 0
         for _ in range(35):
             response = gemini.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-3.1-flash-lite",
                 contents=messages,
                 config=cfg,
             )
