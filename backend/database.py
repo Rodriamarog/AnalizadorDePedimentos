@@ -23,10 +23,20 @@ def _setup_fts(conn) -> None:
     conn.commit()
 
 
+def _migrate(conn) -> None:
+    """Add new columns to existing tables without losing data."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(pedimento)").fetchall()}
+    for col, ddl in [("dta", "INTEGER"), ("igi", "INTEGER"), ("prv", "INTEGER")]:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE pedimento ADD COLUMN {col} {ddl}")
+    conn.commit()
+
+
 def create_db():
     SQLModel.metadata.create_all(engine)
     raw = engine.raw_connection()
     try:
+        _migrate(raw)
         _setup_fts(raw)
     finally:
         raw.close()

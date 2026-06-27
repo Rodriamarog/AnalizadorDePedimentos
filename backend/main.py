@@ -1,6 +1,9 @@
+import hashlib
+import hmac
 import io
 import os
 import re
+import secrets
 import tempfile
 import unicodedata
 from pathlib import Path
@@ -9,6 +12,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -18,14 +22,72 @@ from sqlalchemy import text as sa_text
 
 from datetime import date, datetime
 
-from .database import create_db, get_session
+from .database import create_db, get_session, engine
 from .facturapi import get_client
-from .models import ComplementoPago, Factura, Partida, Pedimento, Producto
+from .models import ComplementoPago, Factura, Partida, Pedimento, Producto, User
 from .parser import parse_pedimento
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 app = FastAPI(title="Analizador de Pedimentos")
+
+# ── Auth helpers ──────────────────────────────────────────────────────────────
+
+_active_tokens: dict[str, str] = {}  # token -> email
+_bearer = HTTPBearer(auto_error=False)
+
+_INITIAL_USERS = [
+    ("camaror@gmail.com", "Recovery23++"),
+]
+
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 260_000)
+    return f"{salt}${dk.hex()}"
+
+
+def _verify_password(password: str, hashed: str) -> bool:
+    try:
+        salt, dk_hex = hashed.split("$", 1)
+    except ValueError:
+        return False
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 260_000)
+    return hmac.compare_digest(dk.hex(), dk_hex)
+
+
+def _seed_users(session: Session) -> None:
+    for email, password in _INITIAL_USERS:
+        existing = session.exec(select(User).where(User.email == email)).first()
+        if not existing:
+            session.add(User(email=email, hashed_password=_hash_password(password)))
+    session.commit()
+
+
+_PUBLIC_PATHS = {"/auth/login", "/"}
+
+def require_auth(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> str:
+    token = credentials.credentials if credentials else None
+    if not token or token not in _active_tokens:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    return _active_tokens[token]
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    # Allow public paths and static assets
+    if path in _PUBLIC_PATHS or path.startswith("/static") or path.startswith("/auth/"):
+        return await call_next(request)
+    # Check bearer token
+    auth_header = request.headers.get("Authorization", "")
+    token = auth_header.removeprefix("Bearer ").strip() if auth_header.startswith("Bearer ") else None
+    if not token or token not in _active_tokens:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=401, content={"detail": "No autenticado"})
+    return await call_next(request)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -204,6 +266,35 @@ def _chapter_hint(fraccion: str) -> str:
 @app.on_event("startup")
 def on_startup():
     create_db()
+    with Session(engine) as session:
+        _seed_users(session)
+
+
+# ── Auth endpoints ────────────────────────────────────────────────────────────
+
+@app.post("/auth/login")
+def login(body: dict, session: Session = Depends(get_session)):
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password") or ""
+    user = session.exec(select(User).where(User.email == email)).first()
+    if not user or not _verify_password(password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    token = secrets.token_hex(32)
+    _active_tokens[token] = email
+    return {"token": token, "email": email}
+
+
+@app.post("/auth/logout")
+def logout(credentials: HTTPAuthorizationCredentials | None = Depends(_bearer)):
+    token = credentials.credentials if credentials else None
+    if token and token in _active_tokens:
+        del _active_tokens[token]
+    return {"ok": True}
+
+
+@app.get("/auth/me")
+def me(email: str = Depends(require_auth)):
+    return {"email": email}
 
 
 # ── Pedimentos ────────────────────────────────────────────────────────────────
@@ -234,6 +325,9 @@ async def parse(
     if existing:
         result["id"] = existing.id
         result["_duplicate"] = True
+        result["dta"] = existing.dta if existing.dta is not None else result.get("dta")
+        result["igi"] = existing.igi if existing.igi is not None else result.get("igi")
+        result["prv"] = existing.prv if existing.prv is not None else result.get("prv")
         result["partidas"] = [
             {
                 "id": p.id, "sec": p.sec, "fraccion": p.fraccion,
@@ -252,6 +346,9 @@ async def parse(
         importador=result["importador"],
         tipo_cambio=result["tipo_cambio"],
         pdf_filename=file.filename,
+        dta=result.get("dta"),
+        igi=result.get("igi"),
+        prv=result.get("prv"),
     )
     session.add(pedimento)
     session.flush()  # get pedimento.id before adding partidas
@@ -307,6 +404,9 @@ def get_pedimento(pedimento_id: int, session: Session = Depends(get_session)):
         "tipo_cambio": pedimento.tipo_cambio,
         "pdf_filename": pedimento.pdf_filename,
         "fecha_upload": pedimento.fecha_upload,
+        "dta": pedimento.dta,
+        "igi": pedimento.igi,
+        "prv": pedimento.prv,
         "partidas": [
             {
                 "id": p.id,
@@ -813,7 +913,12 @@ async def preview_factura(body: dict, client: httpx.AsyncClient = Depends(get_cl
     async with client:
         r = await client.post("invoices/preview/pdf", json=body)
     if r.status_code != 200:
-        raise HTTPException(r.status_code, "Error generando vista previa")
+        detail = r.text
+        try:
+            detail = r.json().get("message", detail)
+        except Exception:
+            pass
+        raise HTTPException(r.status_code, detail)
     return Response(content=r.content, media_type="application/pdf")
 
 

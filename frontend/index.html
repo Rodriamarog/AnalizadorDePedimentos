@@ -58,6 +58,121 @@
   }
   .topbar h1 span { color: var(--gold); margin-right: .5rem; }
 
+  .topbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+  }
+  .topbar-email {
+    font-size: .75rem;
+    color: rgba(255,255,255,.5);
+  }
+  .btn-logout {
+    font-size: .75rem;
+    color: rgba(255,255,255,.7);
+    background: none;
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 6px;
+    padding: .35rem .75rem;
+    cursor: pointer;
+    transition: color .15s, border-color .15s;
+  }
+  .btn-logout:hover { color: #fff; border-color: rgba(255,255,255,.5); }
+
+  /* ── Login page ── */
+  #login-page {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    z-index: 9999;
+  }
+  #login-page .login-topbar {
+    background: var(--navy);
+    padding: 0 1.25rem;
+    display: flex;
+    align-items: center;
+    height: 56px;
+    border-bottom: 3px solid var(--gold);
+    flex-shrink: 0;
+  }
+  #login-page .login-topbar h1 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: 1.05rem;
+    color: #fff;
+    letter-spacing: .02em;
+  }
+  #login-page .login-topbar h1 span { color: var(--gold); margin-right: .5rem; }
+  .login-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .login-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,.08);
+    padding: 2rem;
+    width: 100%;
+    max-width: 360px;
+  }
+  .login-card h2 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: .25rem;
+  }
+  .login-card p {
+    font-size: .82rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+  }
+  .login-field { display: flex; flex-direction: column; gap: .35rem; margin-bottom: 1rem; }
+  .login-field label { font-size: .82rem; font-weight: 500; color: #374151; }
+  .login-field input {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .5rem .75rem;
+    font-size: .85rem;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .login-field input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(200,150,62,.15);
+  }
+  .login-error {
+    font-size: .82rem;
+    color: #dc2626;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    padding: .5rem .75rem;
+    margin-bottom: .75rem;
+    display: none;
+  }
+  .login-error.visible { display: block; }
+  .btn-login {
+    width: 100%;
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: .65rem;
+    font-size: .88rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: .25rem;
+    transition: background .15s;
+  }
+  .btn-login:hover { background: var(--navy-light); }
+  .btn-login:disabled { opacity: .6; cursor: default; }
+
   /* ── App body: sidebar + content ── */
   .app-body {
     display: grid;
@@ -254,10 +369,43 @@
   .controls {
     display: none;
     align-items: center;
+    justify-content: space-between;
     gap: .4rem;
     margin-bottom: .75rem;
     flex-wrap: wrap;
   }
+  .btn-automap {
+    padding: .5rem 1rem;
+    font-size: .8rem;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    border: none;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #f5c518 0%, #e0a800 100%);
+    color: #1a1a1a;
+    font-weight: 600;
+    font-family: Inter, sans-serif;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,.15);
+    transition: filter .15s;
+  }
+  .btn-automap:hover { filter: brightness(1.07); }
+  .btn-print {
+    padding: .5rem .85rem;
+    font-size: .8rem;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-family: Inter, sans-serif;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-print:hover { background: #e8e9ec; }
   .filter-group {
     display: flex;
     background: var(--surface);
@@ -806,8 +954,35 @@
 </head>
 <body>
 
+<!-- Login page (shown when not authenticated) -->
+<div id="login-page">
+  <div class="login-topbar">
+    <h1><span>&#9670;</span>Analizador de Pedimentos</h1>
+  </div>
+  <div class="login-body">
+    <div class="login-card">
+      <h2>Iniciar sesión</h2>
+      <p>Ingresa tus credenciales para continuar</p>
+      <div class="login-field">
+        <label for="login-email">Correo electrónico</label>
+        <input type="email" id="login-email" autocomplete="email" placeholder="usuario@ejemplo.com">
+      </div>
+      <div class="login-field">
+        <label for="login-password">Contraseña</label>
+        <input type="password" id="login-password" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <div class="login-error" id="login-error"></div>
+      <button class="btn-login" id="btn-login">Entrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="topbar">
   <h1><span>&#9670;</span>Analizador de Pedimentos</h1>
+  <div class="topbar-right">
+    <span class="topbar-email" id="topbar-email"></span>
+    <button class="btn-logout" id="btn-logout">Cerrar sesión</button>
+  </div>
 </div>
 
 <div class="app-body">
@@ -819,12 +994,6 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
       </svg>
       Pedimentos
-    </div>
-    <div class="nav-item" data-section="productos">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/>
-      </svg>
-      Productos
     </div>
     <div class="nav-item" data-section="clientes">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -843,6 +1012,12 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"/>
       </svg>
       Complementos
+    </div>
+    <div class="nav-item" data-section="productos">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10"/>
+      </svg>
+      Productos
     </div>
   </nav>
 
@@ -895,22 +1070,28 @@
           <button data-filter="inc">Con incrementables</button>
           <button data-filter="no">Sin incrementables</button>
         </div>
-        <div style="display:flex;gap:.5rem">
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <button class="btn-primary" id="btn-facturar" style="padding:.5rem 1rem;font-size:.8rem;display:flex;align-items:center;gap:.4rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+            </svg>
+            Facturar
+          </button>
+          <button class="btn-automap" id="btn-automap">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            Autocompletar SAT
+          </button>
           <button class="btn-export" id="csv-btn">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12m0 0l-4-4m4 4l4-4"/>
             </svg>
             Exportar Excel
           </button>
-          <button class="btn-ghost" id="btn-automap" style="padding:.5rem 1rem;font-size:.8rem;display:flex;align-items:center;gap:.4rem">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-            Autocompletar SAT
-          </button>
-          <button class="btn-primary" id="btn-facturar" style="padding:.5rem 1rem;font-size:.8rem;display:flex;align-items:center;gap:.4rem">
+          <button class="btn-print" id="btn-print">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6v-8z"/>
             </svg>
-            Facturar
+            Imprimir
           </button>
         </div>
       </div>
@@ -972,6 +1153,7 @@
             <option value="PUE">PUE</option>
             <option value="PPD">PPD</option>
           </select>
+          <button class="btn-primary" id="btn-nueva-factura" style="padding:.42rem .85rem">+ Nueva factura</button>
           <button class="btn-primary" id="btn-reload-facturas" style="padding:.42rem .85rem">Actualizar</button>
         </div>
       </div>
@@ -1013,12 +1195,53 @@
       <button class="btn-close" id="facturar-close">&times;</button>
     </div>
 
+    <!-- Pedimento link (manual mode only) -->
+    <div id="pedimento-link-row" style="display:none;margin-bottom:1.25rem">
+      <div class="panel-section-title">Vincular a pedimento <span style="font-weight:400;color:var(--text-secondary)">(opcional)</span></div>
+      <select id="pedimento-link-select"
+        style="width:100%;padding:.5rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:Inter,sans-serif;background:var(--surface);color:var(--text);outline:none;cursor:pointer">
+        <option value="">— Sin vincular —</option>
+      </select>
+    </div>
+
     <!-- Customer selector -->
     <div style="margin-bottom:1.25rem">
       <div class="panel-section-title">Cliente</div>
       <select id="customer-select"
         style="width:100%;padding:.5rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:Inter,sans-serif;background:var(--surface);color:var(--text);outline:none;cursor:pointer">
         <option value="">— Selecciona un cliente —</option>
+      </select>
+    </div>
+
+    <!-- Uso del CFDI -->
+    <div style="margin-bottom:1.25rem">
+      <div class="panel-section-title">Uso del CFDI</div>
+      <select id="uso-cfdi-select"
+        style="width:100%;padding:.5rem .75rem;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-family:Inter,sans-serif;background:var(--surface);color:var(--text);outline:none;cursor:pointer">
+        <option value="G01">G01 – Adquisición de mercancias</option>
+        <option value="G02">G02 – Devoluciones, descuentos o bonificaciones</option>
+        <option value="G03" selected>G03 – Gastos en general</option>
+        <option value="I01">I01 – Construcciones</option>
+        <option value="I02">I02 – Mobilario y equipo de oficina por inversiones</option>
+        <option value="I03">I03 – Equipo de transporte</option>
+        <option value="I04">I04 – Equipo de computo y accesorios</option>
+        <option value="I05">I05 – Dados, troqueles, moldes, matrices y herramental</option>
+        <option value="I06">I06 – Comunicaciones telefónicas</option>
+        <option value="I07">I07 – Comunicaciones satelitales</option>
+        <option value="I08">I08 – Otra maquinaria y equipo</option>
+        <option value="D01">D01 – Honorarios médicos, dentales y gastos hospitalarios</option>
+        <option value="D02">D02 – Gastos médicos por incapacidad o discapacidad</option>
+        <option value="D03">D03 – Gastos funerales</option>
+        <option value="D04">D04 – Donativos</option>
+        <option value="D05">D05 – Intereses reales por créditos hipotecarios</option>
+        <option value="D06">D06 – Aportaciones voluntarias al SAR</option>
+        <option value="D07">D07 – Primas por seguros de gastos médicos</option>
+        <option value="D08">D08 – Gastos de transportación escolar</option>
+        <option value="D09">D09 – Depósitos en cuentas para el ahorro</option>
+        <option value="D10">D10 – Pagos por servicios educativos (colegiaturas)</option>
+        <option value="S01">S01 – Sin efectos fiscales</option>
+        <option value="CP01">CP01 – Pagos</option>
+        <option value="CN01">CN01 – Nómina</option>
       </select>
     </div>
 
@@ -1034,14 +1257,20 @@
             <th style="width:100px">Precio (MXN)</th>
             <th style="width:110px">ClaveProdServ</th>
             <th style="width:70px">Unidad</th>
+            <th style="width:24px"></th>
           </tr></thead>
           <tbody id="factura-items-body"></tbody>
+          <tfoot><tr>
+            <td colspan="7" style="padding:.3rem 0 0">
+              <button onclick="addManualConcepto()" style="width:100%;padding:.35rem;font-size:.75rem;border:1px dashed var(--border);border-top:none;border-radius:0 0 6px 6px;background:transparent;color:var(--text-secondary);cursor:pointer;font-family:Inter,sans-serif;letter-spacing:.02em">+ Agregar concepto</button>
+            </td>
+          </tr></tfoot>
         </table>
       </div>
     </div>
 
     <!-- Payment options -->
-    <div class="panel-grid">
+    <div class="panel-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
       <div>
         <div class="panel-section-title">Método de pago</div>
         <div style="display:flex;gap:.5rem">
@@ -1062,6 +1291,25 @@
           <option value="02">02 – Cheque nominativo</option>
           <option value="99">99 – Por definir</option>
         </select>
+      </div>
+      <div>
+        <div class="panel-section-title">Tasa IVA</div>
+        <div style="display:flex;gap:.5rem">
+          <button id="iva-16" onclick="setIvaRate(16)" style="padding:.45rem 1rem;border-radius:6px;border:2px solid var(--navy);background:var(--navy);color:#fff;font-size:.8rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">16%</button>
+          <button id="iva-8" onclick="setIvaRate(8)" style="padding:.45rem 1rem;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text-secondary);font-size:.8rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">8%</button>
+        </div>
+      </div>
+      <div>
+        <div class="panel-section-title">Moneda</div>
+        <div style="display:flex;gap:.5rem">
+          <button id="cur-mxn" onclick="setCurrency('MXN')" style="padding:.45rem 1rem;border-radius:6px;border:2px solid var(--navy);background:var(--navy);color:#fff;font-size:.8rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">MXN</button>
+          <button id="cur-usd" onclick="setCurrency('USD')" style="padding:.45rem 1rem;border-radius:6px;border:2px solid var(--border);background:transparent;color:var(--text-secondary);font-size:.8rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif">USD</button>
+        </div>
+        <div id="exchange-rate-wrap" style="display:none;margin-top:.4rem">
+          <span style="font-size:.71rem;color:var(--text-secondary)">T.C. </span>
+          <input type="number" id="exchange-rate-input" min="0.01" step="0.0001"
+            style="width:70px;padding:.2rem .35rem;border:1px solid var(--border);border-radius:4px;font-size:.75rem;font-family:Inter,sans-serif;outline:none">
+        </div>
       </div>
     </div>
 
@@ -1206,6 +1454,117 @@
 </div>
 
 <script>
+// ── Auth ──────────────────────────────────────────────────────────────────────
+(function () {
+  const loginPage = document.getElementById('login-page');
+  const loginEmail = document.getElementById('login-email');
+  const loginPassword = document.getElementById('login-password');
+  const loginError = document.getElementById('login-error');
+  const btnLogin = document.getElementById('btn-login');
+  const btnLogout = document.getElementById('btn-logout');
+  const topbarEmail = document.getElementById('topbar-email');
+
+  function showLogin() {
+    loginPage.style.display = 'flex';
+    loginEmail.value = '';
+    loginPassword.value = '';
+    loginError.textContent = '';
+    loginError.classList.remove('visible');
+  }
+
+  function hideLogin() {
+    loginPage.style.display = 'none';
+  }
+
+  function setUser(token, email) {
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('auth_email', email);
+    topbarEmail.textContent = email;
+    hideLogin();
+  }
+
+  function clearUser() {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      fetch('/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    }
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_email');
+    showLogin();
+  }
+
+  // Monkey-patch fetch to inject auth header and handle 401
+  const _origFetch = window.fetch.bind(window);
+  window.fetch = function (url, opts = {}) {
+    if (typeof url === 'string' && url.startsWith('/auth/')) {
+      return _origFetch(url, opts);
+    }
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      opts = { ...opts, headers: { Authorization: `Bearer ${token}`, ...opts.headers } };
+    }
+    return _origFetch(url, opts).then(res => {
+      if (res.status === 401) { clearUser(); }
+      return res;
+    });
+  };
+
+  async function doLogin() {
+    const email = loginEmail.value.trim();
+    const password = loginPassword.value;
+    if (!email || !password) return;
+    btnLogin.disabled = true;
+    btnLogin.textContent = 'Verificando…';
+    loginError.classList.remove('visible');
+    try {
+      const res = await _origFetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        loginError.textContent = d.detail || 'Credenciales incorrectas';
+        loginError.classList.add('visible');
+        return;
+      }
+      const d = await res.json();
+      setUser(d.token, d.email);
+    } catch {
+      loginError.textContent = 'Error de conexión. Intenta de nuevo.';
+      loginError.classList.add('visible');
+    } finally {
+      btnLogin.disabled = false;
+      btnLogin.textContent = 'Entrar';
+    }
+  }
+
+  btnLogin.addEventListener('click', doLogin);
+  loginPassword.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  loginEmail.addEventListener('keydown', e => { if (e.key === 'Enter') loginPassword.focus(); });
+  btnLogout.addEventListener('click', clearUser);
+
+  // On load: check existing token
+  const savedToken = localStorage.getItem('auth_token');
+  const savedEmail = localStorage.getItem('auth_email');
+  if (savedToken) {
+    _origFetch('/auth/me', { headers: { Authorization: `Bearer ${savedToken}` } })
+      .then(r => {
+        if (r.ok) {
+          topbarEmail.textContent = savedEmail || '';
+          hideLogin();
+        } else {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_email');
+          showLogin();
+        }
+      })
+      .catch(() => showLogin());
+  } else {
+    showLogin();
+  }
+})();
+
 // ── Router ────────────────────────────────────────────────────────────────────
 function navigate(section) {
   document.querySelectorAll('.sec').forEach(s => s.classList.remove('active'));
@@ -1294,6 +1653,19 @@ async function refreshProductosMap() {
     productosMap[p.fraccion] = p;
     if (p.confidence && p.confidence !== 'high') confidenceMap[p.fraccion] = p.confidence;
   });
+  // Fetch descriptions for all unique unit keys in one pass
+  const unitKeys = [...new Set(rows.map(p => p.unit_key).filter(Boolean))];
+  const unitDescMap = {};
+  await Promise.all(unitKeys.map(async key => {
+    try {
+      const r = await fetch(`/catalogs/units?q=${encodeURIComponent(key)}`);
+      if (!r.ok) return;
+      const d = await r.json();
+      const match = (d.data || []).find(x => x.key === key);
+      if (match) unitDescMap[key] = match.description || match.label || '';
+    } catch(_) {}
+  }));
+  rows.forEach(p => { if (p.unit_key) productosMap[p.fraccion].unit_desc = unitDescMap[p.unit_key] || ''; });
 }
 
 async function saveClaveMapping(fraccion, descripcionPartida, claveProdServ, descSat, unitKey, confidence) {
@@ -1369,18 +1741,21 @@ function showUnitResults(input, results) {
   unitDropdown.querySelectorAll('.clave-option').forEach(opt => {
     opt.addEventListener('mousedown', e => {
       e.preventDefault();
-      selectUnit(input, opt.dataset.key);
+      selectUnit(input, opt.dataset.key, opt.dataset.desc);
     });
   });
 }
 
-function selectUnit(input, key) {
+function selectUnit(input, key, desc) {
   const fraccion = input.dataset.fraccion;
   // Update all rows sharing this fraccion
   document.querySelectorAll(`.unit-input[data-fraccion="${fraccion}"]`).forEach(el => {
     el.value = key;
     el.classList.toggle('mapped', !!key);
+    const descEl = el.parentElement?.querySelector('.clave-desc');
+    if (descEl) descEl.textContent = desc || '';
   });
+  if (fraccion && productosMap[fraccion]) productosMap[fraccion].unit_desc = desc || '';
   hideUnitDropdown();
   // Persist — update unit_key without changing other fields
   const prod = productosMap[fraccion];
@@ -1412,7 +1787,13 @@ function onUnitBlur(e) {
     const val = input.value.trim().toUpperCase();
     input.value = val;
     if (val && val !== (productosMap[input.dataset.fraccion]?.unit_key || '')) {
-      selectUnit(input, val);
+      fetch(`/catalogs/units?q=${encodeURIComponent(val)}`)
+        .then(r => r.json())
+        .then(d => {
+          const match = (d.data || []).find(x => x.key === val);
+          selectUnit(input, val, match?.description || match?.label || '');
+        })
+        .catch(() => selectUnit(input, val, ''));
     }
     hideUnitDropdown();
   }, 180);
@@ -1695,6 +2076,7 @@ function render(filter = 'all') {
       const clave      = prod?.clave_prod_serv || '';
       const unitKey    = prod?.unit_key || '';
       const descSat    = prod?.descripcion_sat || '';
+      const unitDesc   = prod?.unit_desc || '';
       const conf       = clave ? (confidenceMap[p.fraccion] || 'high') : '';
       const confClass  = conf === 'medium' ? ' conf-medium' : conf === 'low' ? ' conf-low' : '';
       const badge      = conf === 'medium'
@@ -1728,6 +2110,7 @@ function render(filter = 'all') {
                  placeholder="H87"
                  autocomplete="off"
                  maxlength="6">
+          <div class="clave-desc">${unitDesc}</div>
         </td>
       </tr>`;
     }).join('')}</tbody></table>`;
@@ -2179,12 +2562,76 @@ document.getElementById('cancel-modal-confirm').addEventListener('click', async 
 // ── Facturar panel ────────────────────────────────────────────────────────────
 let selectedCustomer = null;
 let currentPaymentMethod = 'PUE';
+let currentIvaRate = 16;
+let currentCurrency = 'MXN';
 
-async function openFacturarPanel() {
+function setCurrency(cur) {
+  currentCurrency = cur;
+  const btnMxn = document.getElementById('cur-mxn');
+  const btnUsd = document.getElementById('cur-usd');
+  const wrap   = document.getElementById('exchange-rate-wrap');
+  const active   = 'border:2px solid var(--navy);background:var(--navy);color:#fff';
+  const inactive = 'border:2px solid var(--border);background:transparent;color:var(--text-secondary)';
+  btnMxn.style.cssText = `padding:.45rem 1rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;${cur === 'MXN' ? active : inactive}`;
+  btnUsd.style.cssText  = `padding:.45rem 1rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;${cur === 'USD' ? active : inactive}`;
+  wrap.style.display = cur === 'USD' ? 'block' : 'none';
+
+  // Reprice all inputs that have a data-mxn baseline
+  const tc = pedData.tipo_cambio || 1;
+  document.querySelectorAll('[data-mxn]').forEach(input => {
+    const mxn = parseFloat(input.dataset.mxn);
+    input.value = cur === 'USD' ? (mxn / tc).toFixed(4) : mxn.toFixed(2);
+  });
+
+  // Update column header
+  const priceHeader = document.querySelector('#factura-items-table thead th:nth-child(4)');
+  if (priceHeader) priceHeader.textContent = `Precio (${cur})`;
+}
+
+function setIvaRate(rate) {
+  currentIvaRate = rate;
+  const btn16 = document.getElementById('iva-16');
+  const btn8  = document.getElementById('iva-8');
+  const active = 'border:2px solid var(--navy);background:var(--navy);color:#fff';
+  const inactive = 'border:2px solid var(--border);background:transparent;color:var(--text-secondary)';
+  btn16.style.cssText = `padding:.45rem 1rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;${rate === 16 ? active : inactive}`;
+  btn8.style.cssText  = `padding:.45rem 1rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;${rate === 8  ? active : inactive}`;
+}
+
+let _facturarManualMode = false;
+
+async function openFacturarPanel(manual = false) {
+  _facturarManualMode = manual;
   selectedCustomer = null;
   currentPaymentMethod = 'PUE';
+  currentIvaRate = 16;
+  currentCurrency = 'MXN';
+  _manualCount = 0;
   setPaymentMethod('PUE');
+  setIvaRate(manual ? 8 : 16);
+  setCurrency('MXN');
+  document.getElementById('exchange-rate-input').value = manual ? '' : (pedData.tipo_cambio || '');
   document.getElementById('payment-form-select').value = '03';
+
+  // Show/hide pedimento link row
+  const linkRow = document.getElementById('pedimento-link-row');
+  const pedSel  = document.getElementById('pedimento-link-select');
+  linkRow.style.display = manual ? 'block' : 'none';
+  if (manual) {
+    pedSel.innerHTML = '<option value="">— Sin vincular —</option>';
+    try {
+      const r = await fetch('/pedimentos');
+      const list = await r.json();
+      list.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.pedimento_num}`;
+        opt.dataset.tipoCambio  = p.tipo_cambio || '';
+        opt.dataset.pedimentoNum = p.pedimento_num || '';
+        pedSel.appendChild(opt);
+      });
+    } catch(e) {}
+  }
 
   // Populate client dropdown
   const sel = document.getElementById('customer-select');
@@ -2208,6 +2655,45 @@ async function openFacturarPanel() {
 
 async function buildItemsTable() {
   const tbody = document.getElementById('factura-items-body');
+
+  // In manual mode: pre-fill Gastos Agencia Aduanal + Honorarios Comercializadora
+  if (_facturarManualMode) {
+    const mkRow = (idx, desc, clave, tipo) => `
+      <tr id="item-row-${idx}" data-honorarios-tipo="${tipo}">
+        <td><input type="checkbox" class="item-check" data-idx="${idx}" checked></td>
+        <td><input type="text" class="item-desc" data-idx="${idx}" value="${desc}" style="min-width:180px"></td>
+        <td><input type="number" class="item-qty" data-idx="${idx}" value="1" min="0.001" step="any" style="text-align:right"></td>
+        <td><input type="number" class="item-price" data-idx="${idx}" placeholder="0.00" min="0" step="any" style="text-align:right"></td>
+        <td><input type="text" class="item-clave" data-idx="${idx}" value="${clave}"></td>
+        <td><input type="text" class="item-unit" data-idx="${idx}" value="E48" style="text-align:center;max-width:55px"></td>
+        <td></td>
+      </tr>`;
+    const retRow = `
+      <tr data-ret-row style="background:var(--bg)">
+        <td></td>
+        <td colspan="6" style="padding-top:0;padding-bottom:.4rem">
+          <span style="font-size:.72rem;color:var(--text-secondary);margin-right:.75rem">Retenciones:</span>
+          <label style="font-size:.72rem;color:var(--text-secondary)">ISR
+            <input type="number" id="ret-isr" value="10" min="0" max="100" step="0.01"
+              style="width:52px;margin:0 .15rem 0 .25rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:4px;font-size:.75rem;font-family:Inter,sans-serif;outline:none">%
+          </label>
+          <label style="font-size:.72rem;color:var(--text-secondary);margin-left:.75rem">IVA ret.
+            <input type="number" id="ret-iva" value="5.33" min="0" max="100" step="0.01"
+              style="width:52px;margin:0 .15rem 0 .25rem;padding:.15rem .3rem;border:1px solid var(--border);border-radius:4px;font-size:.75rem;font-family:Inter,sans-serif;outline:none">%
+          </label>
+        </td>
+      </tr>`;
+    tbody.innerHTML =
+      mkRow('h-aduanal',          'GASTOS AGENCIA ADUANAL',      '80151605', 'aduanal') +
+      mkRow('h-comercializadora', 'HONORARIOS COMERCIALIZADORA',  '80151604', 'comercializadora') +
+      retRow;
+    _manualCount = 0;
+    document.getElementById('check-all-items').addEventListener('change', function() {
+      document.querySelectorAll('.item-check').forEach(cb => cb.checked = this.checked);
+    });
+    return;
+  }
+
   // Load producto mappings for fast lookup
   let productoMap = {};
   try {
@@ -2216,7 +2702,8 @@ async function buildItemsTable() {
     rows.forEach(p => { productoMap[p.fraccion] = p; });
   } catch(e) {}
 
-  tbody.innerHTML = partidas.map((p, i) => {
+  const impTotal = (pedData.dta || 0) + (pedData.igi || 0) + (pedData.prv || 0);
+  const partidaRows = partidas.map((p, i) => {
     const prod = productoMap[p.fraccion];
     const clave = prod ? prod.clave_prod_serv : '';
     const unit  = prod ? prod.unit_key : 'H87';
@@ -2225,15 +2712,49 @@ async function buildItemsTable() {
       <td><input type="checkbox" class="item-check" data-idx="${i}" checked></td>
       <td><input type="text" class="item-desc" data-idx="${i}" value="${escHtml(p.descripcion)}" style="min-width:180px"></td>
       <td><input type="number" class="item-qty" data-idx="${i}" value="${p.cantidad}" min="0.001" step="any" style="text-align:right"></td>
-      <td><input type="number" class="item-price" data-idx="${i}" value="${p.precio_unitario.toFixed(2)}" min="0" step="any" style="text-align:right"></td>
+      <td><input type="number" class="item-price" data-idx="${i}" data-mxn="${p.precio_unitario}" value="${p.precio_unitario.toFixed(2)}" min="0" step="any" style="text-align:right"></td>
       <td><input type="text" class="item-clave" data-idx="${i}" value="${clave}" placeholder="ej.25174500">${warn}</td>
       <td><input type="text" class="item-unit" data-idx="${i}" value="${unit}" style="text-align:center;max-width:55px"></td>
+      <td></td>
     </tr>`;
-  }).join('');
+  });
+
+  const impRow = impTotal > 0 ? `<tr id="item-row-aduaneros" style="background:var(--bg)">
+    <td><input type="checkbox" class="item-check-aduaneros" checked></td>
+    <td><input type="text" id="aduaneros-desc" value="Impuestos Aduaneros (DTA + IGI + PRV)" style="min-width:180px;color:var(--text-secondary)"></td>
+    <td><input type="number" value="1" readonly style="text-align:right;background:transparent;color:var(--text-secondary)"></td>
+    <td><input type="number" id="aduaneros-price" data-mxn="${impTotal}" value="${impTotal}" min="0" step="any" style="text-align:right"></td>
+    <td><input type="text" value="93161608" readonly style="background:transparent;color:var(--text-secondary)"></td>
+    <td><input type="text" value="ACT" readonly style="text-align:center;max-width:55px;background:transparent;color:var(--text-secondary)"></td>
+    <td></td>
+  </tr>` : '';
+
+  tbody.innerHTML = partidaRows.join('') + impRow;
 
   document.getElementById('check-all-items').addEventListener('change', function() {
     document.querySelectorAll('.item-check').forEach(cb => cb.checked = this.checked);
   });
+}
+
+let _manualCount = 0;
+function addManualConcepto() {
+  const tbody = document.getElementById('factura-items-body');
+  const idx = 'manual-' + (_manualCount++);
+  const row = document.createElement('tr');
+  row.id = `item-row-${idx}`;
+  row.style.background = 'var(--bg)';
+  row.innerHTML = `
+    <td><input type="checkbox" class="item-check" data-idx="${idx}" checked></td>
+    <td><input type="text" class="item-desc" data-idx="${idx}" placeholder="Descripción" style="min-width:180px"></td>
+    <td><input type="number" class="item-qty" data-idx="${idx}" value="1" min="0.001" step="any" style="text-align:right"></td>
+    <td><input type="number" class="item-price" data-idx="${idx}" value="0" min="0" step="any" style="text-align:right"></td>
+    <td><input type="text" class="item-clave" data-idx="${idx}" placeholder="ej. 78101803"></td>
+    <td><input type="text" class="item-unit" data-idx="${idx}" value="H87" style="text-align:center;max-width:55px"></td>
+    <td><button onclick="this.closest('tr').remove()" title="Eliminar" style="background:none;border:none;cursor:pointer;color:var(--text-secondary);font-size:1rem;line-height:1;padding:.1rem .2rem">&times;</button></td>`;
+  // Insert before the Impuestos Aduaneros row if it exists, otherwise at end
+  const aduanerosRow = document.getElementById('item-row-aduaneros');
+  tbody.insertBefore(row, aduanerosRow || null);
+  row.querySelector('.item-desc').focus();
 }
 
 
@@ -2262,31 +2783,90 @@ function buildInvoiceBody() {
   if (!sel.value) { Swal.fire({ icon: 'warning', title: 'Cliente requerido', text: 'Selecciona un cliente.', confirmButtonColor: '#c9a84c' }); return null; }
   selectedCustomer = { id: sel.value, name: selOpt.dataset.name, rfc: selOpt.dataset.rfc };
 
+  const ivaTax = { type: 'IVA', rate: currentIvaRate / 100, factor: 'Tasa', withholding: false };
+
+  // Pedimento number for customs_keys (manual mode with linked pedimento)
+  const pedSel = document.getElementById('pedimento-link-select');
+  const linkedPedNum = pedSel?.options[pedSel.selectedIndex]?.dataset.pedimentoNum || null;
+
   const items = [];
   document.querySelectorAll('.item-check:checked').forEach(cb => {
     const i = cb.dataset.idx;
     const clave = document.querySelector(`.item-clave[data-idx="${i}"]`).value.trim();
     if (!clave) { return; }
-    items.push({
+
+    const row  = cb.closest('tr');
+    const tipo = row?.dataset.honorariosTipo;
+
+    let taxes;
+    if (tipo === 'comercializadora') {
+      const ivaRate = currentIvaRate / 100;
+      const isrRet  = (parseFloat(document.getElementById('ret-isr')?.value) || 0) / 100;
+      const ivaRet  = (parseFloat(document.getElementById('ret-iva')?.value) || 0) / 100;
+      taxes = [
+        { type: 'IVA', rate: ivaRate, factor: 'Tasa', withholding: false },
+        ...(isrRet > 0 ? [{ type: 'ISR', rate: isrRet, factor: 'Tasa', withholding: true }] : []),
+        ...(ivaRet > 0 ? [{ type: 'IVA', rate: ivaRet, factor: 'Tasa', withholding: true }] : []),
+      ];
+    } else {
+      taxes = [ivaTax];
+    }
+
+    const item = {
       quantity: parseFloat(document.querySelector(`.item-qty[data-idx="${i}"]`).value) || 1,
       product: {
         description: document.querySelector(`.item-desc[data-idx="${i}"]`).value.trim(),
         product_key: clave,
         price: parseFloat(document.querySelector(`.item-price[data-idx="${i}"]`).value) || 0,
         unit_key: document.querySelector(`.item-unit[data-idx="${i}"]`).value.trim() || 'H87',
+        taxes,
       }
-    });
+    };
+
+    if (tipo === 'aduanal' && linkedPedNum) {
+      item.customs_keys = [linkedPedNum];
+    }
+
+    items.push(item);
   });
+
+  const aduanerosCheck = document.querySelector('.item-check-aduaneros');
+  if (aduanerosCheck?.checked) {
+    const price = parseFloat(document.getElementById('aduaneros-price')?.value) || 0;
+    const desc  = document.getElementById('aduaneros-desc')?.value.trim() || 'Impuestos Aduaneros';
+    if (price > 0) {
+      items.push({
+        quantity: 1,
+        product: {
+          description: desc,
+          product_key: '93161608',
+          price,
+          unit_key: 'ACT',
+          taxes: [{ type: 'IVA', factor: 'Exento', rate: 0 }],
+        }
+      });
+    }
+  }
 
   if (!items.length) { Swal.fire({ icon: 'warning', title: 'Sin partidas', text: 'Selecciona al menos una partida con ClaveProdServ asignada.', confirmButtonColor: '#c9a84c' }); return null; }
 
-  return {
+  const body = {
     customer: selectedCustomer.id,
+    use: document.getElementById('uso-cfdi-select').value,
     items,
     payment_form: document.getElementById('payment-form-select').value,
     payment_method: currentPaymentMethod,
-    pedimento_id: pedData.id || null,
+    currency: currentCurrency,
+    pedimento_id: _facturarManualMode
+      ? (parseInt(document.getElementById('pedimento-link-select').value) || null)
+      : (pedData.id || null),
   };
+  if (currentCurrency !== 'MXN') {
+    const tc = parseFloat(document.getElementById('exchange-rate-input').value);
+    if (!tc) { Swal.fire({ icon: 'warning', title: 'Tipo de cambio requerido', text: 'Ingresa el tipo de cambio para facturar en USD.', confirmButtonColor: '#c9a84c' }); return null; }
+    body.exchange = tc;
+  }
+  return body;
 }
 
 document.getElementById('btn-preview-factura').addEventListener('click', async () => {
@@ -2329,7 +2909,41 @@ document.getElementById('btn-timbrar').addEventListener('click', async () => {
   }
 });
 
-document.getElementById('btn-facturar').addEventListener('click', openFacturarPanel);
+document.getElementById('btn-facturar').addEventListener('click', () => openFacturarPanel(false));
+document.getElementById('btn-nueva-factura').addEventListener('click', () => openFacturarPanel(true));
+
+document.getElementById('btn-print').addEventListener('click', () => {
+  const table = document.getElementById('tableWrap');
+  if (!table) return;
+  const pedNum = pedData?.pedimento_num || '';
+  const importador = pedData?.importador || '';
+  const w = window.open('', '_blank', 'width=900,height=700');
+  w.document.write(`<!DOCTYPE html><html><head><title>Partidas – ${pedNum}</title>
+    <style>
+      body { font-family: Inter, Arial, sans-serif; font-size: 11px; color: #111; padding: 1.5rem; }
+      h2 { font-size: 14px; margin: 0 0 .25rem; }
+      p  { font-size: 11px; color: #555; margin: 0 0 1rem; }
+      table { border-collapse: collapse; width: 100%; }
+      th { background: #0e1e3f; color: #fff; padding: .35rem .5rem; text-align: left; font-size: 10px; }
+      td { padding: .3rem .5rem; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+      tr:nth-child(even) td { background: #f9fafb; }
+      th:nth-child(5), td:nth-child(5),
+      th:nth-child(6), td:nth-child(6) { display: none; }
+      @media print { body { padding: 0; } }
+    </style></head><body>
+    <h2>Pedimento ${pedNum}</h2>
+    <p>${importador}</p>
+    ${table.innerHTML}
+    <script>window.onload = () => { window.print(); }<\/script>
+  </body></html>`);
+  w.document.close();
+});
+
+document.getElementById('pedimento-link-select').addEventListener('change', function() {
+  const opt = this.options[this.selectedIndex];
+  const tc = parseFloat(opt.dataset.tipoCambio) || '';
+  document.getElementById('exchange-rate-input').value = tc;
+});
 
 // ── Automap progress overlay helpers ─────────────────────────────────────────
 const AUTOMAP_MESSAGES = [

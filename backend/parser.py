@@ -97,6 +97,16 @@ def _is_junk_line(line: str) -> bool:
     return False
 
 
+def _parse_cuadro_liquidacion(full_text: str) -> dict:
+    """Extract DTA, IGI, PRV amounts (MXN) from CUADRO DE LIQUIDACION."""
+    result = {"dta": None, "igi": None, "prv": None}
+    for key in ("dta", "igi", "prv"):
+        m = re.search(rf"^{key.upper()}\s+\d+\s+(\d+)", full_text, re.MULTILINE | re.IGNORECASE)
+        if m:
+            result[key] = int(m.group(1))
+    return result
+
+
 def parse_pedimento(pdf_path: str) -> dict:
     full_text = ""
     clean_text = ""
@@ -108,6 +118,7 @@ def parse_pedimento(pdf_path: str) -> dict:
                 clean_text += _clean_page(text, is_first=(i == 0)) + "\n"
 
     pedimento_num, importador, tipo_cambio = _extract_header_info(full_text)
+    liquidacion = _parse_cuadro_liquidacion(full_text)
 
     lines = clean_text.splitlines()
     partidas = []
@@ -164,5 +175,8 @@ def parse_pedimento(pdf_path: str) -> dict:
         "pedimento_num": pedimento_num,
         "importador": importador,
         "tipo_cambio": tipo_cambio,
+        "dta": liquidacion["dta"],
+        "igi": liquidacion["igi"],
+        "prv": liquidacion["prv"],
         "partidas": partidas,
     }

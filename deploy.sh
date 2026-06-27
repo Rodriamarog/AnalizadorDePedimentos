@@ -21,6 +21,10 @@ scp -i ~/.ssh/id_ed25519 \
   .env \
   windows-mini-pc:"C:/Users/rodri/pedimentos/.env"
 
+scp -i ~/.ssh/id_ed25519 \
+  requirements.txt \
+  windows-mini-pc:"C:/Users/rodri/pedimentos/requirements.txt"
+
 ssh -i ~/.ssh/id_ed25519 windows-mini-pc \
   "taskkill /F /IM uvicorn.exe & schtasks /run /tn PedimentosApp"
 
