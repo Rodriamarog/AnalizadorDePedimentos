@@ -43,7 +43,6 @@ async function main() {
         descripcion: orig.descripcion,
         claveProdServ: c.key,
         descripcionSat: c.description,
-        unitKey: c.unitKey,
         confidence: c.confidence,
       });
     }

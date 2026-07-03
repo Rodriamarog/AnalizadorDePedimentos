@@ -58,7 +58,7 @@ export const productos = pgTable(
     orgId: text("org_id").notNull().references(() => organizations.id),
     fraccion: text("fraccion").notNull(),
     descripcion: text("descripcion").notNull(),
-    claveProdServ: text("clave_prod_serv").notNull(),
+    claveProdServ: text("clave_prod_serv"),
     descripcionSat: text("descripcion_sat"),
     unitKey: text("unit_key").notNull().default("H87"),
     confidence: text("confidence"),

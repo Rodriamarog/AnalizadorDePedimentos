@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { SatComboBox } from "@/components/sat-combobox";
 import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
+import { umcToUnitKey } from "@/lib/umc";
 
 const USO_CFDI_OPTIONS = [
   ["G01", "Adquisición de mercancias"],
@@ -48,41 +49,26 @@ export const PAYMENT_FORM_OPTIONS = [
   ["99", "Por definir"],
 ] as const;
 
-// Business-friendly labels for FacturAPI's `type` field — FacturAPI's docs
-// call this field itself "Type of document", so "Tipo de Documento" here and
-// FacturAPI's `type` are the same field, not two separate concepts.
+// "Tipo de Documento" is a business-level document type distinct from
+// FacturAPI's CFDI `type` field — two document types ("Recibo de Honorarios"
+// and "Carta Porte Ingreso") both map to CFDI "Ingreso", so they can't share
+// a single field the way a naive code/label pair would suggest.
 const DOCUMENT_TYPE_OPTIONS = [
-  ["I", "Factura"],
-  ["E", "Nota de crédito"],
-  ["T", "Carta porte / Traslado"],
-  ["P", "Recibo de pago / Complemento de pago"],
+  ["factura", "Factura"],
+  ["recibo_honorarios", "Recibo de Honorarios"],
+  ["nota_credito", "Nota de Crédito"],
+  ["carta_porte", "Carta Porte"],
+  ["carta_porte_ingreso", "Carta Porte Ingreso"],
 ] as const;
 
-// Fracción's unidad de medida (UMC) code -> SAT c_ClaveUnidad, used as the
-// fallback when a partida's fracción has no entry in Productos yet.
-const UMC_TO_UNIT_KEY: Record<string, string> = {
-  "1": "KGM",
-  "2": "GRM",
-  "3": "MTR",
-  "4": "MTK",
-  "5": "MTQ",
-  "6": "H87",
-  "7": "H87",
-  "8": "LTR",
-  "9": "PR",
-  "10": "KWT",
-  "11": "MIL",
-  "12": "SET",
-  "13": "KWH",
-  "14": "TNE",
-  "15": "BRL",
-  "16": "GRM",
-  "17": "C62",
-  "18": "CEN",
-  "19": "DZN",
-  "20": "XBX",
-  "21": "XBO",
-  "99": "H87",
+type DocumentType = (typeof DOCUMENT_TYPE_OPTIONS)[number][0];
+
+const DOCUMENT_TYPE_TO_CFDI: Record<DocumentType, "I" | "E" | "T"> = {
+  factura: "I",
+  recibo_honorarios: "I",
+  nota_credito: "E",
+  carta_porte: "T",
+  carta_porte_ingreso: "I",
 };
 
 interface Cliente {
@@ -163,7 +149,7 @@ function newItemRow(): ItemRow {
 
 export interface ProductoLookup {
   fraccion: string;
-  claveProdServ: string;
+  claveProdServ: string | null;
   unitKey: string;
   descripcionSat?: string | null;
 }
@@ -183,7 +169,7 @@ export function mapPedimentoToItems(
   const partidaItems: ItemRow[] = pedimento.partidas.map((p, i) => {
     const prod = productoMap.get(p.fraccion);
     const clave = prod?.claveProdServ ?? "";
-    const unit = prod?.unitKey ?? UMC_TO_UNIT_KEY[p.umc ?? ""] ?? "H87";
+    const unit = prod?.unitKey ?? umcToUnitKey(p.umc);
     return {
       key: `partida-${i}-${p.fraccion}`,
       descripcion: p.descripcion,
@@ -228,7 +214,7 @@ async function buildItemsFromPedimento(pedimento: PedimentoForFactura): Promise<
   // collect the actual resolved unit for every partida before batching.
   const productoMap = new Map(productos.map((p) => [p.fraccion, p]));
   const resolvedUnits = pedimento.partidas.map(
-    (p) => productoMap.get(p.fraccion)?.unitKey ?? UMC_TO_UNIT_KEY[p.umc ?? ""] ?? "H87"
+    (p) => productoMap.get(p.fraccion)?.unitKey ?? umcToUnitKey(p.umc)
   );
   const unitDescriptions = await fetchCatalogDescriptions("/api/catalogs/units", resolvedUnits);
 
@@ -246,7 +232,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [use, setUse] = useState("G03");
-  const [cfdiType, setCfdiType] = useState<"I" | "E" | "T" | "P">("I");
+  const [documentType, setDocumentType] = useState<DocumentType>("factura");
   const [paymentForm, setPaymentForm] = useState("03");
   const [paymentMethod, setPaymentMethod] = useState<"PUE" | "PPD">("PUE");
   const [ivaRate, setIvaRate] = useState<16 | 8>(8);
@@ -280,7 +266,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
 
     if (pedimento) {
       setUse("G01");
-      setCfdiType("I");
+      setDocumentType("factura");
       setIvaRate(16);
       setCurrency("MXN");
       setExchangeRate(pedimento.tipoCambio ? String(pedimento.tipoCambio) : "");
@@ -297,7 +283,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
         .finally(() => setItemsLoading(false));
     } else {
       setUse("G03");
-      setCfdiType("I");
+      setDocumentType("factura");
       setIvaRate(8);
       setCurrency("MXN");
       setExchangeRate("");
@@ -406,7 +392,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
 
     const body: Record<string, unknown> = {
       customer: customerId,
-      type: cfdiType,
+      type: DOCUMENT_TYPE_TO_CFDI[documentType],
       use,
       items: outItems,
       payment_form: paymentForm,
@@ -610,7 +596,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                       </td>
                       <td className="px-2 py-1.5">
                         <Input
-                          className="h-7 text-xs min-w-[180px]"
+                          className="h-7 text-xs md:text-xs min-w-[180px]"
                           placeholder="Descripción"
                           value={it.descripcion}
                           onChange={(e) => updateItem(it.key, { descripcion: e.target.value })}
@@ -621,7 +607,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                           <div className="text-right text-muted-foreground pr-1">{it.cantidad}</div>
                         ) : (
                           <Input
-                            className="h-7 text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            className="h-7 text-xs md:text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                             type="number"
                             value={it.cantidad}
                             onChange={(e) => updateItem(it.key, { cantidad: e.target.value })}
@@ -630,7 +616,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                       </td>
                       <td className="px-2 py-1.5">
                         <Input
-                          className="h-7 text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          className="h-7 text-xs md:text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           type="number"
                           placeholder="0.00"
                           value={it.precio}
@@ -708,7 +694,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                             <label className="flex items-center gap-1">
                               ISR
                               <Input
-                                className="h-6 w-16 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                className="h-6 w-16 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                 type="number"
                                 value={retIsr}
                                 onChange={(e) => setRetIsr(e.target.value)}
@@ -718,7 +704,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                             <label className="flex items-center gap-1">
                               IVA ret.
                               <Input
-                                className="h-6 w-16 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                className="h-6 w-16 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                 type="number"
                                 value={retIva}
                                 onChange={(e) => setRetIva(e.target.value)}
@@ -792,8 +778,8 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
               <label className="text-xs font-medium text-muted-foreground">Tipo de Documento</label>
               <select
                 className="w-full rounded-md border border-input px-2 py-1.5 text-xs mt-1"
-                value={cfdiType}
-                onChange={(e) => setCfdiType(e.target.value as typeof cfdiType)}
+                value={documentType}
+                onChange={(e) => setDocumentType(e.target.value as DocumentType)}
               >
                 {DOCUMENT_TYPE_OPTIONS.map(([code, label]) => (
                   <option key={code} value={code}>
@@ -847,7 +833,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                 <div className="mt-1.5 flex items-center gap-1.5">
                   <span className="text-[10px] text-muted-foreground">T.C.</span>
                   <Input
-                    className="h-6 w-20 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    className="h-6 w-20 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     type="number"
                     min="0.01"
                     step="0.0001"

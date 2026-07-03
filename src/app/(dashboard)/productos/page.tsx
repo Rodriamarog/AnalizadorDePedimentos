@@ -14,7 +14,7 @@ interface Producto {
   id: string;
   fraccion: string;
   descripcion: string;
-  claveProdServ: string;
+  claveProdServ: string | null;
   descripcionSat: string | null;
   unitKey: string;
   confidence: string | null;
@@ -49,7 +49,7 @@ export default function ProductosPage() {
     return (
       r.fraccion.toLowerCase().includes(query) ||
       r.descripcion.toLowerCase().includes(query) ||
-      r.claveProdServ.toLowerCase().includes(query)
+      (r.claveProdServ ?? "").toLowerCase().includes(query)
     );
   });
 
@@ -113,7 +113,7 @@ export default function ProductosPage() {
     setForm({
       fraccion: p.fraccion,
       descripcion: p.descripcion,
-      claveProdServ: p.claveProdServ,
+      claveProdServ: p.claveProdServ ?? "",
       descripcionSat: p.descripcionSat ?? "",
       unitKey: p.unitKey,
     });
@@ -236,7 +236,7 @@ export default function ProductosPage() {
                     <td className="px-5 py-2.5" />
                     <td className="px-5 py-2.5">
                       <Input
-                        className="h-8 text-xs font-mono"
+                        className="h-8 text-xs md:text-xs font-mono"
                         value={form.fraccion}
                         onChange={(e) => setForm((f) => ({ ...f, fraccion: e.target.value }))}
                         placeholder="76151002"
@@ -245,7 +245,7 @@ export default function ProductosPage() {
                     </td>
                     <td className="px-5 py-2.5">
                       <Input
-                        className="h-8 text-xs"
+                        className="h-8 text-xs md:text-xs"
                         value={form.descripcion}
                         onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
                         placeholder="Descripción"
@@ -327,7 +327,7 @@ export default function ProductosPage() {
                           <td className="px-5 py-2.5 font-mono text-xs text-muted-foreground">{p.fraccion}</td>
                           <td className="px-5 py-2.5">
                             <Input
-                              className="h-8 text-xs"
+                              className="h-8 text-xs md:text-xs"
                               value={form.descripcion}
                               onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
                             />
@@ -392,7 +392,7 @@ export default function ProductosPage() {
                       <td className="px-5 py-2.5 font-medium text-foreground max-w-xs truncate" title={p.descripcion}>
                         {p.descripcion}
                       </td>
-                      <td className="px-5 py-2.5 font-mono text-xs">{p.claveProdServ}</td>
+                      <td className="px-5 py-2.5 font-mono text-xs">{p.claveProdServ || "—"}</td>
                       <td className="px-5 py-2.5 text-muted-foreground text-xs">{p.descripcionSat || "—"}</td>
                       <td className="px-5 py-2.5 text-muted-foreground">{p.unitKey}</td>
                       <td className="px-5 py-2.5 text-right whitespace-nowrap">

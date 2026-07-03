@@ -22,7 +22,7 @@ export function GridSearchInput({ value, onChange, placeholder, className }: Gri
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder ?? "Buscar…"}
-        className="text-xs"
+        className="text-xs md:text-xs"
       />
       {value && (
         <InputGroupAddon align="inline-end">

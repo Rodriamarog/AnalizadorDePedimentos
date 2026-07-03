@@ -687,3 +687,63 @@ old app's literal behavior.
 - [x] `npx tsc --noEmit`, `npm run lint` (only the pre-existing unrelated finding), `npm run build`
       all clean after a full `.next` clear; confirmed no runtime errors in the dev server log and
       all four routes still auth-gated (307).
+
+---
+
+## 26. Clientes/Facturas search wasn't matching short queries like "ca" — done
+
+- [x] **Root cause, found empirically (not guessed)**: this had nothing to do with casing or
+      "fuzzy matching" — Productos and Pedimentos already did plain case-insensitive `.includes()`
+      client-side and worked fine. The actual bug was that Clientes and Facturas forwarded the
+      user's query straight to FacturAPI's own `q` search parameter, and FacturAPI's `q` silently
+      requires **4 or more characters** before it returns any partial matches — verified directly
+      against the real sandbox: `q="ca"` (2 chars) → 0 results, `q="car"` (3 chars) → 0 results,
+      `q="carl"` (4 chars) → 2 results, consistently regardless of case. Below that threshold it
+      just returns nothing, which looked like a broken/case-sensitive search from the outside.
+- [x] Fix: stopped delegating text search to FacturAPI's `q` param for both grids — now fetch a
+      broad page once (`limit=100`, the actual FacturAPI-enforced max — my first attempt used
+      `limit=200` and would have 400'd, caught and fixed before shipping by testing against the real
+      API rather than assuming the number was safe) and filter client-side with plain
+      case-insensitive `.includes()`, matching what Productos/Pedimentos already did successfully.
+      No minimum length, no case sensitivity, consistent behavior across all four grids now.
+  - **Clientes**: filters on `legal_name`/`tax_id`/`email`.
+  - **Facturas**: filters on customer `legal_name`/`tax_id` and the computed folio string;
+      `payment_method` stays a server-side filter param since it's an exact enum value, not free
+      text, so there's no reason to move it client-side.
+- [x] Verified the actual fix against real sandbox data end-to-end: created a customer named
+      "Carlos Alberto Amaro Reyes" (FacturAPI normalizes it to uppercase in responses — a real
+      FacturAPI behavior, not a bug, and something this session already knew from Phase 6 testing),
+      fetched the list the same way the page now does, and confirmed `q="ca"` correctly matches it
+      via the new client-side filter.
+- [x] `npx tsc --noEmit`, `npm run lint` (only the pre-existing unrelated finding), `npm run build`
+      all clean after a full `.next` clear; confirmed no runtime errors in the dev server log and
+      both routes still auth-gated (307); re-ran the regression suite (RLS isolation, productos
+      integration) — still pass.
+
+---
+
+## 27. Search placeholder text looked too big — a real cascade bug, not just "make it smaller" — done
+
+- [x] **Root cause**: the shared `Input` component's base classes are `text-base md:text-sm`
+      (16px mobile, 14px desktop). `GridSearchInput` tried to shrink it with `className="text-xs"`
+      — same cascade trap as the earlier Dialog-width bug (ticket in the Facturas "Nueva factura"
+      thread): `cn()`/`tailwind-merge` correctly drops the conflicting unprefixed `text-base` in
+      favor of `text-xs`, but `md:text-sm` has a *different* variant scope, so tailwind-merge treats
+      it as non-conflicting and keeps both — meaning at desktop widths (basically always, for this
+      app) `md:text-sm` (14px) was still winning over the intended `text-xs` (12px). Verified this
+      directly with `cn()` before and after the fix rather than assuming.
+- [x] Fixed by adding the matching `md:text-xs` alongside `text-xs` (`className="text-xs
+      md:text-xs"`), which tailwind-merge then correctly resolves down to just those two classes,
+      dropping both `text-base` and `md:text-sm`.
+- [x] Audited every other `<Input className="... text-xs ...">` in the app for the same silent bug
+      (grepped for `text-xs` without an accompanying `md:text-xs`) and found it in 9 more places —
+      all in `crear-factura-dialog.tsx`'s item table (Descripción/Cant/Precio/ISR/IVA/T.C. fields)
+      and `productos/page.tsx`'s inline add/edit rows (Fracción/Descripción). Fixed all of them the
+      same way, so this wasn't just a placeholder-text tweak — it was quietly making a lot of the
+      dense grid/dialog input text render 14px instead of the intended 12px app-wide.
+- [x] `npx tsc --noEmit`, `npm run lint` (only the pre-existing unrelated finding), `npm run build`
+      all clean after a full `.next` clear; confirmed no runtime errors in the dev server log and
+      both Productos/Facturas routes still auth-gated (307).
+- [ ] **User to verify in browser**: confirm the search placeholder and the item-table/inline-edit
+      input text across Crear Factura and Productos now actually look smaller, not just the one
+      field originally flagged.

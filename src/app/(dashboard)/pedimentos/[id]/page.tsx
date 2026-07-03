@@ -66,7 +66,7 @@ type Filter = "all" | "inc" | "no";
 interface Producto {
   fraccion: string;
   descripcion: string;
-  claveProdServ: string;
+  claveProdServ: string | null;
   descripcionSat: string | null;
   unitKey: string;
   confidence: string | null;
@@ -128,7 +128,10 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
         // A manual edit means we no longer trust an earlier automap confidence score.
         confidence: null,
       };
-      if (!body.clave_prod_serv) return;
+      // Creating a brand-new row requires a ClaveProdServ (API-enforced); an
+      // existing row (e.g. one pre-filled with only a UMC-derived unitKey at
+      // upload time) can be updated with just a unit-key edit via PUT.
+      if (!existing && !body.clave_prod_serv) return;
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },

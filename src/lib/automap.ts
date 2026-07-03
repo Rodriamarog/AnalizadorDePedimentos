@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type, type Content, type GenerateContentConfig } from "@google/genai";
 import { chapterHint } from "./hsChapters";
-import { searchSatCatalogForAutomap, searchSatUnitsForAutomap } from "./satSearch";
+import { searchSatCatalogForAutomap } from "./satSearch";
 
 export interface AutomapPartida {
   fraccion: string;
@@ -10,7 +10,6 @@ export interface AutomapPartida {
 export interface AutomapClassification {
   fraccion: string;
   key: string | null;
-  unitKey: string;
   description: string | null;
   confidence: "high" | "medium" | "low";
 }
@@ -18,7 +17,6 @@ export interface AutomapClassification {
 interface RawItem {
   fraccion?: string;
   key?: string | null;
-  unit_key?: string | null;
   description?: string | null;
   confidence?: string | null;
 }
@@ -41,27 +39,11 @@ const COMBINED_TOOL = {
         required: ["query"],
       },
     },
-    {
-      name: "search_sat_units",
-      description:
-        "Busca c_ClaveUnidad SAT (unidad de medida para CFDI). Ej: 'pieza'→H87, 'kilogramo'→KGM, 'litro'→LTR, 'metro'→MTR.",
-      parameters: {
-        type: Type.OBJECT,
-        properties: {
-          query: {
-            type: Type.STRING,
-            description: "Unidad de medida en español, ej: 'pieza', 'kilogramo', 'litro'",
-          },
-        },
-        required: ["query"],
-      },
-    },
   ],
 };
 
 async function runTool(name: string, query: string) {
   if (name === "search_sat_catalog") return searchSatCatalogForAutomap(query);
-  if (name === "search_sat_units") return searchSatUnitsForAutomap(query);
   return [];
 }
 
@@ -142,27 +124,25 @@ function itemsText(partidas: AutomapPartida[]): string {
 
 const SYSTEM_PASS1 =
   "Eres un experto en clasificación SAT para CFDI 4.0 en México. " +
-  "Tienes dos herramientas: search_sat_catalog (c_ClaveProdServ) y search_sat_units (c_ClaveUnidad).\n" +
+  "Tienes una herramienta: search_sat_catalog (c_ClaveProdServ).\n" +
   "REGLAS OBLIGATORIAS:\n" +
   "(1) SIEMPRE usa search_sat_catalog — nunca inventes un código.\n" +
   "(2) Para CADA producto busca MÍNIMO 3 VECES con términos distintos antes de considerar null: " +
   "primero el término específico, luego un sinónimo, luego la categoría genérica del capítulo HS.\n" +
-  "(3) Para CADA producto usa search_sat_units para determinar la unidad correcta " +
-  "(pieza=H87, kilogramo=KGM, litro=LTR, metro=MTR, par=PR, caja=XBX, etc.).\n" +
-  "(4) El catálogo usa español formal: 'popote'→'pitillo'; 'plástico'→'polietileno','polipropileno'; " +
+  "(3) El catálogo usa español formal: 'popote'→'pitillo'; 'plástico'→'polietileno','polipropileno'; " +
   "'manga vaso'→'funda','aislante','protector'; 'portavaso'→'soporte','bandeja','porta'; " +
   "'tapa domo'→'tapa','cubierta','tapadera'; 'contenedor'→'recipiente','envase'.\n" +
-  "(5) El capítulo HS entre corchetes indica la categoría — úsalo para refinar búsquedas.\n" +
-  "(6) null SOLO si después de 3+ búsquedas no encuentras absolutamente nada relacionado.\n" +
-  "(7) Para cada resultado incluye un campo confidence: " +
+  "(4) El capítulo HS entre corchetes indica la categoría — úsalo para refinar búsquedas.\n" +
+  "(5) null SOLO si después de 3+ búsquedas no encuentras absolutamente nada relacionado.\n" +
+  "(6) Para cada resultado incluye un campo confidence: " +
   "'high' si el código es específico y claramente correcto para el producto; " +
   "'medium' si es razonablemente cercano pero no exacto; " +
   "'low' si es el más cercano disponible pero puede no ser correcto.\n" +
-  "(8) Solo responde JSON cuando hayas procesado TODOS los productos.";
+  "(7) Solo responde JSON cuando hayas procesado TODOS los productos.";
 
 const SYSTEM_PASS2 =
   "Eres un experto en clasificación SAT para CFDI 4.0 en México. " +
-  "Tienes dos herramientas: search_sat_catalog y search_sat_units.\n" +
+  "Tienes una herramienta: search_sat_catalog.\n" +
   "Estos productos NO fueron clasificados en la primera ronda. " +
   "AHORA debes ser más agresivo y persistente:\n" +
   "(1) Busca al menos 4 veces por producto con términos distintos: específico, sinónimo, " +
@@ -195,12 +175,12 @@ export async function runAutomap(
   const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
   const userMsg1 =
-    `Clasifica estos ${toMap.length} productos con c_ClaveProdServ y c_ClaveUnidad SAT para CFDI.\n` +
+    `Clasifica estos ${toMap.length} productos con c_ClaveProdServ SAT para CFDI.\n` +
     "La fracción arancelaria NO es el código SAT; el capítulo HS es solo contexto de categoría.\n\n" +
     `Productos:\n${itemsText(toMap)}\n\n` +
     "IMPORTANTE: busca cada producto AL MENOS 3 VECES con términos diferentes antes de poner null. " +
     "Responde ÚNICAMENTE con este JSON (sin markdown):\n" +
-    '[{"fraccion":"...","key":"... o null","unit_key":"H87 u otra","description":"... o null","confidence":"high|medium|low"}]';
+    '[{"fraccion":"...","key":"... o null","description":"... o null","confidence":"high|medium|low"}]';
 
   const finalJson = await runLoop(
     client,
@@ -223,7 +203,7 @@ export async function runAutomap(
       `Productos:\n${itemsText(nullPartidas)}\n\n` +
       "Busca cada uno AL MENOS 4 VECES. Elige el código más cercano si no encuentras el exacto.\n" +
       "Responde ÚNICAMENTE con este JSON (sin markdown):\n" +
-      '[{"fraccion":"...","key":"... o null","unit_key":"H87 u otra","description":"... o null","confidence":"medium|low"}]';
+      '[{"fraccion":"...","key":"... o null","description":"... o null","confidence":"medium|low"}]';
 
     const rescueJson = await runLoop(
       client,
@@ -253,7 +233,6 @@ export async function runAutomap(
       return {
         fraccion: item.fraccion!,
         key: item.key && item.key.toLowerCase() !== "null" ? item.key.trim() : null,
-        unitKey: (item.unit_key || "H87").trim(),
         description: item.description || null,
         confidence: confidence as "high" | "medium" | "low",
       };

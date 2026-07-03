@@ -51,9 +51,14 @@ export default function ClientesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (query: string) => {
+  // Loaded once (not re-fetched per keystroke) and filtered client-side —
+  // FacturAPI's own `q` search silently requires 4+ characters before it
+  // matches anything, which made short queries like "ca" look broken even
+  // though "CARLOS..." was right there. Filtering locally, case-insensitive,
+  // with no minimum length, matches the UX of the other grids.
+  const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/clientes?q=${encodeURIComponent(query)}&limit=50`);
+    const res = await fetch("/api/clientes?limit=100");
     if (res.ok) {
       const data = await res.json();
       setRows(data.data ?? []);
@@ -62,9 +67,19 @@ export default function ClientesPage() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => load(q), 300);
-    return () => clearTimeout(timer);
-  }, [q, load]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
+
+  const filteredRows = rows.filter((c) => {
+    const query = q.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      c.legal_name.toLowerCase().includes(query) ||
+      (c.tax_id ?? "").toLowerCase().includes(query) ||
+      (c.email ?? "").toLowerCase().includes(query)
+    );
+  });
 
   function openAdd() {
     setEditingId(null);
@@ -112,7 +127,7 @@ export default function ClientesPage() {
         return;
       }
       setDialogOpen(false);
-      await load(q);
+      await load();
     } finally {
       setSaving(false);
     }
@@ -167,7 +182,14 @@ export default function ClientesPage() {
                     </td>
                   </tr>
                 )}
-                {rows.map((c) => (
+                {!loading && rows.length > 0 && filteredRows.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-8 text-center text-muted-foreground text-sm">
+                      Sin resultados para &quot;{q}&quot;.
+                    </td>
+                  </tr>
+                )}
+                {filteredRows.map((c) => (
                   <tr key={c.id} className="hover:bg-muted/40 transition-colors">
                     <td className="px-5 py-2.5 font-medium text-foreground">{c.legal_name}</td>
                     <td className="px-5 py-2.5 font-mono text-xs text-muted-foreground">{c.tax_id || "—"}</td>

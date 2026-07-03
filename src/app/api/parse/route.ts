@@ -6,8 +6,9 @@ import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { requireOrgId } from "@/lib/auth";
 import { parsePedimento } from "@/lib/parser";
-import { pedimentos, partidas } from "@/lib/db/schema";
+import { pedimentos, partidas, productos } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
+import { umcToUnitKey } from "@/lib/umc";
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
@@ -100,6 +101,28 @@ export async function POST(req: NextRequest) {
             umc: p.umc,
           }))
         );
+
+        // Pre-fill the SAT unit key deterministically from each partida's UMC
+        // code so the "Unidad" column is already correct on upload, without
+        // waiting on the AI automap (which only handles ClaveProdServ).
+        // claveProdServ is left null — the fracción still needs that mapped.
+        // onConflictDoNothing so an already-mapped fracción is never touched.
+        const seenFracciones = new Map<string, (typeof result.partidas)[number]>();
+        for (const p of result.partidas) {
+          if (!seenFracciones.has(p.fraccion)) seenFracciones.set(p.fraccion, p);
+        }
+        await tx
+          .insert(productos)
+          .values(
+            [...seenFracciones.values()].map((p) => ({
+              orgId,
+              fraccion: p.fraccion,
+              descripcion: p.descripcion,
+              claveProdServ: null,
+              unitKey: umcToUnitKey(p.umc),
+            }))
+          )
+          .onConflictDoNothing({ target: [productos.orgId, productos.fraccion] });
       }
 
       return NextResponse.json({ ...pedimento, partidas: result.partidas });

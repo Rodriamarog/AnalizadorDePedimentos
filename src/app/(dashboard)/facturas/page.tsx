@@ -61,11 +61,15 @@ export default function FacturasPage() {
   const [pagoSaving, setPagoSaving] = useState(false);
   const [pagoError, setPagoError] = useState<string | null>(null);
 
-  const load = useCallback(async (pm: string, query: string) => {
+  // Text search is filtered client-side rather than forwarded to FacturAPI's
+  // `q` param — that endpoint silently requires 4+ characters before it
+  // matches anything, which made short queries look broken even when the
+  // match was right there. payment_method stays a server-side filter since
+  // it's an exact enum value, not free text.
+  const load = useCallback(async (pm: string) => {
     setLoading(true);
     const params = new URLSearchParams({ limit: "100" });
     if (pm) params.set("payment_method", pm);
-    if (query) params.set("q", query);
     const [facturasRes, complementosRes] = await Promise.all([
       fetch(`/api/facturas?${params}`),
       fetch("/api/complementos"),
@@ -79,9 +83,20 @@ export default function FacturasPage() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => load(paymentMethodFilter, q), 300);
-    return () => clearTimeout(timer);
-  }, [paymentMethodFilter, q, load]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load(paymentMethodFilter);
+  }, [paymentMethodFilter, load]);
+
+  const filteredRows = rows.filter((f) => {
+    const query = q.trim().toLowerCase();
+    if (!query) return true;
+    const folio = [f.series, f.folio_number].filter(Boolean).join("-");
+    return (
+      (f.customer?.legal_name ?? "").toLowerCase().includes(query) ||
+      (f.customer?.tax_id ?? "").toLowerCase().includes(query) ||
+      folio.toLowerCase().includes(query)
+    );
+  });
 
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
@@ -131,7 +146,7 @@ export default function FacturasPage() {
       }
       setPagoTarget(null);
       setExpanded((prev) => new Set(prev).add(pagoTarget.id));
-      await load(paymentMethodFilter, q);
+      await load(paymentMethodFilter);
     } finally {
       setPagoSaving(false);
     }
@@ -169,7 +184,7 @@ export default function FacturasPage() {
     if (!cancelTarget) return;
     const res = await fetch(`/api/facturas/${cancelTarget}?motive=${motive}`, { method: "DELETE" });
     setCancelTarget(null);
-    if (res.ok) await load(paymentMethodFilter, q);
+    if (res.ok) await load(paymentMethodFilter);
   }
 
   return (
@@ -228,7 +243,14 @@ export default function FacturasPage() {
                     </td>
                   </tr>
                 )}
-                {rows.map((f) => {
+                {!loading && rows.length > 0 && filteredRows.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="px-5 py-8 text-center text-muted-foreground text-sm">
+                      Sin resultados para &quot;{q}&quot;.
+                    </td>
+                  </tr>
+                )}
+                {filteredRows.map((f) => {
                   const folio = [f.series, f.folio_number].filter(Boolean).join("-") || f.id.slice(-6);
                   const isPpd = f.payment_method === "PPD";
                   const facturaComplementos = complementos.filter((c) => c.facturaFacturapiId === f.id);
@@ -342,7 +364,8 @@ export default function FacturasPage() {
                                   <th className="text-left font-medium py-1 pr-4">Fecha pago</th>
                                   <th className="text-right font-medium py-1 pr-4">Monto</th>
                                   <th className="text-left font-medium py-1 pr-4">Forma pago</th>
-                                  <th className="text-left font-medium py-1">UUID</th>
+                                  <th className="text-left font-medium py-1 pr-4">UUID</th>
+                                  <th className="text-right font-medium py-1">Acciones</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -353,8 +376,56 @@ export default function FacturasPage() {
                                       ${c.monto.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
                                     </td>
                                     <td className="py-1 pr-4">{c.formaPago}</td>
-                                    <td className="py-1 font-mono text-[11px] text-muted-foreground">
+                                    <td className="py-1 pr-4 font-mono text-[11px] text-muted-foreground">
                                       {c.uuid || "—"}
+                                    </td>
+                                    <td className="py-1">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <Tooltip>
+                                          <TooltipTrigger
+                                            render={
+                                              <button
+                                                className="text-muted-foreground hover:text-foreground p-1"
+                                                onClick={() => handleDownload(c.facturapiId, "pdf")}
+                                              >
+                                                <FileText className="w-3.5 h-3.5" />
+                                              </button>
+                                            }
+                                          />
+                                          <TooltipContent>Descargar PDF</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                          <TooltipTrigger
+                                            render={
+                                              <button
+                                                className="text-muted-foreground hover:text-foreground p-1"
+                                                onClick={() => handleDownload(c.facturapiId, "xml")}
+                                              >
+                                                <FileCode className="w-3.5 h-3.5" />
+                                              </button>
+                                            }
+                                          />
+                                          <TooltipContent>Descargar XML</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                          <TooltipTrigger
+                                            render={
+                                              <button
+                                                className="text-muted-foreground hover:text-foreground p-1 disabled:opacity-50"
+                                                onClick={() => handleSendEmail(c.facturapiId)}
+                                                disabled={sendingEmailId === c.facturapiId}
+                                              >
+                                                {sendingEmailId === c.facturapiId ? (
+                                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                ) : (
+                                                  <Mail className="w-3.5 h-3.5" />
+                                                )}
+                                              </button>
+                                            }
+                                          />
+                                          <TooltipContent>Enviar por correo</TooltipContent>
+                                        </Tooltip>
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}
@@ -375,7 +446,7 @@ export default function FacturasPage() {
       <CrearFacturaDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onSaved={() => load(paymentMethodFilter, q)}
+        onSaved={() => load(paymentMethodFilter)}
       />
 
       <Dialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>

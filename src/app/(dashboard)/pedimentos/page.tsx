@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { GridSearchInput } from "@/components/grid-search-input";
-import { confirmDelete } from "@/lib/alerts";
+import { alertError, confirmDelete } from "@/lib/alerts";
 
 interface PedimentoRow {
   id: string;
@@ -74,7 +74,12 @@ export default function PedimentosPage() {
     );
     if (!confirmed) return;
     const res = await fetch(`/api/pedimentos/${id}`, { method: "DELETE" });
-    if (res.ok) setRows((prev) => prev.filter((r) => r.id !== id));
+    if (res.ok) {
+      setRows((prev) => prev.filter((r) => r.id !== id));
+      return;
+    }
+    const data = await res.json().catch(() => null);
+    alertError("No se pudo eliminar", data?.error ?? "Error al eliminar el pedimento");
   }
 
   return (

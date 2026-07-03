@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireOrgId } from "@/lib/auth";
 import { pedimentos, partidas, productos, satClaves } from "@/lib/db/schema";
@@ -19,10 +19,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       .from(partidas)
       .where(eq(partidas.pedimentoId, id));
 
+    // A row can exist here with only unitKey pre-filled from UMC at upload
+    // time (see /api/parse) — that's not a real mapping, so only fracciones
+    // with an actual claveProdServ count as "already mapped".
     const mapped = await tx
       .select({ fraccion: productos.fraccion })
       .from(productos)
-      .where(eq(productos.orgId, orgId));
+      .where(and(eq(productos.orgId, orgId), isNotNull(productos.claveProdServ), ne(productos.claveProdServ, "")));
 
     return { pedimentoPartidas: rows, alreadyMapped: new Set(mapped.map((m) => m.fraccion)) };
   });
@@ -75,7 +78,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
           descripcion: orig.descripcion,
           claveProdServ: c.key,
           descripcionSat: confirmedDesc,
-          unitKey: c.unitKey,
           confidence,
         })
         .onConflictDoUpdate({
@@ -83,7 +85,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
           set: {
             claveProdServ: c.key,
             descripcionSat: confirmedDesc,
-            unitKey: c.unitKey,
             confidence,
           },
         });
@@ -94,7 +95,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         status: "saved" as const,
         in_catalog: !!catalogRow,
         description: confirmedDesc,
-        unit_key: c.unitKey,
         confidence,
       });
     }
