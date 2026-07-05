@@ -3,6 +3,7 @@ import { Building2, FileText, ScanLine, ShieldCheck, Table2, Zap } from "lucide-
 import { NeurocrowLockup } from "@/components/neurocrow-lockup";
 import { DemoUploader } from "@/components/landing/demo-uploader";
 import { AsiLoHacesHoy } from "@/components/landing/asi-lo-haces-hoy";
+import { ConNeurocrow } from "@/components/landing/con-neurocrow";
 
 const TICKER_ITEMS = [
   "8471.30.01 EQUIPO DE CÓMPUTO PORTÁTIL",
@@ -75,19 +76,6 @@ const FEATURES = [
   },
 ];
 
-function Perforation({ label }: { label: string }) {
-  return (
-    <div className="relative h-10 bg-background">
-      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px nc-perforation" />
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="bg-background px-4 font-mono text-[10px] tracking-[0.15em] text-muted-foreground uppercase">
-          {label}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 export function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
@@ -134,11 +122,9 @@ export function LandingPage() {
         </div>
       </section>
 
-      <Perforation label="Original — agente aduanal · conserve para sus registros" />
-
       <AsiLoHacesHoy />
 
-      <Perforation label="Copia — control interno" />
+      <ConNeurocrow />
 
       {/* ── Cómo funciona ────────────────────────────────────────── */}
       <section className="bg-muted/40">

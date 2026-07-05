@@ -126,13 +126,13 @@ export function AsiLoHacesHoy() {
   const partida = PARTIDAS[stepIndex];
 
   return (
-    <section className="mx-auto max-w-6xl px-6 py-20 md:px-10 md:py-28">
+    <section className="mx-auto max-w-6xl px-6 pt-10 pb-20 md:px-10 md:pt-14 md:pb-28">
       <div className="mx-auto max-w-2xl text-center">
         <h2 className="font-sans text-3xl font-black text-foreground md:text-4xl">
           ¿Cuánto tiempo tardas capturando partidas manualmente?
         </h2>
         <p className="mt-3 text-sm text-muted-foreground md:text-base">
-          Y luego tienes que ver si tienen incrementables, calcular el valor de aduana, revisar el
+          Tienes que ver si tienen incrementables, calcular el valor de aduana, revisar el
           tipo de cambio, buscar las claves del SAT... y así con cada partida.
         </p>
       </div>
