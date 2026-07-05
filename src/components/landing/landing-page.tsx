@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Building2, FileText, ScanLine, ShieldCheck, Table2, Zap } from "lucide-react";
 import { NeurocrowLockup } from "@/components/neurocrow-lockup";
 import { DemoUploader } from "@/components/landing/demo-uploader";
-import { ScrollStamp } from "@/components/landing/scroll-stamp";
+import { AsiLoHacesHoy } from "@/components/landing/asi-lo-haces-hoy";
 
 const TICKER_ITEMS = [
   "8471.30.01 EQUIPO DE CÓMPUTO PORTÁTIL",
@@ -11,13 +11,6 @@ const TICKER_ITEMS = [
   "8517.62.01 APARATOS DE TELECOMUNICACIÓN",
   "3926.90.99 MANUFACTURAS DE PLÁSTICO",
   "8708.99.99 PARTES Y ACCESORIOS DE VEHÍCULOS",
-];
-
-const DEMO_ROWS = [
-  { partida: "1", fraccion: "8471.30.01", descripcion: "Laptops de uso comercial", cantidad: "120" },
-  { partida: "2", fraccion: "8517.62.01", descripcion: "Módulos de telecomunicación", cantidad: "340" },
-  { partida: "3", fraccion: "3926.90.99", descripcion: "Componentes plásticos moldeados", cantidad: "600" },
-  { partida: "4", fraccion: "9018.90.99", descripcion: "Instrumental médico desechable", cantidad: "85" },
 ];
 
 const STEPS = [
@@ -143,62 +136,7 @@ export function LandingPage() {
 
       <Perforation label="Original — agente aduanal · conserve para sus registros" />
 
-      {/* ── Producto en acción ───────────────────────────────────── */}
-      <section className="mx-auto max-w-6xl px-6 py-20 md:px-10 md:py-28">
-        <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">Cómo se ve</span>
-        <h2 className="mt-3 max-w-2xl font-sans text-3xl font-black text-foreground md:text-4xl">
-          Lo que antes capturabas a mano, ahora se extrae solo.
-        </h2>
-
-        <div className="mt-12 grid items-start gap-8 lg:grid-cols-2">
-          <div className="relative rounded-lg border border-border bg-card p-6">
-            <span className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-              pedimento.pdf · 14 páginas
-            </span>
-            <div className="relative mt-5 h-72">
-              <div className="absolute inset-0 rotate-[-2deg] rounded-md border border-border bg-background p-4 shadow-sm" />
-              <div className="absolute inset-0 rotate-[1deg] rounded-md border border-border bg-background p-4 shadow-sm" />
-              <div className="absolute inset-0 flex flex-col gap-2.5 rounded-md border border-border bg-background p-5">
-                {Array.from({ length: 11 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-2 rounded-full bg-muted"
-                    style={{ width: `${65 + ((i * 13) % 30)}%` }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-border bg-sidebar p-6 text-white">
-            <div className="grid grid-cols-[2rem_5.5rem_1fr_3.5rem] gap-3 border-b border-white/10 pb-2 font-mono text-[10px] uppercase tracking-wide text-white/40">
-              <span>#</span>
-              <span>Fracción</span>
-              <span>Descripción</span>
-              <span className="text-right">Cant.</span>
-            </div>
-            <div className="mt-1 flex flex-col">
-              {DEMO_ROWS.map((row, i) => (
-                <ScrollStamp
-                  key={row.partida}
-                  delayMs={i * 150}
-                  className="grid grid-cols-[2rem_5.5rem_1fr_3.5rem] items-center gap-3 border-b border-white/5 py-2.5 last:border-b-0"
-                >
-                  <span className="font-mono text-xs text-white/50">{row.partida}</span>
-                  <span className="font-mono text-xs text-primary">{row.fraccion}</span>
-                  <span className="truncate text-sm text-white/80">{row.descripcion}</span>
-                  <span className="text-right font-mono text-xs text-white/60">{row.cantidad}</span>
-                </ScrollStamp>
-              ))}
-            </div>
-            <div className="mt-4 flex justify-end">
-              <span className="rotate-[-4deg] rounded border border-primary/50 px-2 py-1 font-mono text-[10px] font-bold tracking-wide text-primary">
-                FACTURA GENERADA ✓
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <AsiLoHacesHoy />
 
       <Perforation label="Copia — control interno" />
 

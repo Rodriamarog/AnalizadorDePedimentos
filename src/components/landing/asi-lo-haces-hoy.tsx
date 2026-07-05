@@ -13,6 +13,7 @@ interface Partida {
   valor: string;
   claveSat: string;
   claveSatDesc: string;
+  page: 1 | 2;
   box: { x: number; y: number; w: number; h: number };
 }
 
@@ -25,6 +26,7 @@ const PARTIDAS: Partida[] = [
     valor: "212,500.00",
     claveSat: "43222612",
     claveSatDesc: "Equipo de radiocomunicación",
+    page: 1,
     box: { x: 1, y: 30, w: 98, h: 18 },
   },
   {
@@ -35,6 +37,7 @@ const PARTIDAS: Partida[] = [
     valor: "58,200.00",
     claveSat: "31201500",
     claveSatDesc: "Componentes plásticos industriales",
+    page: 1,
     box: { x: 1, y: 55, w: 98, h: 18 },
   },
   {
@@ -45,11 +48,45 @@ const PARTIDAS: Partida[] = [
     valor: "94,750.00",
     claveSat: "42182200",
     claveSatDesc: "Instrumental médico desechable",
+    page: 1,
     box: { x: 1, y: 79, w: 98, h: 9 },
+  },
+  {
+    partida: "5",
+    fraccion: "3917.32.91",
+    descripcion: "Popotes de plástico desechables",
+    cantidad: "150",
+    valor: "48,300.00",
+    claveSat: "24111503",
+    claveSatDesc: "Popotes y pajillas",
+    page: 2,
+    box: { x: 1, y: 39, w: 98, h: 16 },
+  },
+  {
+    partida: "6",
+    fraccion: "3917.32.91",
+    descripcion: "Vasos de plástico para bebidas",
+    cantidad: "220",
+    valor: "31,450.00",
+    claveSat: "24111506",
+    claveSatDesc: "Vasos desechables",
+    page: 2,
+    box: { x: 1, y: 59, w: 98, h: 16 },
+  },
+  {
+    partida: "7",
+    fraccion: "3917.32.91",
+    descripcion: "Tapas para vasos desechables",
+    cantidad: "95",
+    valor: "18,900.00",
+    claveSat: "24111509",
+    claveSatDesc: "Tapas para vasos desechables",
+    page: 2,
+    box: { x: 1, y: 79, w: 98, h: 5 },
   },
 ];
 
-const DWELL_MS = 7000;
+const DWELL_MS = 9000;
 const TRANSITION_MS = 1400;
 
 type Phase = "transitioning" | "dwelling";
@@ -90,23 +127,24 @@ export function AsiLoHacesHoy() {
 
   return (
     <section className="mx-auto max-w-6xl px-6 py-20 md:px-10 md:py-28">
-      <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">Así lo haces hoy</span>
-      <h2 className="mt-3 max-w-2xl font-sans text-3xl font-black text-foreground md:text-4xl">
-        Un pedimento, tres capturas manuales del mismo dato.
-      </h2>
-      <p className="mt-3 max-w-2xl text-sm text-muted-foreground md:text-base">
-        Copias la partida del PDF a una hoja de cálculo, y de ahí la vuelves a capturar en el
-        sistema de facturación — buscando la clave SAT a mano en cada línea.
-      </p>
+      <div className="mx-auto max-w-2xl text-center">
+        <h2 className="font-sans text-3xl font-black text-foreground md:text-4xl">
+          ¿Cuánto tiempo tardas capturando partidas manualmente?
+        </h2>
+        <p className="mt-3 text-sm text-muted-foreground md:text-base">
+          Y luego tienes que ver si tienen incrementables, calcular el valor de aduana, revisar el
+          tipo de cambio, buscar las claves del SAT... y así con cada partida.
+        </p>
+      </div>
 
-      <div className="mt-12 grid gap-6 lg:grid-cols-3">
-        <div className="h-[380px] md:h-[440px]">
-          <DocumentPanel box={partida.box} />
+      <div className="mt-12 flex flex-col items-center gap-8 lg:flex-row lg:items-stretch lg:justify-center lg:gap-6">
+        <div className="h-[400px] w-[309px] md:h-[480px] md:w-[371px] shrink-0">
+          <DocumentPanel partida={partida} />
         </div>
-        <div className="h-[380px] md:h-[440px]">
+        <div className="h-[400px] w-[320px] md:h-[480px] shrink-0">
           <ExcelPanel stepIndex={stepIndex} phase={phase} />
         </div>
-        <div className="h-[380px] md:h-[440px]">
+        <div className="h-[400px] w-[320px] md:h-[480px] shrink-0">
           <InvoicePanel partida={partida} phase={phase} />
         </div>
       </div>
@@ -114,27 +152,43 @@ export function AsiLoHacesHoy() {
   );
 }
 
-function DocumentPanel({ box }: { box: Partida["box"] }) {
+function DocumentPanel({ partida }: { partida: Partida }) {
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-      <div className="flex items-center gap-1.5 border-b border-border bg-muted/60 px-3 py-2">
-        <span className="h-2.5 w-2.5 rounded-full bg-destructive/60" />
-        <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/70" />
-        <span className="ml-2 truncate font-mono text-[11px] text-muted-foreground">
-          pedimento.pdf — página 3 de 14
-        </span>
+    <div className="relative h-full overflow-hidden rounded-lg">
+      <div
+        className="flex flex-col transition-transform ease-in-out"
+        style={{
+          height: "200%",
+          transform: `translateY(${partida.page === 1 ? "0%" : "-50%"})`,
+          transitionDuration: `${TRANSITION_MS}ms`,
+        }}
+      >
+        <DocumentPage
+          src="/marketing/pedimento-partidas.png"
+          box={partida.page === 1 ? partida.box : undefined}
+        />
+        <DocumentPage
+          src="/marketing/pedimento-partidas-2.png"
+          box={partida.page === 2 ? partida.box : undefined}
+        />
       </div>
-      <div className="flex flex-1 items-center justify-center overflow-hidden bg-neutral-100 p-3">
-        <div className="relative h-full aspect-[1275/1650]">
-          <Image
-            src="/marketing/pedimento-partidas.png"
-            alt="Página de partidas de un pedimento aduanal"
-            fill
-            className="object-contain"
-            sizes="(max-width: 1024px) 90vw, 30vw"
-            priority
-          />
+    </div>
+  );
+}
+
+function DocumentPage({ src, box }: { src: string; box?: Partida["box"] }) {
+  return (
+    <div className="flex flex-1 items-center justify-center">
+      <div className="relative h-full aspect-[1275/1650]">
+        <Image
+          src={src}
+          alt="Página de partidas de un pedimento aduanal"
+          fill
+          className="object-contain rounded-sm shadow-xl ring-1 ring-black/10"
+          sizes="(max-width: 1024px) 90vw, 45vw"
+          priority
+        />
+        {box && (
           <div
             className="absolute rounded-md border-2 border-primary bg-primary/10 transition-[top,left,width,height] duration-[1400ms] ease-in-out"
             style={{
@@ -150,7 +204,7 @@ function DocumentPanel({ box }: { box: Partida["box"] }) {
               fill="white"
             />
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -292,6 +346,9 @@ function InvoicePanel({ partida, phase }: { partida: Partida; phase: Phase }) {
     }
 
     async function run() {
+      await wait(1000);
+      if (cancelled) return;
+
       setActiveField("descripcion");
       await type(setDescripcion, partida.descripcion, 75);
       if (cancelled) return;
@@ -311,6 +368,9 @@ function InvoicePanel({ partida, phase }: { partida: Partida; phase: Phase }) {
 
       setActiveField("cantidad");
       await type(setCantidad, partida.cantidad, 200);
+      if (cancelled) return;
+
+      await wait(800);
       if (cancelled) return;
 
       setActiveField("precio");
