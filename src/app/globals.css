@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@clerk/ui/themes/shadcn.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -157,6 +158,111 @@
   }
 }
 
+/* ── Neurocrow lockup: cursive "Pedimentos" appears hand-signed on
+   load, tracing left to right like a pen stroke under the wordmark.
+   One deliberate motion moment on an otherwise static screen. ────── */
+@media (prefers-reduced-motion: no-preference) {
+  .signature-reveal {
+    position: relative;
+    display: inline-block;
+    clip-path: inset(0 100% 0 0);
+    animation: nc-signature-reveal 1.4s 0.3s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  }
+  .signature-reveal::after {
+    content: "";
+    position: absolute;
+    top: 12%;
+    bottom: 18%;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--primary);
+    box-shadow: 0 0 10px 2px color-mix(in oklch, var(--primary) 70%, transparent);
+    opacity: 0;
+    animation: nc-nib-travel 1.4s 0.3s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  }
+}
+@keyframes nc-signature-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0% 0 0);
+  }
+}
+@keyframes nc-nib-travel {
+  0% {
+    left: 0%;
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+/* ── Auth skeleton shimmer: a moving highlight sweep, not an opacity
+   pulse — reads as clearly "loading" instead of a faint breathing box. ── */
+.skeleton-bar {
+  border-radius: 0.375rem;
+  background-color: oklch(0.85 0.012 258);
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    oklch(0.96 0.006 258) 50%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  animation: sk-shimmer 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-bar {
+    animation: none;
+  }
+}
+@keyframes sk-shimmer {
+  from {
+    background-position: 130% 0;
+  }
+  to {
+    background-position: -30% 0;
+  }
+}
+
+/* ── Org switcher "manage organization" pill: overriding via the
+   appearance prop wasn't taking visible effect (likely a stale Clerk JS
+   bundle cache), so this targets Clerk's own stable `cl-` class directly
+   with !important as a guaranteed-to-apply fallback. ────────────────── */
+.cl-organizationSwitcherPopoverActionButton__manageOrganization {
+  font-size: 0.75rem !important;
+  padding: 0.375rem 0.625rem !important;
+  min-height: auto !important;
+  height: auto !important;
+  border-radius: 0.375rem !important;
+}
+.cl-organizationSwitcherPopoverActionButtonIconBox__manageOrganization {
+  width: 1rem !important;
+  height: 1rem !important;
+}
+.cl-organizationSwitcherPopoverActionButtonIcon__manageOrganization {
+  width: 0.875rem !important;
+  height: 0.875rem !important;
+}
+
+/* ── Blueprint hairlines: faint diagonal ruling on the brand panel,
+   nods to technical/customs paperwork without illustrating it. ──── */
+.bg-blueprint-lines {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.05) 0px,
+    rgba(255, 255, 255, 0.05) 1px,
+    transparent 1px,
+    transparent 44px
+  );
+}
+
 /* ── Sidebar active state: orange left bar, no border-radius ─────── */
 [data-sidebar="menu-button"][data-active="true"] {
   box-shadow: inset 3px 0 0 var(--sidebar-primary);
@@ -165,4 +271,115 @@
 }
 [data-sidebar="menu-button"] {
   border-radius: 0;
+}
+
+/* ── Landing page: fracciones ticker ──────────────────────────────
+   A manifest-style strip of tariff codes drifting past, like the header
+   strip on a customs printout. Content is duplicated once in the markup
+   so the 50%-translate loop is seamless. */
+.nc-ticker-track {
+  animation: nc-ticker-scroll 32s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nc-ticker-track {
+    animation: none;
+  }
+}
+@keyframes nc-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ── Landing page: perforation divider ────────────────────────────
+   Mimics the tear-off edge between copies of a multi-part customs form. */
+.nc-perforation {
+  background-image: radial-gradient(circle, var(--border) 1.5px, transparent 1.6px);
+  background-size: 14px 100%;
+  background-repeat: repeat-x;
+  background-position: center;
+}
+.nc-perforation-dark {
+  background-image: radial-gradient(circle, oklch(1 0 0 / 12%) 1.5px, transparent 1.6px);
+  background-size: 14px 100%;
+  background-repeat: repeat-x;
+  background-position: center;
+}
+
+/* ── Landing page: stamp reveal ────────────────────────────────────
+   A row "gets stamped" as it scrolls into view — ink hitting paper,
+   not a generic fade. One deliberate motion moment per demo row. */
+.nc-unstamped {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .nc-stamped {
+    animation: nc-stamp-drop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) forwards;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nc-stamped,
+  .nc-unstamped {
+    opacity: 1;
+    animation: none;
+  }
+}
+@keyframes nc-stamp-drop {
+  from {
+    opacity: 0;
+    transform: scale(1.5) rotate(-10deg);
+  }
+  70% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(-2deg);
+  }
+}
+
+/* ── Landing page: "así lo haces hoy" manual-workflow demo ─────────
+   A recreated spreadsheet cell flashes green (Excel's own paste-flash
+   color) the instant a row is "pasted" in, and a blinking text caret
+   stands in for a cursor mid-keystroke in the recreated invoice form. */
+@keyframes nc-cell-paste {
+  from {
+    background-color: color-mix(in oklch, #1d6f42 45%, white);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.nc-cell-paste {
+  animation: nc-cell-paste 900ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nc-cell-paste {
+    animation: none;
+  }
+}
+
+@keyframes nc-caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  95% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.nc-caret {
+  animation: nc-caret-blink 900ms step-end infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nc-caret {
+    animation: none;
+  }
 }

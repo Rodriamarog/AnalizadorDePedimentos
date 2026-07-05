@@ -1,0 +1,20 @@
+{
+  "projectId": "6165481a-50ba-44cf-81b5-158d24c8651f",
+  "shape": "package",
+  "pkg": "pedimentos-v2-ds",
+  "globalName": "PedimentosDS",
+  "buildCmd": "./scripts/build-ds.sh",
+  "tsconfig": "../tsconfig.ds-build.json",
+  "cssEntry": "styles.compiled.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Dialog": { "cardMode": "single", "viewport": "420x360" },
+    "Sheet": { "cardMode": "single", "viewport": "420x420" },
+    "Popover": { "cardMode": "single", "viewport": "360x300" },
+    "DropdownMenu": { "cardMode": "single", "viewport": "280x260" },
+    "Tooltip": { "cardMode": "single", "viewport": "280x160" },
+    "Command": { "cardMode": "single", "viewport": "420x360" },
+    "Sidebar": { "cardMode": "single", "viewport": "960x520" },
+    "CrearFacturaDialog": { "cardMode": "single", "viewport": "480x420" }
+  }
+}

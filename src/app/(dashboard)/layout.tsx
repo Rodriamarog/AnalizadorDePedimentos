@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Separator } from "@/components/ui/separator";
 import { PageTitleProvider } from "@/components/page-title-context";
 import { TopBarTitle } from "@/components/top-bar-title";
+import { clerkOrgSwitcherAppearance } from "@/lib/clerk-org-switcher-appearance";
 import { Bell } from "lucide-react";
 
 export default function DashboardLayout({
@@ -19,7 +20,11 @@ export default function DashboardLayout({
           <header className="relative flex items-center h-13 border-b border-border bg-card/80 backdrop-blur-sm px-4 shrink-0 gap-3">
             <SidebarTrigger className="text-muted-foreground hover:text-foreground -ml-1" />
             <Separator orientation="vertical" className="h-4" />
-            <OrganizationSwitcher afterSelectOrganizationUrl="/" afterCreateOrganizationUrl="/" />
+            <OrganizationSwitcher
+              afterSelectOrganizationUrl="/"
+              afterCreateOrganizationUrl="/"
+              appearance={clerkOrgSwitcherAppearance}
+            />
             <TopBarTitle />
             <div className="flex-1" />
             <button className="relative p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
@@ -34,7 +39,7 @@ export default function DashboardLayout({
               main instead of scrolling internally. Pages that want the old
               whole-page-scroll behavior (pedimento detail) opt back into it by
               giving their own root `overflow-y-auto`. */}
-          <main className="flex-1 min-h-0 overflow-hidden p-6 md:p-8 flex flex-col">{children}</main>
+          <main className="flex-1 min-h-0 overflow-hidden p-3 md:p-4 flex flex-col">{children}</main>
         </div>
       </PageTitleProvider>
     </SidebarProvider>

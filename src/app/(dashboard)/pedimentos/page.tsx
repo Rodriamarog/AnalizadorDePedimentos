@@ -24,7 +24,6 @@ export default function PedimentosPage() {
   const [rows, setRows] = useState<PedimentoRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -49,15 +48,14 @@ export default function PedimentosPage() {
   }, [load]);
 
   async function handleFile(file: File) {
-    setError(null);
     setUploading(true);
     try {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/parse", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Error al procesar el PDF");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        alertError("No se pudo procesar el pedimento", data?.error ?? "Error al procesar el PDF");
         return;
       }
       router.push(`/pedimentos/${data.id}`);
@@ -96,12 +94,6 @@ export default function PedimentosPage() {
           if (file) handleFile(file);
         }}
       />
-
-      {error && (
-        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
-          {error}
-        </div>
-      )}
 
       <Card className="border-border shadow-none flex-1 min-h-0 flex flex-col">
         <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
