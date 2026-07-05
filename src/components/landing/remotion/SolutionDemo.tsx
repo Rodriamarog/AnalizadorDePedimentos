@@ -452,6 +452,14 @@ export function SolutionDemo() {
                 {ROWS.map((row, i) => {
                   const rowStart = ROW_START + i * ROW_GAP;
                   const rowIn = progress(frame, rowStart, ROW_SETTLE);
+                  // Once a row has finished animating in, drop opacity/translate
+                  // entirely instead of leaving them at their resting values
+                  // (1 / 0px) — a transform, even a no-op one, promotes the <tr>
+                  // to its own compositing layer, and once the whole canvas is
+                  // scaled down by the Remotion Player those per-row layers
+                  // rasterize independently, making the 1px border round away
+                  // inconsistently from row to row.
+                  const rowSettled = frame >= rowStart + ROW_SETTLE;
                   const puMn = row.precioUnitario;
                   const puUsd = puMn / TC;
                   const va = valAduana(row);
@@ -461,8 +469,9 @@ export function SolutionDemo() {
                       key={row.fraccion + row.sec}
                       style={{
                         borderBottom: "1px solid var(--border)",
-                        opacity: rowIn,
-                        translate: `${interpolate(rowIn, [0, 1], [-10, 0])}px 0`,
+                        ...(rowSettled
+                          ? {}
+                          : { opacity: rowIn, translate: `${interpolate(rowIn, [0, 1], [-10, 0])}px 0` }),
                       }}
                     >
                       <td style={{ padding: "4px 12px", color: "var(--muted-foreground)" }}>{row.sec}</td>
