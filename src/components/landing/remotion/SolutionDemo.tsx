@@ -1,5 +1,5 @@
 import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame } from "remotion";
-import { CheckCircle2, Loader2, MousePointer2, Receipt } from "lucide-react";
+import { CheckCircle2, ChevronsUpDown, Loader2, MousePointer2, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SatComboBox } from "@/components/sat-combobox";
@@ -36,15 +36,32 @@ const RAW_ROWS: Omit<Row, "sec">[] = [
   { descripcion: "Reguladores de voltaje", fraccion: "8504.40.99", cantidad: 560, precioUnitario: 210.0, claveProdServ: "39121500", claveProdServDesc: "Fuentes de poder", unitKey: "H87" },
   { descripcion: "Mochilas para equipo de cómputo", fraccion: "4202.12.01", cantidad: 950, precioUnitario: 165.0, claveProdServ: "53131608", claveProdServDesc: "Bolsas y mochilas", unitKey: "H87" },
   { descripcion: "Memorias USB de alta velocidad", fraccion: "8523.51.01", cantidad: 4200, precioUnitario: 65.0, claveProdServ: "43201803", claveProdServDesc: "Memorias de almacenamiento", unitKey: "H87" },
+  { descripcion: "Cargadores inalámbricos", fraccion: "8504.40.99", cantidad: 1400, precioUnitario: 145.0, claveProdServ: "26111702", claveProdServDesc: "Cargadores", unitKey: "H87" },
+  { descripcion: "Etiquetas RFID para inventario", fraccion: "3919.90.99", cantidad: 8000, precioUnitario: 3.8, claveProdServ: "44121701", claveProdServDesc: "Etiquetas", unitKey: "H87" },
 ];
 
 const ROWS: Row[] = RAW_ROWS.map((r, i) => ({ sec: i + 1, ...r }));
+
+const CLIENTES = [
+  { name: "GRUPO COMERCIAL DEL NORTE SA DE CV", taxId: "GCN950314AB1" },
+  { name: "DISTRIBUIDORA FRONTERIZA SA DE CV", taxId: "DFR870622K9" },
+];
 
 function valAduana(row: Row) {
   return Math.round(row.precioUnitario * row.cantidad);
 }
 
 const TOTAL_MXN = ROWS.reduce((sum, r) => sum + valAduana(r), 0);
+
+const EASE = Easing.bezier(0.22, 1, 0.36, 1);
+
+function progress(frame: number, start: number, dur: number) {
+  return interpolate(frame, [start, start + dur], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+    easing: EASE,
+  });
+}
 
 // Frame timeline (30fps). The upload card fully disappears before the table
 // takes over the whole content area — the document is never shown again
@@ -61,50 +78,86 @@ const UPLOAD_OUT_DUR = 10;
 const TABLE_IN_START = 34;
 const TABLE_IN_DUR = 14;
 const ROW_START = 44;
-const ROW_GAP = 3;
-const ROW_SETTLE = 6;
+const ROW_GAP = 2;
+const ROW_SETTLE = 5;
 
 const badgeDoneStart = ROW_START + (ROWS.length - 1) * ROW_GAP + ROW_SETTLE + 4;
 const BADGE_DONE_DUR = 8;
 
 const CURSOR_START = badgeDoneStart + 10;
-const CURSOR_DUR = 14;
+const CURSOR_DUR = 12;
 const CLICK_AT = CURSOR_START + CURSOR_DUR;
 const CLICK_DUR = 10;
-const COLLAPSE_START = CLICK_AT + 4;
-const COLLAPSE_DUR = 16;
+
+// Clicking "Facturar" opens the real CrearFacturaDialog equivalent: pick a
+// cliente, then click "Timbrar factura" — matching the actual app flow
+// instead of jumping straight from click to done.
+const DIALOG_IN_START = CLICK_AT + 4;
+const DIALOG_IN_DUR = 10;
+
+const CLIENT_CURSOR_START = DIALOG_IN_START + DIALOG_IN_DUR + 6;
+const CLIENT_CURSOR_DUR = 12;
+const CLIENT_CLICK_AT = CLIENT_CURSOR_START + CLIENT_CURSOR_DUR;
+const DROPDOWN_OPEN_DUR = 8;
+const CLIENT_SELECT_AT = CLIENT_CLICK_AT + DROPDOWN_OPEN_DUR + 8;
+
+const TIMBRAR_CURSOR_START = CLIENT_SELECT_AT + 10;
+const TIMBRAR_CURSOR_DUR = 12;
+const TIMBRAR_CLICK_AT = TIMBRAR_CURSOR_START + TIMBRAR_CURSOR_DUR;
+const TIMBRAR_CLICK_DUR = 10;
+
+const DIALOG_OUT_START = TIMBRAR_CLICK_AT + 6;
+const DIALOG_OUT_DUR = 10;
+
+const COLLAPSE_START = DIALOG_OUT_START;
+const COLLAPSE_DUR = 14;
 const SUMMARY_START = COLLAPSE_START + 8;
 const SUMMARY_DUR = 16;
 const STAMP_START = SUMMARY_START + 14;
 const STAMP_DUR = 16;
 
 export const SOLUTION_DEMO_FPS = 30;
-export const SOLUTION_DEMO_DURATION = STAMP_START + STAMP_DUR + 26;
-
-const EASE = Easing.bezier(0.22, 1, 0.36, 1);
-
-function progress(frame: number, start: number, dur: number) {
-  return interpolate(frame, [start, start + dur], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: EASE,
-  });
-}
+export const SOLUTION_DEMO_DURATION = STAMP_START + STAMP_DUR + 30;
 
 // The Facturar button sits in a fixed-width slot at the end of the toolbar
 // row (28px content padding, 180px badge + 10px gap + 110px button slot,
-// right-aligned) so its on-screen center is deterministic — the cursor
-// targets this same point instead of a guessed coordinate.
+// right-aligned) so its on-screen center is deterministic — cursors target
+// this same point instead of a guessed coordinate.
+const CONTENT_WIDTH = 1600;
+const CONTENT_HEIGHT = 844;
 const CONTENT_PADDING = 28;
 const TOOLBAR_HEIGHT = 32;
 const BUTTON_SLOT_WIDTH = 110;
-const CONTENT_WIDTH = 1600;
 const toolbarRight = CONTENT_WIDTH - CONTENT_PADDING;
-const BUTTON_CENTER = {
+const FACTURAR_CENTER = {
   x: toolbarRight - BUTTON_SLOT_WIDTH / 2,
   y: CONTENT_PADDING + TOOLBAR_HEIGHT / 2,
 };
 
+// Dialog geometry, also fixed so its interactive targets are deterministic.
+const DIALOG_WIDTH = 640;
+const DIALOG_HEIGHT = 430;
+const DIALOG_LEFT = (CONTENT_WIDTH - DIALOG_WIDTH) / 2;
+const DIALOG_TOP = (CONTENT_HEIGHT - DIALOG_HEIGHT) / 2;
+const DIALOG_PADDING = 28;
+
+const CLIENT_FIELD_TOP = 82;
+const CLIENT_FIELD_HEIGHT = 34;
+const CLIENT_SELECT_CENTER = {
+  x: DIALOG_LEFT + DIALOG_WIDTH / 2,
+  y: DIALOG_TOP + CLIENT_FIELD_TOP + CLIENT_FIELD_HEIGHT / 2,
+};
+
+const FOOTER_TOP = 364;
+const FOOTER_HEIGHT = 36;
+const CANCEL_WIDTH = 90;
+const TIMBRAR_WIDTH = 150;
+const FOOTER_GAP = 12;
+const footerRight = DIALOG_WIDTH - DIALOG_PADDING;
+const TIMBRAR_CENTER = {
+  x: DIALOG_LEFT + footerRight - TIMBRAR_WIDTH / 2,
+  y: DIALOG_TOP + FOOTER_TOP + FOOTER_HEIGHT / 2,
+};
 const COLUMNS = [
   { key: "sec", label: "Partida", align: "left" as const },
   { key: "descripcion", label: "Descripción", align: "left" as const },
@@ -118,6 +171,32 @@ const COLUMNS = [
   { key: "unitKey", label: "Unidad", align: "left" as const },
 ];
 
+function Cursor({ x, y }: { x: number; y: number }) {
+  return (
+    <div style={{ position: "absolute", left: x, top: y, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.4))" }}>
+      <MousePointer2 width={26} height={26} className="text-foreground" fill="white" />
+    </div>
+  );
+}
+
+function ClickRing({ x, y, pulse }: { x: number; y: number; pulse: number }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: x - 12,
+        top: y - 12,
+        width: 24,
+        height: 24,
+        borderRadius: 9999,
+        border: "2px solid var(--primary)",
+        opacity: 1 - pulse,
+        scale: 1 + pulse * 1.4,
+      }}
+    />
+  );
+}
+
 export function SolutionDemo() {
   const frame = useCurrentFrame();
 
@@ -130,16 +209,39 @@ export function SolutionDemo() {
   const uploadVisible = frame < UPLOAD_OUT_START + UPLOAD_OUT_DUR;
 
   const tableIn = progress(frame, TABLE_IN_START, TABLE_IN_DUR);
-
   const badgeDone = progress(frame, badgeDoneStart, BADGE_DONE_DUR);
 
-  const cursorMove = progress(frame, CURSOR_START, CURSOR_DUR);
-  const cursorVisible = frame >= CURSOR_START && frame < CLICK_AT + CLICK_DUR + 6;
-  const clicked = frame >= CLICK_AT;
-  const clickPulse = progress(frame, CLICK_AT, CLICK_DUR);
-  const buttonPress = interpolate(
+  // Cursor 1: toolbar -> Facturar
+  const facturarMove = progress(frame, CURSOR_START, CURSOR_DUR);
+  const facturarClicked = frame >= CLICK_AT;
+  const facturarPulse = progress(frame, CLICK_AT, CLICK_DUR);
+  const facturarPress = interpolate(frame, [CLICK_AT - 2, CLICK_AT + 3, CLICK_AT + 9], [1, 0.93, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  // Dialog open/close
+  const dialogIn = progress(frame, DIALOG_IN_START, DIALOG_IN_DUR);
+  const dialogOut = progress(frame, DIALOG_OUT_START, DIALOG_OUT_DUR);
+  const dialogVisible = frame >= DIALOG_IN_START && frame < DIALOG_OUT_START + DIALOG_OUT_DUR;
+  const dialogOpacity = dialogIn * (1 - dialogOut);
+  const dialogScale = interpolate(dialogIn, [0, 1], [0.94, 1]) * interpolate(dialogOut, [0, 1], [1, 0.96]);
+
+  // Cursor 2: Facturar -> Cliente select -> dropdown -> selection
+  const clientMove = progress(frame, CLIENT_CURSOR_START, CLIENT_CURSOR_DUR);
+  const clientClicked = frame >= CLIENT_CLICK_AT;
+  const clientPulse = progress(frame, CLIENT_CLICK_AT, 8);
+  const dropdownOpen = frame >= CLIENT_CLICK_AT && frame < CLIENT_SELECT_AT;
+  const dropdownOpenIn = progress(frame, CLIENT_CLICK_AT, DROPDOWN_OPEN_DUR);
+  const clienteSelected = frame >= CLIENT_SELECT_AT;
+
+  // Cursor 3: Cliente select -> Timbrar factura
+  const timbrarMove = progress(frame, TIMBRAR_CURSOR_START, TIMBRAR_CURSOR_DUR);
+  const timbrarClicked = frame >= TIMBRAR_CLICK_AT;
+  const timbrarPulse = progress(frame, TIMBRAR_CLICK_AT, TIMBRAR_CLICK_DUR);
+  const timbrarPress = interpolate(
     frame,
-    [CLICK_AT - 2, CLICK_AT + 3, CLICK_AT + 9],
+    [TIMBRAR_CLICK_AT - 2, TIMBRAR_CLICK_AT + 3, TIMBRAR_CLICK_AT + 9],
     [1, 0.93, 1],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
@@ -154,6 +256,8 @@ export function SolutionDemo() {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
+
+  const previewRows = ROWS.slice(0, 4);
 
   return (
     <AbsoluteFill style={{ background: "var(--card)" }}>
@@ -303,7 +407,7 @@ export function SolutionDemo() {
               >
                 {badgeDone > 0.5 ? `${ROWS.length} partidas mapeadas` : "Analizando…"}
               </span>
-              <div style={{ width: 110, display: "flex", justifyContent: "center", scale: buttonPress }}>
+              <div style={{ width: 110, display: "flex", justifyContent: "center", scale: facturarPress }}>
                 <Button id="facturar-btn" className="gap-1.5">
                   <Receipt width={14} height={14} />
                   Facturar
@@ -361,27 +465,27 @@ export function SolutionDemo() {
                         translate: `${interpolate(rowIn, [0, 1], [-10, 0])}px 0`,
                       }}
                     >
-                      <td style={{ padding: "5px 12px", color: "var(--muted-foreground)" }}>{row.sec}</td>
-                      <td style={{ padding: "5px 12px", color: "var(--foreground)", whiteSpace: "nowrap" }}>{row.descripcion}</td>
-                      <td style={{ padding: "5px 12px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--foreground)", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "4px 12px", color: "var(--muted-foreground)" }}>{row.sec}</td>
+                      <td style={{ padding: "4px 12px", color: "var(--foreground)", whiteSpace: "nowrap" }}>{row.descripcion}</td>
+                      <td style={{ padding: "4px 12px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--foreground)", whiteSpace: "nowrap" }}>
                         ${va.toLocaleString()}
                       </td>
-                      <td style={{ padding: "5px 12px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "4px 12px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
                         {row.cantidad.toLocaleString()}
                       </td>
-                      <td style={{ padding: "5px 12px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "4px 12px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
                         {TC.toFixed(5)}
                       </td>
-                      <td style={{ padding: "5px 12px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "4px 12px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
                         ${puUsd.toFixed(5)}
                       </td>
-                      <td style={{ padding: "5px 12px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "4px 12px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
                         ${valorDlls.toFixed(2)}
                       </td>
-                      <td style={{ padding: "5px 12px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--foreground)", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "4px 12px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--foreground)", whiteSpace: "nowrap" }}>
                         ${puMn.toFixed(5)}
                       </td>
-                      <td style={{ padding: "5px 12px" }}>
+                      <td style={{ padding: "4px 12px" }}>
                         <SatComboBox
                           endpoint="/api/catalogs/products"
                           value={row.claveProdServ}
@@ -391,7 +495,7 @@ export function SolutionDemo() {
                           onSelect={() => {}}
                         />
                       </td>
-                      <td style={{ padding: "5px 12px" }}>
+                      <td style={{ padding: "4px 12px" }}>
                         <SatComboBox
                           endpoint="/api/catalogs/units"
                           value={row.unitKey}
@@ -436,6 +540,10 @@ export function SolutionDemo() {
                 <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Lista para timbrar</Badge>
               </div>
               <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--muted-foreground)" }}>
+                <span>Cliente</span>
+                <span style={{ color: "oklch(0.2 0.02 264)" }}>{CLIENTES[0].name}</span>
+              </div>
+              <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--muted-foreground)" }}>
                 <span>Partidas</span>
                 <span style={{ fontFamily: "var(--font-mono)", color: "oklch(0.2 0.02 264)" }}>{ROWS.length}</span>
               </div>
@@ -474,33 +582,214 @@ export function SolutionDemo() {
           </div>
         </div>
 
-        {/* Cursor flying to the Facturar button */}
-        {cursorVisible && (
-          <div
-            style={{
-              position: "absolute",
-              left: interpolate(cursorMove, [0, 1], [BUTTON_CENTER.x - 260, BUTTON_CENTER.x + 4]),
-              top: interpolate(cursorMove, [0, 1], [BUTTON_CENTER.y + 220, BUTTON_CENTER.y + 4]),
-              filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.4))",
-            }}
-          >
-            <MousePointer2 width={26} height={26} className="text-foreground" fill="white" />
-          </div>
+        {/* Crear factura dialog: cliente select -> timbrar factura */}
+        {dialogVisible && (
+          <>
+            <div style={{ position: "absolute", inset: 0, background: "rgba(15,15,20,0.45)", opacity: dialogOpacity }} />
+            <div
+              style={{
+                position: "absolute",
+                left: DIALOG_LEFT,
+                top: DIALOG_TOP,
+                width: DIALOG_WIDTH,
+                height: DIALOG_HEIGHT,
+                borderRadius: 14,
+                background: "var(--popover)",
+                boxShadow: "0 40px 100px -20px rgba(0,0,0,0.5)",
+                padding: DIALOG_PADDING,
+                opacity: dialogOpacity,
+                scale: dialogScale,
+              }}
+            >
+              <h3 style={{ margin: 0, fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 17, color: "var(--foreground)" }}>
+                Crear factura
+              </h3>
+
+              <div style={{ position: "absolute", left: DIALOG_PADDING, right: DIALOG_PADDING, top: CLIENT_FIELD_TOP - 20 }}>
+                <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)" }}>
+                  Cliente
+                </span>
+              </div>
+              <div
+                style={{
+                  position: "absolute",
+                  left: DIALOG_PADDING,
+                  right: DIALOG_PADDING,
+                  top: CLIENT_FIELD_TOP,
+                  height: CLIENT_FIELD_HEIGHT,
+                  borderRadius: 8,
+                  border: `1px solid ${dropdownOpen ? "var(--primary)" : "var(--border)"}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "0 12px",
+                  fontFamily: "var(--font-sans)",
+                  fontSize: 13,
+                }}
+              >
+                <span style={{ color: clienteSelected ? "var(--foreground)" : "var(--muted-foreground)" }}>
+                  {clienteSelected ? `${CLIENTES[0].name} (${CLIENTES[0].taxId})` : "— Selecciona un cliente —"}
+                </span>
+                <ChevronsUpDown width={14} height={14} className="text-muted-foreground" />
+              </div>
+
+              {dropdownOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: DIALOG_PADDING,
+                    right: DIALOG_PADDING,
+                    top: CLIENT_FIELD_TOP + CLIENT_FIELD_HEIGHT + 4,
+                    borderRadius: 10,
+                    background: "var(--popover)",
+                    boxShadow: "0 20px 50px -12px rgba(0,0,0,0.35)",
+                    border: "1px solid var(--border)",
+                    padding: 4,
+                    opacity: dropdownOpenIn,
+                    scale: interpolate(dropdownOpenIn, [0, 1], [0.95, 1]),
+                    zIndex: 2,
+                  }}
+                >
+                  {CLIENTES.map((c, i) => (
+                    <div
+                      key={c.taxId}
+                      style={{
+                        padding: "8px 10px",
+                        borderRadius: 6,
+                        fontFamily: "var(--font-sans)",
+                        fontSize: 13,
+                        background: i === 0 ? "var(--accent)" : "transparent",
+                        color: "var(--foreground)",
+                      }}
+                    >
+                      {c.name} <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}>({c.taxId})</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ position: "absolute", left: DIALOG_PADDING, right: DIALOG_PADDING, top: 128 }}>
+                <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)" }}>
+                  Uso del CFDI
+                </span>
+                <div
+                  style={{
+                    marginTop: 4,
+                    height: 30,
+                    borderRadius: 8,
+                    border: "1px solid var(--border)",
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "0 12px",
+                    fontFamily: "var(--font-sans)",
+                    fontSize: 12,
+                    color: "var(--foreground)",
+                  }}
+                >
+                  G01 – Adquisición de mercancías
+                </div>
+              </div>
+
+              <div style={{ position: "absolute", left: DIALOG_PADDING, right: DIALOG_PADDING, top: 184 }}>
+                <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)" }}>
+                  Partidas a facturar
+                </span>
+                <div style={{ marginTop: 4, borderRadius: 8, border: "1px solid var(--border)", overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ background: "var(--muted)" }}>
+                        <th style={{ width: 20, padding: "5px 8px" }} />
+                        <th style={{ textAlign: "left", padding: "5px 8px", color: "var(--muted-foreground)", fontWeight: 600 }}>Descripción</th>
+                        <th style={{ textAlign: "right", padding: "5px 8px", color: "var(--muted-foreground)", fontWeight: 600 }}>Cant.</th>
+                        <th style={{ textAlign: "right", padding: "5px 8px", color: "var(--muted-foreground)", fontWeight: 600 }}>Precio (MXN)</th>
+                        <th style={{ textAlign: "left", padding: "5px 8px", color: "var(--muted-foreground)", fontWeight: 600 }}>ClaveProdServ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewRows.map((row) => (
+                        <tr key={row.sec} style={{ borderTop: "1px solid var(--border)" }}>
+                          <td style={{ padding: "4px 8px", textAlign: "center" }}>
+                            <div style={{ width: 12, height: 12, borderRadius: 3, background: "var(--primary)", margin: "0 auto" }} />
+                          </td>
+                          <td style={{ padding: "4px 8px", color: "var(--foreground)", whiteSpace: "nowrap" }}>{row.descripcion}</td>
+                          <td style={{ padding: "4px 8px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
+                            {row.cantidad.toLocaleString()}
+                          </td>
+                          <td style={{ padding: "4px 8px", textAlign: "right", fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
+                            {row.precioUnitario.toFixed(2)}
+                          </td>
+                          <td style={{ padding: "4px 8px", fontFamily: "var(--font-mono)", color: "oklch(0.5 0.13 155)" }}>{row.claveProdServ}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ borderTop: "1px solid var(--border)" }}>
+                        <td />
+                        <td colSpan={4} style={{ padding: "4px 8px", color: "var(--muted-foreground)", fontStyle: "italic" }}>
+                          + {ROWS.length - previewRows.length} más
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  position: "absolute",
+                  left: DIALOG_PADDING,
+                  right: DIALOG_PADDING,
+                  top: FOOTER_TOP,
+                  height: FOOTER_HEIGHT,
+                  borderTop: "1px solid var(--border)",
+                  paddingTop: 12,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: FOOTER_GAP,
+                }}
+              >
+                <div style={{ width: CANCEL_WIDTH, display: "flex", justifyContent: "center" }}>
+                  <Button variant="outline" size="sm">
+                    Cancelar
+                  </Button>
+                </div>
+                <div style={{ width: TIMBRAR_WIDTH, display: "flex", justifyContent: "center", scale: timbrarPress }}>
+                  <Button size="sm">Timbrar factura</Button>
+                </div>
+              </div>
+            </div>
+          </>
         )}
-        {clicked && frame < CLICK_AT + 16 && (
-          <div
-            style={{
-              position: "absolute",
-              left: BUTTON_CENTER.x - 12,
-              top: BUTTON_CENTER.y - 12,
-              width: 24,
-              height: 24,
-              borderRadius: 9999,
-              border: "2px solid var(--primary)",
-              opacity: 1 - clickPulse,
-              scale: 1 + clickPulse * 1.4,
-            }}
+
+        {/* Cursor 1: toolbar -> Facturar */}
+        {frame >= CURSOR_START && frame < CLICK_AT + CLICK_DUR + 6 && (
+          <Cursor
+            x={interpolate(facturarMove, [0, 1], [FACTURAR_CENTER.x - 260, FACTURAR_CENTER.x + 4])}
+            y={interpolate(facturarMove, [0, 1], [FACTURAR_CENTER.y + 220, FACTURAR_CENTER.y + 4])}
           />
+        )}
+        {facturarClicked && frame < CLICK_AT + 16 && (
+          <ClickRing x={FACTURAR_CENTER.x} y={FACTURAR_CENTER.y} pulse={facturarPulse} />
+        )}
+
+        {/* Cursor 2: Facturar -> Cliente select */}
+        {frame >= CLIENT_CURSOR_START && frame < CLIENT_SELECT_AT + 6 && (
+          <Cursor
+            x={interpolate(clientMove, [0, 1], [FACTURAR_CENTER.x, CLIENT_SELECT_CENTER.x + 4])}
+            y={interpolate(clientMove, [0, 1], [FACTURAR_CENTER.y, CLIENT_SELECT_CENTER.y + 4])}
+          />
+        )}
+        {clientClicked && frame < CLIENT_CLICK_AT + 14 && (
+          <ClickRing x={CLIENT_SELECT_CENTER.x} y={CLIENT_SELECT_CENTER.y} pulse={clientPulse} />
+        )}
+
+        {/* Cursor 3: Cliente select -> Timbrar factura */}
+        {frame >= TIMBRAR_CURSOR_START && frame < TIMBRAR_CLICK_AT + CLICK_DUR + 6 && (
+          <Cursor
+            x={interpolate(timbrarMove, [0, 1], [CLIENT_SELECT_CENTER.x, TIMBRAR_CENTER.x + 4])}
+            y={interpolate(timbrarMove, [0, 1], [CLIENT_SELECT_CENTER.y, TIMBRAR_CENTER.y + 4])}
+          />
+        )}
+        {timbrarClicked && frame < TIMBRAR_CLICK_AT + 16 && (
+          <ClickRing x={TIMBRAR_CENTER.x} y={TIMBRAR_CENTER.y} pulse={timbrarPulse} />
         )}
       </div>
     </AbsoluteFill>
