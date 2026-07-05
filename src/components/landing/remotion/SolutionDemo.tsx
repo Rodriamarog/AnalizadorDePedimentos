@@ -136,7 +136,7 @@ const FACTURAR_CENTER = {
 
 // Dialog geometry, also fixed so its interactive targets are deterministic.
 const DIALOG_WIDTH = 640;
-const DIALOG_HEIGHT = 430;
+const DIALOG_HEIGHT = 462;
 const DIALOG_LEFT = (CONTENT_WIDTH - DIALOG_WIDTH) / 2;
 const DIALOG_TOP = (CONTENT_HEIGHT - DIALOG_HEIGHT) / 2;
 const DIALOG_PADDING = 28;
@@ -148,7 +148,7 @@ const CLIENT_SELECT_CENTER = {
   y: DIALOG_TOP + CLIENT_FIELD_TOP + CLIENT_FIELD_HEIGHT / 2,
 };
 
-const FOOTER_TOP = 364;
+const FOOTER_TOP = 396;
 const FOOTER_HEIGHT = 36;
 const CANCEL_WIDTH = 90;
 const TIMBRAR_WIDTH = 150;
@@ -194,6 +194,71 @@ function ClickRing({ x, y, pulse }: { x: number; y: number; pulse: number }) {
         scale: 1 + pulse * 1.4,
       }}
     />
+  );
+}
+
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <span
+        style={{
+          display: "block",
+          marginBottom: 4,
+          fontFamily: "var(--font-sans)",
+          fontSize: 9,
+          fontWeight: 600,
+          color: "var(--muted-foreground)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function MiniButton({ active, children }: { active?: boolean; children: React.ReactNode }) {
+  return (
+    <span
+      style={{
+        flex: 1,
+        textAlign: "center",
+        padding: "5px 0",
+        borderRadius: 6,
+        fontFamily: "var(--font-sans)",
+        fontSize: 10,
+        fontWeight: 600,
+        background: active ? "var(--primary)" : "transparent",
+        color: active ? "var(--primary-foreground)" : "var(--muted-foreground)",
+        border: active ? "none" : "1px solid var(--border)",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function StaticSelect({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        height: 26,
+        borderRadius: 6,
+        border: "1px solid var(--border)",
+        display: "flex",
+        alignItems: "center",
+        padding: "0 8px",
+        fontFamily: "var(--font-sans)",
+        fontSize: 10,
+        color: "var(--foreground)",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -428,7 +493,7 @@ export function SolutionDemo() {
           >
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
-                <tr style={{ background: "var(--muted)", borderBottom: "1px solid var(--border)" }}>
+                <tr style={{ background: "var(--muted)", borderBottom: "2px solid var(--border)" }}>
                   {COLUMNS.map((col) => (
                     <th
                       key={col.key}
@@ -455,10 +520,7 @@ export function SolutionDemo() {
                   // Once a row has finished animating in, drop opacity/translate
                   // entirely instead of leaving them at their resting values
                   // (1 / 0px) — a transform, even a no-op one, promotes the <tr>
-                  // to its own compositing layer, and once the whole canvas is
-                  // scaled down by the Remotion Player those per-row layers
-                  // rasterize independently, making the 1px border round away
-                  // inconsistently from row to row.
+                  // to its own compositing layer.
                   const rowSettled = frame >= rowStart + ROW_SETTLE;
                   const puMn = row.precioUnitario;
                   const puUsd = puMn / TC;
@@ -468,7 +530,13 @@ export function SolutionDemo() {
                     <tr
                       key={row.fraccion + row.sec}
                       style={{
-                        borderBottom: "1px solid var(--border)",
+                        // 2px, not 1px: the Remotion Player displays this
+                        // 1600px-wide canvas scaled down by a fractional CSS
+                        // transform, so a 1px border lands on a sub-pixel
+                        // device width and rounds away on some rows depending
+                        // on their cumulative Y offset — 2px still rounds to
+                        // at least 1 real pixel everywhere.
+                        borderBottom: "2px solid var(--border)",
                         ...(rowSettled
                           ? {}
                           : { opacity: rowIn, translate: `${interpolate(rowIn, [0, 1], [-10, 0])}px 0` }),
@@ -699,7 +767,44 @@ export function SolutionDemo() {
                 </div>
               </div>
 
-              <div style={{ position: "absolute", left: DIALOG_PADDING, right: DIALOG_PADDING, top: 184 }}>
+              <div
+                style={{
+                  position: "absolute",
+                  left: DIALOG_PADDING,
+                  right: DIALOG_PADDING,
+                  top: 186,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(5, 1fr)",
+                  gap: 8,
+                }}
+              >
+                <FormField label="Método de pago">
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <MiniButton active>PUE</MiniButton>
+                    <MiniButton>PPD</MiniButton>
+                  </div>
+                </FormField>
+                <FormField label="Forma de pago">
+                  <StaticSelect>03 – Transferencia</StaticSelect>
+                </FormField>
+                <FormField label="Tipo Documento">
+                  <StaticSelect>Factura</StaticSelect>
+                </FormField>
+                <FormField label="Tasa IVA">
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <MiniButton active>16%</MiniButton>
+                    <MiniButton>8%</MiniButton>
+                  </div>
+                </FormField>
+                <FormField label="Moneda">
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <MiniButton active>MXN</MiniButton>
+                    <MiniButton>USD</MiniButton>
+                  </div>
+                </FormField>
+              </div>
+
+              <div style={{ position: "absolute", left: DIALOG_PADDING, right: DIALOG_PADDING, top: 250 }}>
                 <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)" }}>
                   Partidas a facturar
                 </span>
