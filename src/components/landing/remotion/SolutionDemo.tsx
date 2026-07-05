@@ -134,29 +134,87 @@ const FACTURAR_CENTER = {
   y: CONTENT_PADDING + TOOLBAR_HEIGHT / 2,
 };
 
-// Dialog geometry, also fixed so its interactive targets are deterministic.
+// Dialog geometry. The dialog itself is laid out as a real flex column
+// matching the actual CrearFacturaDialog's field order — Cliente, Uso del
+// CFDI, Partidas a facturar, then the payment/currency options, then the
+// footer — so nothing is hand-placed on top of anything else. Each block
+// still gets an explicit height (rather than sizing to content) purely so
+// the two interactive targets below (Cliente select, Timbrar factura) can
+// be computed from the exact same numbers the layout uses, instead of a
+// separately-guessed coordinate that can drift out of sync with the layout.
 const DIALOG_WIDTH = 640;
-const DIALOG_HEIGHT = 462;
-const DIALOG_LEFT = (CONTENT_WIDTH - DIALOG_WIDTH) / 2;
-const DIALOG_TOP = (CONTENT_HEIGHT - DIALOG_HEIGHT) / 2;
 const DIALOG_PADDING = 28;
+const BLOCK_GAP = 16;
 
-const CLIENT_FIELD_TOP = 82;
-const CLIENT_FIELD_HEIGHT = 34;
-const CLIENT_SELECT_CENTER = {
-  x: DIALOG_LEFT + DIALOG_WIDTH / 2,
-  y: DIALOG_TOP + CLIENT_FIELD_TOP + CLIENT_FIELD_HEIGHT / 2,
-};
+const TITLE_HEIGHT = 24;
+const FIELD_LABEL_HEIGHT = 18; // label text + margin-bottom
 
-const FOOTER_TOP = 396;
-const FOOTER_HEIGHT = 36;
+const CLIENT_BOX_HEIGHT = 34;
+const CLIENT_BLOCK_HEIGHT = FIELD_LABEL_HEIGHT + CLIENT_BOX_HEIGHT;
+
+const USO_BOX_HEIGHT = 30;
+const USO_BLOCK_HEIGHT = FIELD_LABEL_HEIGHT + USO_BOX_HEIGHT;
+
+const PARTIDAS_PREVIEW_ROWS = 4;
+const PARTIDAS_HEADER_HEIGHT = 24;
+const PARTIDAS_ROW_HEIGHT = 22;
+const PARTIDAS_MORE_ROW_HEIGHT = 20;
+const PARTIDAS_TABLE_HEIGHT =
+  PARTIDAS_HEADER_HEIGHT + PARTIDAS_PREVIEW_ROWS * PARTIDAS_ROW_HEIGHT + PARTIDAS_MORE_ROW_HEIGHT;
+const PARTIDAS_BLOCK_HEIGHT = FIELD_LABEL_HEIGHT + PARTIDAS_TABLE_HEIGHT;
+
+const OPTIONS_CONTROL_HEIGHT = 26;
+const OPTIONS_BLOCK_HEIGHT = FIELD_LABEL_HEIGHT + OPTIONS_CONTROL_HEIGHT;
+
+const FOOTER_PADDING_TOP = 12;
+const FOOTER_BUTTON_HEIGHT = 30;
+const FOOTER_BLOCK_HEIGHT = FOOTER_PADDING_TOP + FOOTER_BUTTON_HEIGHT;
+
 const CANCEL_WIDTH = 90;
 const TIMBRAR_WIDTH = 150;
 const FOOTER_GAP = 12;
-const footerRight = DIALOG_WIDTH - DIALOG_PADDING;
+
+const DIALOG_CONTENT_HEIGHT =
+  TITLE_HEIGHT +
+  BLOCK_GAP +
+  CLIENT_BLOCK_HEIGHT +
+  BLOCK_GAP +
+  USO_BLOCK_HEIGHT +
+  BLOCK_GAP +
+  PARTIDAS_BLOCK_HEIGHT +
+  BLOCK_GAP +
+  OPTIONS_BLOCK_HEIGHT +
+  BLOCK_GAP +
+  FOOTER_BLOCK_HEIGHT;
+const DIALOG_HEIGHT = DIALOG_CONTENT_HEIGHT + DIALOG_PADDING * 2;
+const DIALOG_LEFT = (CONTENT_WIDTH - DIALOG_WIDTH) / 2;
+const DIALOG_TOP = (CONTENT_HEIGHT - DIALOG_HEIGHT) / 2;
+
+// Cliente field sits right after the title.
+const CLIENT_BOX_TOP = DIALOG_PADDING + TITLE_HEIGHT + BLOCK_GAP + FIELD_LABEL_HEIGHT;
+const CLIENT_SELECT_CENTER = {
+  x: DIALOG_LEFT + DIALOG_WIDTH / 2,
+  y: DIALOG_TOP + CLIENT_BOX_TOP + CLIENT_BOX_HEIGHT / 2,
+};
+
+// Footer is the last block in the column.
+const FOOTER_BOX_TOP =
+  DIALOG_PADDING +
+  TITLE_HEIGHT +
+  BLOCK_GAP +
+  CLIENT_BLOCK_HEIGHT +
+  BLOCK_GAP +
+  USO_BLOCK_HEIGHT +
+  BLOCK_GAP +
+  PARTIDAS_BLOCK_HEIGHT +
+  BLOCK_GAP +
+  OPTIONS_BLOCK_HEIGHT +
+  BLOCK_GAP +
+  FOOTER_PADDING_TOP;
+const footerContentWidth = DIALOG_WIDTH - DIALOG_PADDING * 2;
 const TIMBRAR_CENTER = {
-  x: DIALOG_LEFT + footerRight - TIMBRAR_WIDTH / 2,
-  y: DIALOG_TOP + FOOTER_TOP + FOOTER_HEIGHT / 2,
+  x: DIALOG_LEFT + DIALOG_PADDING + footerContentWidth - TIMBRAR_WIDTH / 2,
+  y: DIALOG_TOP + FOOTER_BOX_TOP + FOOTER_BUTTON_HEIGHT / 2,
 };
 const COLUMNS = [
   { key: "sec", label: "Partida", align: "left" as const },
@@ -194,6 +252,23 @@ function ClickRing({ x, y, pulse }: { x: number; y: number; pulse: number }) {
         scale: 1 + pulse * 1.4,
       }}
     />
+  );
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      style={{
+        display: "block",
+        height: FIELD_LABEL_HEIGHT,
+        fontFamily: "var(--font-sans)",
+        fontSize: 11,
+        fontWeight: 600,
+        color: "var(--muted-foreground)",
+      }}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -239,18 +314,18 @@ function MiniButton({ active, children }: { active?: boolean; children: React.Re
   );
 }
 
-function StaticSelect({ children }: { children: React.ReactNode }) {
+function StaticSelect({ height, fontSize, children }: { height: number; fontSize: number; children: React.ReactNode }) {
   return (
     <div
       style={{
-        height: 26,
+        height,
         borderRadius: 6,
         border: "1px solid var(--border)",
         display: "flex",
         alignItems: "center",
         padding: "0 8px",
         fontFamily: "var(--font-sans)",
-        fontSize: 10,
+        fontSize,
         color: "var(--foreground)",
         whiteSpace: "nowrap",
         overflow: "hidden",
@@ -659,7 +734,11 @@ export function SolutionDemo() {
           </div>
         </div>
 
-        {/* Crear factura dialog: cliente select -> timbrar factura */}
+        {/* Crear factura dialog: cliente select -> timbrar factura. A real
+            flex column in the same field order as the actual
+            CrearFacturaDialog (Cliente, Uso del CFDI, Partidas a facturar,
+            payment/currency options, footer) — nothing is absolutely
+            stacked on top of anything else. */}
         {dialogVisible && (
           <>
             <div style={{ position: "absolute", inset: 0, background: "rgba(15,15,20,0.45)", opacity: dialogOpacity }} />
@@ -676,139 +755,95 @@ export function SolutionDemo() {
                 padding: DIALOG_PADDING,
                 opacity: dialogOpacity,
                 scale: dialogScale,
+                display: "flex",
+                flexDirection: "column",
+                gap: BLOCK_GAP,
               }}
             >
-              <h3 style={{ margin: 0, fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 17, color: "var(--foreground)" }}>
+              <h3
+                style={{
+                  height: TITLE_HEIGHT,
+                  margin: 0,
+                  fontFamily: "var(--font-sans)",
+                  fontWeight: 700,
+                  fontSize: 17,
+                  color: "var(--foreground)",
+                }}
+              >
                 Crear factura
               </h3>
 
-              <div style={{ position: "absolute", left: DIALOG_PADDING, right: DIALOG_PADDING, top: CLIENT_FIELD_TOP - 20 }}>
-                <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)" }}>
-                  Cliente
-                </span>
-              </div>
-              <div
-                style={{
-                  position: "absolute",
-                  left: DIALOG_PADDING,
-                  right: DIALOG_PADDING,
-                  top: CLIENT_FIELD_TOP,
-                  height: CLIENT_FIELD_HEIGHT,
-                  borderRadius: 8,
-                  border: `1px solid ${dropdownOpen ? "var(--primary)" : "var(--border)"}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "0 12px",
-                  fontFamily: "var(--font-sans)",
-                  fontSize: 13,
-                }}
-              >
-                <span style={{ color: clienteSelected ? "var(--foreground)" : "var(--muted-foreground)" }}>
-                  {clienteSelected ? `${CLIENTES[0].name} (${CLIENTES[0].taxId})` : "— Selecciona un cliente —"}
-                </span>
-                <ChevronsUpDown width={14} height={14} className="text-muted-foreground" />
-              </div>
-
-              {dropdownOpen && (
+              {/* Cliente */}
+              <div style={{ position: "relative", height: CLIENT_BLOCK_HEIGHT }}>
+                <FieldLabel>Cliente</FieldLabel>
                 <div
                   style={{
-                    position: "absolute",
-                    left: DIALOG_PADDING,
-                    right: DIALOG_PADDING,
-                    top: CLIENT_FIELD_TOP + CLIENT_FIELD_HEIGHT + 4,
-                    borderRadius: 10,
-                    background: "var(--popover)",
-                    boxShadow: "0 20px 50px -12px rgba(0,0,0,0.35)",
-                    border: "1px solid var(--border)",
-                    padding: 4,
-                    opacity: dropdownOpenIn,
-                    scale: interpolate(dropdownOpenIn, [0, 1], [0.95, 1]),
-                    zIndex: 2,
-                  }}
-                >
-                  {CLIENTES.map((c, i) => (
-                    <div
-                      key={c.taxId}
-                      style={{
-                        padding: "8px 10px",
-                        borderRadius: 6,
-                        fontFamily: "var(--font-sans)",
-                        fontSize: 13,
-                        background: i === 0 ? "var(--accent)" : "transparent",
-                        color: "var(--foreground)",
-                      }}
-                    >
-                      {c.name} <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}>({c.taxId})</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div style={{ position: "absolute", left: DIALOG_PADDING, right: DIALOG_PADDING, top: 128 }}>
-                <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)" }}>
-                  Uso del CFDI
-                </span>
-                <div
-                  style={{
-                    marginTop: 4,
-                    height: 30,
+                    height: CLIENT_BOX_HEIGHT,
                     borderRadius: 8,
-                    border: "1px solid var(--border)",
+                    border: `1px solid ${dropdownOpen ? "var(--primary)" : "var(--border)"}`,
                     display: "flex",
                     alignItems: "center",
+                    justifyContent: "space-between",
                     padding: "0 12px",
                     fontFamily: "var(--font-sans)",
-                    fontSize: 12,
-                    color: "var(--foreground)",
+                    fontSize: 13,
                   }}
                 >
-                  G01 – Adquisición de mercancías
+                  <span style={{ color: clienteSelected ? "var(--foreground)" : "var(--muted-foreground)" }}>
+                    {clienteSelected ? `${CLIENTES[0].name} (${CLIENTES[0].taxId})` : "— Selecciona un cliente —"}
+                  </span>
+                  <ChevronsUpDown width={14} height={14} className="text-muted-foreground" />
                 </div>
+
+                {dropdownOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      top: "100%",
+                      marginTop: 4,
+                      borderRadius: 10,
+                      background: "var(--popover)",
+                      boxShadow: "0 20px 50px -12px rgba(0,0,0,0.35)",
+                      border: "1px solid var(--border)",
+                      padding: 4,
+                      opacity: dropdownOpenIn,
+                      scale: interpolate(dropdownOpenIn, [0, 1], [0.95, 1]),
+                      zIndex: 2,
+                    }}
+                  >
+                    {CLIENTES.map((c, i) => (
+                      <div
+                        key={c.taxId}
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: 6,
+                          fontFamily: "var(--font-sans)",
+                          fontSize: 13,
+                          background: i === 0 ? "var(--accent)" : "transparent",
+                          color: "var(--foreground)",
+                        }}
+                      >
+                        {c.name} <span style={{ color: "var(--muted-foreground)", fontSize: 11 }}>({c.taxId})</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div
-                style={{
-                  position: "absolute",
-                  left: DIALOG_PADDING,
-                  right: DIALOG_PADDING,
-                  top: 186,
-                  display: "grid",
-                  gridTemplateColumns: "repeat(5, 1fr)",
-                  gap: 8,
-                }}
-              >
-                <FormField label="Método de pago">
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <MiniButton active>PUE</MiniButton>
-                    <MiniButton>PPD</MiniButton>
-                  </div>
-                </FormField>
-                <FormField label="Forma de pago">
-                  <StaticSelect>03 – Transferencia</StaticSelect>
-                </FormField>
-                <FormField label="Tipo Documento">
-                  <StaticSelect>Factura</StaticSelect>
-                </FormField>
-                <FormField label="Tasa IVA">
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <MiniButton active>16%</MiniButton>
-                    <MiniButton>8%</MiniButton>
-                  </div>
-                </FormField>
-                <FormField label="Moneda">
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <MiniButton active>MXN</MiniButton>
-                    <MiniButton>USD</MiniButton>
-                  </div>
-                </FormField>
+              {/* Uso del CFDI */}
+              <div style={{ height: USO_BLOCK_HEIGHT }}>
+                <FieldLabel>Uso del CFDI</FieldLabel>
+                <StaticSelect height={USO_BOX_HEIGHT} fontSize={12}>
+                  G01 – Adquisición de mercancías
+                </StaticSelect>
               </div>
 
-              <div style={{ position: "absolute", left: DIALOG_PADDING, right: DIALOG_PADDING, top: 250 }}>
-                <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)" }}>
-                  Partidas a facturar
-                </span>
-                <div style={{ marginTop: 4, borderRadius: 8, border: "1px solid var(--border)", overflow: "hidden" }}>
+              {/* Partidas a facturar */}
+              <div style={{ height: PARTIDAS_BLOCK_HEIGHT }}>
+                <FieldLabel>Partidas a facturar</FieldLabel>
+                <div style={{ borderRadius: 8, border: "1px solid var(--border)", overflow: "hidden" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                     <thead>
                       <tr style={{ background: "var(--muted)" }}>
@@ -846,15 +881,40 @@ export function SolutionDemo() {
                 </div>
               </div>
 
+              {/* Método de pago / Forma de pago / Tipo Documento / Tasa IVA / Moneda */}
+              <div style={{ height: OPTIONS_BLOCK_HEIGHT, display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+                <FormField label="Método de pago">
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <MiniButton active>PUE</MiniButton>
+                    <MiniButton>PPD</MiniButton>
+                  </div>
+                </FormField>
+                <FormField label="Forma de pago">
+                  <StaticSelect height={OPTIONS_CONTROL_HEIGHT} fontSize={10}>03 – Transferencia</StaticSelect>
+                </FormField>
+                <FormField label="Tipo Documento">
+                  <StaticSelect height={OPTIONS_CONTROL_HEIGHT} fontSize={10}>Factura</StaticSelect>
+                </FormField>
+                <FormField label="Tasa IVA">
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <MiniButton active>16%</MiniButton>
+                    <MiniButton>8%</MiniButton>
+                  </div>
+                </FormField>
+                <FormField label="Moneda">
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <MiniButton active>MXN</MiniButton>
+                    <MiniButton>USD</MiniButton>
+                  </div>
+                </FormField>
+              </div>
+
+              {/* Footer */}
               <div
                 style={{
-                  position: "absolute",
-                  left: DIALOG_PADDING,
-                  right: DIALOG_PADDING,
-                  top: FOOTER_TOP,
-                  height: FOOTER_HEIGHT,
+                  height: FOOTER_BLOCK_HEIGHT,
                   borderTop: "1px solid var(--border)",
-                  paddingTop: 12,
+                  paddingTop: FOOTER_PADDING_TOP,
                   display: "flex",
                   justifyContent: "flex-end",
                   gap: FOOTER_GAP,
