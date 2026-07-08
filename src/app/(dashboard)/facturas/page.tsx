@@ -13,13 +13,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CrearFacturaDialog, PAYMENT_FORM_OPTIONS } from "@/components/crear-factura-dialog";
 import { GridSearchInput } from "@/components/grid-search-input";
-import { alertError, alertSuccess } from "@/lib/alerts";
+import { alertSuccess } from "@/lib/alerts";
 
 interface Factura {
   id: string;
   series?: string;
   folio_number?: number;
-  customer?: { legal_name?: string; tax_id?: string };
+  customer?: { legal_name?: string; tax_id?: string; email?: string };
   total?: number;
   date: string;
   payment_method: string;
@@ -50,7 +50,13 @@ export default function FacturasPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
-  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
+
+  const [emailTarget, setEmailTarget] = useState<{ id: string; folio: string } | null>(null);
+  const [emailAddress, setEmailAddress] = useState("");
+  const [emailPdfUrl, setEmailPdfUrl] = useState<string | null>(null);
+  const [emailPdfLoading, setEmailPdfLoading] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const [complementos, setComplementos] = useState<Complemento[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -165,18 +171,54 @@ export default function FacturasPage() {
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
 
-  async function handleSendEmail(id: string) {
-    setSendingEmailId(id);
+  async function openSendEmail(id: string, folio: string, customerEmail?: string) {
+    setEmailTarget({ id, folio });
+    setEmailAddress(customerEmail ?? "");
+    setEmailError(null);
+    setEmailPdfUrl(null);
+    setEmailPdfLoading(true);
     try {
-      const res = await fetch(`/api/facturas/${id}/email`, { method: "POST" });
+      const res = await fetch(`/api/facturas/${id}/pdf`);
+      if (res.ok) {
+        const blob = await res.blob();
+        setEmailPdfUrl(URL.createObjectURL(blob));
+      }
+    } finally {
+      setEmailPdfLoading(false);
+    }
+  }
+
+  function closeSendEmail() {
+    if (emailPdfUrl) URL.revokeObjectURL(emailPdfUrl);
+    setEmailTarget(null);
+    setEmailPdfUrl(null);
+    setEmailError(null);
+  }
+
+  async function confirmSendEmail() {
+    if (!emailTarget) return;
+    const email = emailAddress.trim();
+    if (!email) {
+      setEmailError("Ingresa un correo de destino");
+      return;
+    }
+    setEmailSending(true);
+    setEmailError(null);
+    try {
+      const res = await fetch(`/api/facturas/${emailTarget.id}/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alertError("Error", data.error ?? "No se pudo enviar el correo");
+        setEmailError(data.error ?? "No se pudo enviar el correo");
         return;
       }
+      closeSendEmail();
       alertSuccess("Correo enviado", "El correo fue enviado al cliente correctamente.");
     } finally {
-      setSendingEmailId(null);
+      setEmailSending(false);
     }
   }
 
@@ -335,15 +377,8 @@ export default function FacturasPage() {
                                   <FileCode className="w-3.5 h-3.5" />
                                   Descargar XML
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleSendEmail(f.id)}
-                                  disabled={sendingEmailId === f.id}
-                                >
-                                  {sendingEmailId === f.id ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <Mail className="w-3.5 h-3.5" />
-                                  )}
+                                <DropdownMenuItem onClick={() => openSendEmail(f.id, folio, f.customer?.email)}>
+                                  <Mail className="w-3.5 h-3.5" />
                                   Enviar por correo
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -411,15 +446,16 @@ export default function FacturasPage() {
                                           <TooltipTrigger
                                             render={
                                               <button
-                                                className="text-muted-foreground hover:text-foreground p-1 disabled:opacity-50"
-                                                onClick={() => handleSendEmail(c.facturapiId)}
-                                                disabled={sendingEmailId === c.facturapiId}
+                                                className="text-muted-foreground hover:text-foreground p-1"
+                                                onClick={() =>
+                                                  openSendEmail(
+                                                    c.facturapiId,
+                                                    c.uuid ?? c.facturapiId.slice(-6),
+                                                    f.customer?.email
+                                                  )
+                                                }
                                               >
-                                                {sendingEmailId === c.facturapiId ? (
-                                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                ) : (
-                                                  <Mail className="w-3.5 h-3.5" />
-                                                )}
+                                                <Mail className="w-3.5 h-3.5" />
                                               </button>
                                             }
                                           />
@@ -522,6 +558,47 @@ export default function FacturasPage() {
             <Button size="sm" onClick={handleRegistrarPago} disabled={pagoSaving}>
               {pagoSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
               Emitir complemento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!emailTarget} onOpenChange={(open) => !open && closeSendEmail()}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Enviar factura {emailTarget?.folio} por correo</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Correo destino</label>
+              <Input
+                type="email"
+                placeholder="cliente@ejemplo.com"
+                value={emailAddress}
+                onChange={(e) => setEmailAddress(e.target.value)}
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Vista previa del PDF adjunto</p>
+              <div className="rounded-md border border-border overflow-hidden h-[420px] flex items-center justify-center bg-muted/20">
+                {emailPdfLoading && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
+                {!emailPdfLoading && emailPdfUrl && (
+                  <iframe src={emailPdfUrl} className="w-full h-full" title="Vista previa PDF" />
+                )}
+                {!emailPdfLoading && !emailPdfUrl && (
+                  <p className="text-xs text-muted-foreground">No se pudo cargar el PDF</p>
+                )}
+              </div>
+            </div>
+            {emailError && <p className="text-xs text-red-600">{emailError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={closeSendEmail}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={confirmSendEmail} disabled={emailSending}>
+              {emailSending && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+              Enviar correo
             </Button>
           </DialogFooter>
         </DialogContent>

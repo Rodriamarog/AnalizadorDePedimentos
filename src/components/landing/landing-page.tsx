@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Building2, FileText, ScanLine, ShieldCheck, Table2, Zap } from "lucide-react";
 import { NeurocrowLockup } from "@/components/neurocrow-lockup";
-import { DemoUploader } from "@/components/landing/demo-uploader";
+import { WhatsappCta } from "@/components/landing/whatsapp-cta";
 import { AsiLoHacesHoy } from "@/components/landing/asi-lo-haces-hoy";
 import { ConNeurocrow } from "@/components/landing/con-neurocrow";
 
@@ -91,7 +91,7 @@ export function LandingPage() {
           <div className="grid gap-14 pt-10 pb-16 lg:grid-cols-[1.15fr_1fr] lg:items-center lg:pt-14 lg:pb-24">
             <div>
               <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
-                Para agentes aduanales · México
+                Para comercializadoras · México
               </span>
               <div className="mt-5">
                 <NeurocrowLockup variant="hero" />
@@ -106,7 +106,11 @@ export function LandingPage() {
             </div>
 
             <div className="flex justify-center lg:justify-end">
-              <DemoUploader />
+              <WhatsappCta
+                label="Escríbenos por WhatsApp"
+                message="Hola, quiero más información sobre Neurocrow Pedimentos"
+                helperText="respuesta directa · sin formularios"
+              />
             </div>
           </div>
         </div>
@@ -184,10 +188,14 @@ export function LandingPage() {
               Deja de capturar pedimentos a mano.
             </h2>
             <p className="mt-4 max-w-md text-white/70">
-              Sube uno ahora mismo — sin cuenta, sin tarjeta, sin compromiso.
+              Solicita una cotización — te respondemos directo por WhatsApp.
             </p>
           </div>
-          <DemoUploader />
+          <WhatsappCta
+            label="Solicitar cotización"
+            message="Hola, quiero solicitar una cotización de Neurocrow Pedimentos"
+            helperText="respuesta directa · sin formularios"
+          />
         </div>
       </section>
 

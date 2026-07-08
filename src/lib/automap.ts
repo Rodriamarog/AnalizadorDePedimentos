@@ -1,6 +1,70 @@
-import { GoogleGenAI, Type, type Content, type GenerateContentConfig } from "@google/genai";
+import {
+  GoogleGenAI,
+  Type,
+  FunctionCallingConfigMode,
+  ThinkingLevel,
+  type Content,
+  type GenerateContentConfig,
+  type GenerateContentResponseUsageMetadata,
+} from "@google/genai";
 import { chapterHint } from "./hsChapters";
-import { searchSatCatalogForAutomap } from "./satSearch";
+import { searchSatCatalogForAutomap, type SatCatalogResult } from "./satSearch";
+import type { FacturapiClient } from "./facturapi";
+
+// gemini-3.1-flash-lite pricing as of mid-2026 — see
+// https://ai.google.dev/gemini-api/docs/pricing. Tool-use tokens are context
+// fed back into the model (same as a regular prompt), so they're billed at
+// the input rate; thinking tokens are billed at the output rate alongside
+// the visible answer.
+const GEMINI_INPUT_PRICE_PER_M_TOKENS = 0.25;
+const GEMINI_OUTPUT_PRICE_PER_M_TOKENS = 1.5;
+
+export interface AutomapUsage {
+  calls: number;
+  promptTokens: number;
+  candidatesTokens: number;
+  thoughtsTokens: number;
+  toolUseTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+}
+
+function newUsage(): AutomapUsage {
+  return {
+    calls: 0,
+    promptTokens: 0,
+    candidatesTokens: 0,
+    thoughtsTokens: 0,
+    toolUseTokens: 0,
+    totalTokens: 0,
+    estimatedCostUsd: 0,
+  };
+}
+
+function addUsage(acc: AutomapUsage, meta: GenerateContentResponseUsageMetadata | undefined) {
+  if (!meta) return;
+  const promptTokens = meta.promptTokenCount ?? 0;
+  const candidatesTokens = meta.candidatesTokenCount ?? 0;
+  const thoughtsTokens = meta.thoughtsTokenCount ?? 0;
+  const toolUseTokens = meta.toolUsePromptTokenCount ?? 0;
+
+  acc.calls += 1;
+  acc.promptTokens += promptTokens;
+  acc.candidatesTokens += candidatesTokens;
+  acc.thoughtsTokens += thoughtsTokens;
+  acc.toolUseTokens += toolUseTokens;
+  acc.totalTokens += meta.totalTokenCount ?? 0;
+
+  const inputTokens = promptTokens + toolUseTokens;
+  const outputTokens = candidatesTokens + thoughtsTokens;
+  acc.estimatedCostUsd +=
+    (inputTokens / 1_000_000) * GEMINI_INPUT_PRICE_PER_M_TOKENS +
+    (outputTokens / 1_000_000) * GEMINI_OUTPUT_PRICE_PER_M_TOKENS;
+}
+
+function logTrace(label: string, ...args: unknown[]) {
+  console.log(`[automap:${label}]`, ...args);
+}
 
 export interface AutomapPartida {
   fraccion: string;
@@ -47,50 +111,172 @@ async function runTool(name: string, query: string) {
   return [];
 }
 
+// Gemini calls occasionally fail with transient 429/5xx — without this the
+// whole batch (potentially dozens of partidas) dies on one blip.
+function isRetryableError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /429|500|502|503|504|RESOURCE_EXHAUSTED|UNAVAILABLE|INTERNAL/i.test(msg);
+}
+
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i === attempts - 1 || !isRetryableError(err)) throw err;
+      await new Promise((r) => setTimeout(r, 500 * 2 ** i));
+    }
+  }
+  throw lastErr;
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+// c_FraccionArancelaria's own SAT description — a much cleaner search seed
+// than the pedimento's raw parsed text, which is often abbreviated or in
+// importer-specific jargon. Not a fraccion -> c_ClaveProdServ crosswalk
+// (SAT doesn't publish one); this just tells us what the tariff heading
+// itself officially means.
+//
+// FacturAPI's catalog keys are 10 digits (8-digit fraccion + 2-digit NICO
+// suffix); VUCEM only ever gives us the bare 8-digit fraccion, so match by
+// prefix rather than exact key equality.
+async function fetchFraccionDescription(facturapi: FacturapiClient, fraccion: string): Promise<string | null> {
+  try {
+    const result = await facturapi.get<{ data: { key: string; description: string }[] }>(
+      "catalogs/comercioexterior/2.0/tariff-fractions",
+      { q: fraccion, limit: 5 }
+    );
+    return result.data.find((d) => d.key.startsWith(fraccion))?.description ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function runLoop(
   client: GoogleGenAI,
   messages: Content[],
   system: string,
-  nItems: number
+  nItems: number,
+  trace: string,
+  usage: AutomapUsage,
+  seenKeys: Set<string>
 ): Promise<RawItem[] | null> {
   const config: GenerateContentConfig = {
     systemInstruction: system,
     tools: [COMBINED_TOOL],
     temperature: 0,
-    thinkingConfig: { thinkingBudget: 8192 },
+    // gemini-3.1-flash-lite is a Gemini 3.x model — thinkingBudget is a
+    // legacy Gemini-2.5-era knob that this model treats as a soft hint at
+    // best (observed runs blew past an 8192 budget by 7-8x, landing on the
+    // exact same ~63k-token overrun twice). thinkingLevel is the parameter
+    // Gemini 3.x actually honors; LOW keeps enough deliberation to plan
+    // searches and compare candidates without the runaway sessions.
+    thinkingConfig: { thinkingLevel: ThinkingLevel.LOW, includeThoughts: true },
   };
 
+  // The model deciding "I already know the answer, I'll skip searching" is
+  // exactly the failure mode that produces hallucinated keys (see
+  // automap:pass1 traces where turn 1 has toolUse=0 and jumps straight to a
+  // confident-but-wrong final answer). Prompt wording alone doesn't reliably
+  // prevent it, so the first turn forces a real function call via
+  // toolConfig — the model is structurally unable to answer without
+  // searching at least once.
+  const forcedToolConfig: GenerateContentConfig = {
+    ...config,
+    toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.ANY } },
+  };
+
+  // Each item typically needs a few tool-call round-trips before the model
+  // is ready to answer; a fixed 35-iteration budget starves large batches
+  // and wastes turns on tiny ones, so scale it with the batch size.
+  const maxIterations = Math.min(80, Math.max(15, nItems * 4));
+
   let parseAttempts = 0;
-  for (let i = 0; i < 35; i++) {
-    const response = await client.models.generateContent({
-      model: "gemini-3.1-flash-lite",
-      contents: messages,
-      config,
-    });
+  for (let i = 0; i < maxIterations; i++) {
+    const forcingToolUse = i === 0;
+    const response = await withRetry(() =>
+      client.models.generateContent({
+        model: "gemini-3.1-flash-lite",
+        contents: messages,
+        config: forcingToolUse ? forcedToolConfig : config,
+      })
+    );
+    addUsage(usage, response.usageMetadata);
+    const meta = response.usageMetadata;
+    logTrace(
+      trace,
+      `turn ${i + 1}: prompt=${meta?.promptTokenCount ?? 0} candidates=${meta?.candidatesTokenCount ?? 0} ` +
+        `thoughts=${meta?.thoughtsTokenCount ?? 0} toolUse=${meta?.toolUsePromptTokenCount ?? 0} ` +
+        `total=${meta?.totalTokenCount ?? 0} runningCost=$${usage.estimatedCostUsd.toFixed(4)}`
+    );
+
     const candidate = response.candidates?.[0];
     if (!candidate?.content) return null;
     messages.push(candidate.content);
 
+    for (const part of candidate.content.parts ?? []) {
+      if (part.thought && part.text) {
+        logTrace(trace, `turn ${i + 1} thinking: ${part.text.slice(0, 500).replace(/\n+/g, " ")}`);
+      }
+    }
+
     const toolCalls = (candidate.content.parts ?? []).filter((p) => p.functionCall);
+
+    if (forcingToolUse && toolCalls.length === 0) {
+      // Should be unreachable — mode: ANY guarantees a function call — but
+      // if the API ever ignores it, stop immediately instead of burning
+      // more tokens down a path that's already proven to produce
+      // hallucinated answers.
+      logTrace(trace, `turn ${i + 1} ABORT: model refused the forced tool call on the first turn`);
+      throw new Error(
+        `Gemini se negó a usar search_sat_catalog en el primer turno (${trace}) — abortando para evitar una respuesta inventada.`
+      );
+    }
+
     if (toolCalls.length > 0) {
       const toolResults = [];
       for (const part of toolCalls) {
         const fc = part.functionCall!;
         const query = (fc.args?.query as string) ?? "";
-        const results = await runTool(fc.name ?? "", query);
+        const results = (await runTool(fc.name ?? "", query)) as SatCatalogResult[];
+        for (const r of results) seenKeys.add(r.key);
+        const preview = results
+          .slice(0, 5)
+          .map((r) => `${r.key}:"${r.description}"`)
+          .join(", ");
+        logTrace(trace, `turn ${i + 1} search("${query}") -> ${results.length} results: ${preview}`);
         toolResults.push({ functionResponse: { name: fc.name, response: { results } } });
       }
       messages.push({ role: "user", parts: toolResults });
       continue;
     }
 
-    const textParts = (candidate.content.parts ?? []).map((p) => p.text).filter(Boolean);
+    const textParts = (candidate.content.parts ?? [])
+      .filter((p) => !p.thought)
+      .map((p) => p.text)
+      .filter(Boolean);
     const fullText = textParts.join("\n").trim();
     const clean = fullText.replace(/^```(?:json)?\s*|\s*```$/gm, "").trim();
     const match = clean.match(/\[[\s\S]*\]/);
     if (match) {
       try {
-        return JSON.parse(match[0]);
+        const parsed = JSON.parse(match[0]) as RawItem[];
+        logTrace(trace, `turn ${i + 1} final answer:`, parsed);
+        return parsed;
       } catch {
         // fall through to retry
       }
@@ -116,9 +302,13 @@ async function runLoop(
   return null;
 }
 
-function itemsText(partidas: AutomapPartida[]): string {
+function itemsText(partidas: AutomapPartida[], fraccionDescriptions: Map<string, string>): string {
   return partidas
-    .map((p) => `- fraccion=${p.fraccion} ${chapterHint(p.fraccion)} | "${p.descripcion}"`)
+    .map((p) => {
+      const satDesc = fraccionDescriptions.get(p.fraccion);
+      const satLine = satDesc ? ` | SAT (fracción): "${satDesc}"` : "";
+      return `- fraccion=${p.fraccion} ${chapterHint(p.fraccion)} | "${p.descripcion}"${satLine}`;
+    })
     .join("\n");
 }
 
@@ -133,6 +323,9 @@ const SYSTEM_PASS1 =
   "'manga vaso'→'funda','aislante','protector'; 'portavaso'→'soporte','bandeja','porta'; " +
   "'tapa domo'→'tapa','cubierta','tapadera'; 'contenedor'→'recipiente','envase'.\n" +
   "(4) El capítulo HS entre corchetes indica la categoría — úsalo para refinar búsquedas.\n" +
+  "(4b) Si aparece 'SAT (fracción)': es la descripción OFICIAL de la fracción arancelaria según el " +
+  "catálogo c_FraccionArancelaria del SAT — más confiable que la descripción del pedimento, que puede " +
+  "venir abreviada o en jerga del importador. Prefiérela como término de búsqueda cuando ambas difieran.\n" +
   "(5) null SOLO si después de 3+ búsquedas no encuentras absolutamente nada relacionado.\n" +
   "(6) Para cada resultado incluye un campo confidence: " +
   "'high' si el código es específico y claramente correcto para el producto; " +
@@ -155,41 +348,56 @@ const SYSTEM_PASS2 =
   "'tapa domo'→'tapa','cubierta','tapadera','tapa vaso'; " +
   "'contenedor aluminio'→'recipiente','envase','contenedor'; " +
   "'cubre asiento'→'cubierta sanitaria','protector sanitario','higiene'.\n" +
+  "(4b) Si aparece 'SAT (fracción)', es la descripción oficial de la fracción arancelaria — úsala como " +
+  "término de búsqueda cuando la descripción del pedimento sea vaga o no encuentre nada.\n" +
   "(5) Incluye confidence: 'medium' si el código es razonablemente cercano, " +
   "'low' si es el más cercano pero puede no ser correcto. Nunca 'high' en esta ronda.\n" +
   "(6) Solo responde JSON cuando hayas procesado TODOS los productos de esta lista.";
 
-export async function runAutomap(
-  partidas: AutomapPartida[],
-  alreadyMapped: Set<string>
-): Promise<{ classifications: AutomapClassification[]; message?: string }> {
-  const seen = new Map<string, AutomapPartida>();
-  for (const p of partidas) {
-    if (!seen.has(p.fraccion)) seen.set(p.fraccion, p);
-  }
-  const toMap = [...seen.values()].filter((p) => !alreadyMapped.has(p.fraccion));
-  if (toMap.length === 0) {
-    return { classifications: [], message: "Todas las fracciones ya están mapeadas" };
-  }
-
-  const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-
+async function classifyBatch(
+  client: GoogleGenAI,
+  toMap: AutomapPartida[],
+  fraccionDescriptions: Map<string, string>,
+  usage: AutomapUsage
+): Promise<AutomapClassification[]> {
   const userMsg1 =
     `Clasifica estos ${toMap.length} productos con c_ClaveProdServ SAT para CFDI.\n` +
     "La fracción arancelaria NO es el código SAT; el capítulo HS es solo contexto de categoría.\n\n" +
-    `Productos:\n${itemsText(toMap)}\n\n` +
+    `Productos:\n${itemsText(toMap, fraccionDescriptions)}\n\n` +
     "IMPORTANTE: busca cada producto AL MENOS 3 VECES con términos diferentes antes de poner null. " +
     "Responde ÚNICAMENTE con este JSON (sin markdown):\n" +
     '[{"fraccion":"...","key":"... o null","description":"... o null","confidence":"high|medium|low"}]';
 
+  logTrace("pass1", `classifying ${toMap.length} item(s):`, toMap.map((p) => p.fraccion));
+  const pass1SeenKeys = new Set<string>();
   const finalJson = await runLoop(
     client,
     [{ role: "user", parts: [{ text: userMsg1 }] }],
     SYSTEM_PASS1,
-    toMap.length
+    toMap.length,
+    "pass1",
+    usage,
+    pass1SeenKeys
   );
   if (!finalJson) {
     throw new Error("Gemini no devolvió un JSON válido con los códigos");
+  }
+
+  // The model is instructed to always search before answering, but nothing
+  // stops it from ignoring that and answering from memory instead — which
+  // has produced confidently-"high" keys that don't match what they
+  // actually are in the catalog. Any key never seen in an actual search
+  // result this conversation is unverified and gets treated as unclassified
+  // so it goes through the (search-enforcing) rescue pass instead.
+  for (const item of finalJson) {
+    if (item.key && item.key.toLowerCase() !== "null" && !pass1SeenKeys.has(item.key.trim())) {
+      logTrace(
+        "pass1",
+        `WARNING: discarding unverified key="${item.key}" for fraccion=${item.fraccion} ` +
+          "— model never saw this key in a search result, likely hallucinated"
+      );
+      item.key = null;
+    }
   }
 
   const nullFracciones = new Set(
@@ -200,19 +408,38 @@ export async function runAutomap(
 
     const userMsg2 =
       `Estos ${nullPartidas.length} productos quedaron sin clasificar. Intenta más fuerte:\n\n` +
-      `Productos:\n${itemsText(nullPartidas)}\n\n` +
+      `Productos:\n${itemsText(nullPartidas, fraccionDescriptions)}\n\n` +
       "Busca cada uno AL MENOS 4 VECES. Elige el código más cercano si no encuentras el exacto.\n" +
       "Responde ÚNICAMENTE con este JSON (sin markdown):\n" +
       '[{"fraccion":"...","key":"... o null","description":"... o null","confidence":"medium|low"}]';
 
+    logTrace("pass2", `rescuing ${nullPartidas.length} item(s):`, nullPartidas.map((p) => p.fraccion));
+    const pass2SeenKeys = new Set<string>();
     const rescueJson = await runLoop(
       client,
       [{ role: "user", parts: [{ text: userMsg2 }] }],
       SYSTEM_PASS2,
-      nullPartidas.length
+      nullPartidas.length,
+      "pass2",
+      usage,
+      pass2SeenKeys
     );
 
     if (rescueJson) {
+      // Last chance — if the rescue pass also hallucinates a key it never
+      // searched for, there's no further pass to fall back on, so discard
+      // it outright (better to leave the partida unclassified than silently
+      // save a wrong code).
+      for (const item of rescueJson) {
+        if (item.key && item.key.toLowerCase() !== "null" && !pass2SeenKeys.has(item.key.trim())) {
+          logTrace(
+            "pass2",
+            `WARNING: discarding unverified key="${item.key}" for fraccion=${item.fraccion} ` +
+              "— model never saw this key in a search result, likely hallucinated"
+          );
+          item.key = null;
+        }
+      }
       const rescueMap = new Map(rescueJson.map((item) => [item.fraccion, item]));
       for (let i = 0; i < finalJson.length; i++) {
         const rescued = rescueMap.get(finalJson[i].fraccion);
@@ -225,7 +452,7 @@ export async function runAutomap(
   }
 
   const toMapFracciones = new Set(toMap.map((p) => p.fraccion));
-  const classifications: AutomapClassification[] = finalJson
+  return finalJson
     .filter((item) => item.fraccion && toMapFracciones.has(item.fraccion))
     .map((item) => {
       let confidence = item.confidence ?? "high";
@@ -237,6 +464,40 @@ export async function runAutomap(
         confidence: confidence as "high" | "medium" | "low",
       };
     });
+}
 
-  return { classifications };
+function dedupeUnmapped(partidas: AutomapPartida[], alreadyMapped: Set<string>): AutomapPartida[] {
+  const seen = new Map<string, AutomapPartida>();
+  for (const p of partidas) {
+    if (!seen.has(p.fraccion)) seen.set(p.fraccion, p);
+  }
+  return [...seen.values()].filter((p) => !alreadyMapped.has(p.fraccion));
+}
+
+export async function runAutomap(
+  partidas: AutomapPartida[],
+  alreadyMapped: Set<string>,
+  facturapi: FacturapiClient
+): Promise<{ classifications: AutomapClassification[]; message?: string; usage: AutomapUsage }> {
+  const usage = newUsage();
+  const toMap = dedupeUnmapped(partidas, alreadyMapped);
+  if (toMap.length === 0) {
+    return { classifications: [], message: "Todas las fracciones ya están mapeadas", usage };
+  }
+
+  const fraccionDescriptions = new Map<string, string>();
+  await mapWithConcurrency(toMap, 8, async (p) => {
+    const desc = await fetchFraccionDescription(facturapi, p.fraccion);
+    if (desc) fraccionDescriptions.set(p.fraccion, desc);
+  });
+
+  const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  const classifications = await classifyBatch(client, toMap, fraccionDescriptions, usage);
+  logTrace(
+    "summary",
+    `${usage.calls} Gemini call(s), ${usage.totalTokens} total tokens ` +
+      `(prompt=${usage.promptTokens} candidates=${usage.candidatesTokens} thoughts=${usage.thoughtsTokens} ` +
+      `toolUse=${usage.toolUseTokens}), estimated cost $${usage.estimatedCostUsd.toFixed(4)}`
+  );
+  return { classifications, usage };
 }

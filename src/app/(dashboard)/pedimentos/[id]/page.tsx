@@ -308,19 +308,6 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
             {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
             Exportar Excel
           </Button>
-          <Button
-            size="sm"
-            className="gap-1.5 text-xs bg-gradient-to-br from-orange-500 to-orange-700 text-white hover:brightness-[1.07] shadow-sm"
-            onClick={handleAutomap}
-            disabled={automapRunning}
-          >
-            {automapRunning ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="w-3.5 h-3.5" />
-            )}
-            Autocompletar SAT
-          </Button>
         </div>
       </div>
 
@@ -338,7 +325,25 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
                   <th className="text-right px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">P.U USD</th>
                   <th className="text-right px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">Valor Dlls</th>
                   <th className="text-right px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">P.U MN</th>
-                  <th className="text-left px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">ClaveProdServ</th>
+                  <th className="text-left px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                    <div className="flex items-center gap-1.5">
+                      ClaveProdServ
+                      <Button
+                        size="sm"
+                        title="Autocompletar claves SAT con IA"
+                        aria-label="Autocompletar claves SAT con IA"
+                        className="h-6 w-6 p-0 bg-gradient-to-br from-orange-500 to-orange-700 text-white hover:brightness-[1.07] shadow-sm normal-case tracking-normal"
+                        onClick={handleAutomap}
+                        disabled={automapRunning}
+                      >
+                        {automapRunning ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
+                        )}
+                      </Button>
+                    </div>
+                  </th>
                   <th className="text-left px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">Unidad</th>
                 </tr>
               </thead>

@@ -321,6 +321,16 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
     }
   }
 
+  // SAT's published pattern for NumeroPedimento groups the 15 digits as
+  // AA  AA  AAAA  AAAAAAA with two spaces between groups; FacturAPI accepts
+  // single-space too, but some clients' other facturación software insists
+  // on the literal double-space form, so we normalize to it here.
+  function formatPedimentoForCfdi(pedNum: string): string {
+    const digits = pedNum.replace(/\D/g, "");
+    if (digits.length !== 15) return pedNum;
+    return `${digits.slice(0, 2)}  ${digits.slice(2, 4)}  ${digits.slice(4, 8)}  ${digits.slice(8, 15)}`;
+  }
+
   function selectPedimentoLink(p: PedimentoLite | null) {
     setPedimentoLink(p);
     setPedimentoLinkQuery(p?.pedimentoNum ?? "");
@@ -374,7 +384,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
           taxes,
         },
       };
-      if (pedNum) item.customs_keys = [pedNum];
+      if (pedNum) item.customs_keys = [formatPedimentoForCfdi(pedNum)];
       outItems.push(item);
     }
 

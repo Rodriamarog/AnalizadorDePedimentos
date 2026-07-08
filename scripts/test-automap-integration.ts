@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { productos } from "../src/lib/db/schema";
 import { withOrg } from "../src/lib/db/withOrg";
 import { runAutomap } from "../src/lib/automap";
+import { createFacturapiClient } from "../src/lib/facturapi";
 
 const ORG = "org_automap_test";
 
@@ -13,6 +14,10 @@ function assert(cond: boolean, msg: string) {
 }
 
 async function main() {
+  const testKey = process.env.FACTURAPI_TEST_API_KEY;
+  if (!testKey) throw new Error("FACTURAPI_TEST_API_KEY not set");
+  const facturapi = createFacturapiClient(testKey);
+
   await withOrg(ORG, (tx) => tx.delete(productos).where(eq(productos.orgId, ORG)));
 
   // Real-world-shaped test partidas (chapter 87 = vehicles/parts, chapter 39 = plastics)
@@ -22,7 +27,7 @@ async function main() {
   ];
 
   console.log("Calling Gemini for automap classification (this can take up to ~2 min)...");
-  const { classifications, message } = await runAutomap(partidas, new Set());
+  const { classifications, message } = await runAutomap(partidas, new Set(), facturapi);
   assert(!message, `expected no "already mapped" message, got: ${message}`);
   assert(classifications.length === 2, `expected 2 classifications, got ${classifications.length}`);
 
@@ -59,7 +64,7 @@ async function main() {
   // "Already mapped" path: re-running with the fracciones marked as mapped
   // should skip them entirely (no Gemini call needed).
   const alreadyMapped = new Set(saved.map((r) => r.fraccion));
-  const rerun = await runAutomap(partidas, alreadyMapped);
+  const rerun = await runAutomap(partidas, alreadyMapped, facturapi);
   assert(rerun.message === "Todas las fracciones ya están mapeadas", "second run reports all fracciones already mapped");
   assert(rerun.classifications.length === 0, "second run returns no classifications");
 

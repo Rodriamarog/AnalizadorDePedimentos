@@ -4,11 +4,15 @@ import { requireOrgId } from "@/lib/auth";
 import { pedimentos, partidas, productos, satClaves } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
 import { runAutomap } from "@/lib/automap";
+import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const orgId = await requireOrgId();
   if (orgId instanceof NextResponse) return orgId;
   const { id } = await params;
+
+  const facturapiClient = await getOrgFacturapiClient(orgId);
+  if (facturapiClient instanceof NextResponse) return facturapiClient;
 
   const { pedimentoPartidas, alreadyMapped } = await withOrg(orgId, async (tx) => {
     const [pedimento] = await tx.select().from(pedimentos).where(eq(pedimentos.id, id)).limit(1);
@@ -36,7 +40,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   let automapResult;
   try {
-    automapResult = await runAutomap(pedimentoPartidas, alreadyMapped!);
+    automapResult = await runAutomap(pedimentoPartidas, alreadyMapped!, facturapiClient);
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Error al automapear" },
@@ -102,5 +106,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   });
 
   const saved = results.filter((r) => r.status === "saved").length;
-  return NextResponse.json({ mapped: saved, skipped: results.length - saved, results });
+  return NextResponse.json({
+    mapped: saved,
+    skipped: results.length - saved,
+    results,
+  });
 }
