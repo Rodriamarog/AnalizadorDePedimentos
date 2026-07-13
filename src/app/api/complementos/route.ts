@@ -7,6 +7,10 @@ import { complementosPago, facturas } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
 import { saveFactura, type FacturapiInvoice } from "@/lib/saveFactura";
 
+function roundMoney(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
 export async function GET() {
   const orgId = await requireOrgId();
   if (orgId instanceof NextResponse) return orgId;
@@ -47,20 +51,48 @@ export async function POST(req: NextRequest) {
   const fechaPagoStr: string = body.fecha_pago; // YYYY-MM-DD
 
   try {
-    const list = await client.get<{ data: FacturapiInvoice[] }>("invoices", {
-      q: facturaFacturapiId,
-      limit: 1,
-    });
-    const inv = list.data?.[0];
-    if (!inv) {
-      return NextResponse.json({ error: "Factura no encontrada en FacturAPI" }, { status: 404 });
-    }
+    const inv = await client.get<FacturapiInvoice>(`invoices/${facturaFacturapiId}`);
 
     const uuid = inv.uuid;
     const total = Number(inv.total ?? monto);
 
-    // IVA 16% assumed — standard for mercancía en México, matches the old app.
-    const ivaBase = Math.round((monto / 1.16) * 1e6) / 1e6;
+    const { installment, lastBalance } = await withOrg(orgId, async (tx) => {
+      const [localFactura] = await tx
+        .select({ id: facturas.id })
+        .from(facturas)
+        .where(eq(facturas.facturapiId, facturaFacturapiId))
+        .limit(1);
+      if (!localFactura) return { installment: 1, lastBalance: total };
+
+      const priorPayments = await tx
+        .select({ monto: complementosPago.monto })
+        .from(complementosPago)
+        .where(eq(complementosPago.facturaId, localFactura.id));
+      const priorPaid = priorPayments.reduce((sum, p) => sum + p.monto, 0);
+      return {
+        installment: priorPayments.length + 1,
+        lastBalance: roundMoney(total - priorPaid),
+      };
+    });
+
+    if (lastBalance <= 0) {
+      return NextResponse.json({ error: "Esta factura ya está completamente pagada" }, { status: 400 });
+    }
+    if (monto - lastBalance > 0.01) {
+      return NextResponse.json(
+        { error: `El monto excede el saldo pendiente ($${lastBalance})` },
+        { status: 400 }
+      );
+    }
+
+    // The complement's tax breakdown must mirror the rate actually used on
+    // the original invoice (this app lets users pick 16% or 8% frontera per
+    // invoice — see ivaRate in crear-factura-dialog.tsx), not a fixed guess.
+    const ivaEntry = inv.items
+      ?.flatMap((it) => it.product?.taxes ?? [])
+      .find((t) => t.type === "IVA" && !t.withholding);
+    const ivaRate = ivaEntry?.rate ?? 0.16;
+    const ivaBase = Math.round((monto / (1 + ivaRate)) * 1e6) / 1e6;
     // FacturAPI returns read-only fields on the customer sub-object; strip
     // them before re-submitting it inline on the complement invoice.
     const customerObj = { ...(inv.customer ?? {}) };
@@ -83,9 +115,9 @@ export async function POST(req: NextRequest) {
                 {
                   uuid,
                   amount: monto,
-                  installment: 1,
-                  last_balance: total,
-                  taxes: [{ base: ivaBase, type: "IVA", rate: 0.16, factor: "Tasa", withholding: false }],
+                  installment,
+                  last_balance: lastBalance,
+                  taxes: [{ base: ivaBase, type: "IVA", rate: ivaRate, factor: "Tasa", withholding: false }],
                   taxability: "02",
                 },
               ],

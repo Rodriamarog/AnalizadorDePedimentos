@@ -15,6 +15,11 @@ export interface FacturapiInvoice {
   folio_number?: number;
   date?: string;
   created_at?: string;
+  items?: {
+    product?: {
+      taxes?: { type: string; rate: number; factor?: string; withholding?: boolean }[];
+    };
+  }[];
 }
 
 // Upserts a FacturAPI invoice object into the local `facturas` table —

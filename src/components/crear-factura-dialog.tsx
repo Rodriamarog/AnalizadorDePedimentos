@@ -10,6 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { SatComboBox } from "@/components/sat-combobox";
 import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
 import { umcToUnitKey } from "@/lib/umc";
+import { alertSuccess } from "@/lib/alerts";
 
 const USO_CFDI_OPTIONS = [
   ["G01", "Adquisición de mercancias"],
@@ -118,6 +119,17 @@ interface ItemRow {
   qtyReadonly?: boolean;
   claveDescription?: string;
   unitDescription?: string;
+  // Pedimento-sourced rows (partidas' precioUnitario, from Valor en Aduana;
+  // and the DTA+IGI+PRV impuestos aduaneros row) are always stored in MXN —
+  // see pedimentos/[id]/page.tsx, which derives USD as `precioUnitario / tc`,
+  // never the reverse. So `precio` only needs conversion when the invoice's
+  // target currency is USD, by dividing by the pedimento's own T.C.
+  baseAmountMxn?: number;
+}
+
+function mxnToCurrency(amountMxn: number, currency: "MXN" | "USD", tipoCambio: number): number {
+  if (currency === "MXN" || !tipoCambio) return amountMxn;
+  return amountMxn / tipoCambio;
 }
 
 function honorariosRow(id: string, descripcion: string, clave: string, tipo: "aduanal" | "comercializadora"): ItemRow {
@@ -162,7 +174,9 @@ export interface ProductoLookup {
 export function mapPedimentoToItems(
   pedimento: PedimentoForFactura,
   productos: ProductoLookup[],
-  unitDescriptions: Record<string, string> = {}
+  unitDescriptions: Record<string, string> = {},
+  currency: "MXN" | "USD" = "MXN",
+  tipoCambio: number = pedimento.tipoCambio
 ): ItemRow[] {
   const productoMap = new Map(productos.map((p) => [p.fraccion, p]));
 
@@ -174,7 +188,7 @@ export function mapPedimentoToItems(
       key: `partida-${i}-${p.fraccion}`,
       descripcion: p.descripcion,
       cantidad: String(p.cantidad),
-      precio: p.precioUnitario.toFixed(2),
+      precio: mxnToCurrency(p.precioUnitario, currency, tipoCambio).toFixed(2),
       clave,
       unitKey: unit,
       checked: true,
@@ -182,6 +196,7 @@ export function mapPedimentoToItems(
       isPartida: true,
       claveDescription: prod?.descripcionSat ?? undefined,
       unitDescription: unitDescriptions[unit],
+      baseAmountMxn: p.precioUnitario,
     };
   });
 
@@ -191,7 +206,7 @@ export function mapPedimentoToItems(
       key: "aduaneros",
       descripcion: "Impuestos Aduaneros (DTA + IGI + PRV)",
       cantidad: "1",
-      precio: String(impTotal),
+      precio: mxnToCurrency(impTotal, currency, tipoCambio).toFixed(2),
       clave: "93161608",
       unitKey: "ACT",
       checked: true,
@@ -200,12 +215,17 @@ export function mapPedimentoToItems(
       claveReadonly: true,
       unitReadonly: true,
       qtyReadonly: true,
+      baseAmountMxn: impTotal,
     });
   }
   return partidaItems;
 }
 
-async function buildItemsFromPedimento(pedimento: PedimentoForFactura): Promise<ItemRow[]> {
+async function buildItemsFromPedimento(
+  pedimento: PedimentoForFactura,
+  currency: "MXN" | "USD",
+  tipoCambio: number
+): Promise<ItemRow[]> {
   const res = await fetch("/api/productos");
   const productos: ProductoLookup[] = res.ok ? await res.json() : [];
 
@@ -218,7 +238,7 @@ async function buildItemsFromPedimento(pedimento: PedimentoForFactura): Promise<
   );
   const unitDescriptions = await fetchCatalogDescriptions("/api/catalogs/units", resolvedUnits);
 
-  return mapPedimentoToItems(pedimento, productos, unitDescriptions);
+  return mapPedimentoToItems(pedimento, productos, unitDescriptions, currency, tipoCambio);
 }
 
 interface CrearFacturaDialogProps {
@@ -278,7 +298,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
       });
       setItems([]);
       setItemsLoading(true);
-      buildItemsFromPedimento(pedimento)
+      buildItemsFromPedimento(pedimento, "MXN", pedimento.tipoCambio)
         .then(setItems)
         .finally(() => setItemsLoading(false));
     } else {
@@ -303,6 +323,24 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
       .then((data) => setClientes(data.data ?? []));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, pedimento?.id]);
+
+  // Pedimento-sourced rows (partidas in USD, impuestos aduaneros in MXN)
+  // carry their price in a fixed "home" currency — recompute `precio` from
+  // that base whenever the invoice's target currency changes, using the
+  // best exchange rate available (the pedimento's own T.C., which is fixed
+  // and not user-editable — see the T.C. field below).
+  useEffect(() => {
+    if (!pedimento || !pedimento.tipoCambio) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setItems((prev) =>
+      prev.map((it) =>
+        it.baseAmountMxn != null
+          ? { ...it, precio: mxnToCurrency(it.baseAmountMxn, currency, pedimento.tipoCambio).toFixed(2) }
+          : it
+      )
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currency]);
 
   function updateItem(key: string, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
@@ -462,6 +500,8 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
       }
       onOpenChange(false);
       onSaved?.();
+      const folio = [data.series, data.folio_number].filter(Boolean).join("-");
+      alertSuccess("Factura timbrada", folio ? `Folio ${folio} generado correctamente.` : undefined);
     } finally {
       setSaving(false);
     }
@@ -848,8 +888,12 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                     min="0.01"
                     step="0.0001"
                     value={exchangeRate}
+                    disabled={!!pedimentoLink}
                     onChange={(e) => setExchangeRate(e.target.value)}
                   />
+                  {pedimentoLink && (
+                    <span className="text-[10px] text-muted-foreground">(tomado del pedimento)</span>
+                  )}
                 </div>
               )}
             </div>

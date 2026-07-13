@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { Receipt, Plus, Loader2, ChevronDown, ChevronRight, Banknote, Mail, FileText, FileCode, MoreVertical } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { Receipt, Plus, Loader2, ChevronDown, ChevronRight, Banknote, Mail, FileText, FileCode, MoreVertical, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,8 +20,9 @@ interface Factura {
   id: string;
   series?: string;
   folio_number?: number;
-  customer?: { legal_name?: string; tax_id?: string; email?: string };
+  customer?: { id?: string; legal_name?: string; tax_id?: string; email?: string };
   total?: number;
+  currency?: string;
   date: string;
   payment_method: string;
   status: string;
@@ -42,6 +44,8 @@ interface Complemento {
 }
 
 export default function FacturasPage() {
+  const { user } = useUser();
+  const userEmail = user?.primaryEmailAddress?.emailAddress;
   const [rows, setRows] = useState<Factura[]>([]);
   const [loading, setLoading] = useState(true);
   const [paymentMethodFilter, setPaymentMethodFilter] = useState("");
@@ -52,7 +56,7 @@ export default function FacturasPage() {
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
 
   const [emailTarget, setEmailTarget] = useState<{ id: string; folio: string } | null>(null);
-  const [emailAddress, setEmailAddress] = useState("");
+  const [emailAddresses, setEmailAddresses] = useState<string[]>([""]);
   const [emailPdfUrl, setEmailPdfUrl] = useState<string | null>(null);
   const [emailPdfLoading, setEmailPdfLoading] = useState(false);
   const [emailSending, setEmailSending] = useState(false);
@@ -113,9 +117,16 @@ export default function FacturasPage() {
     });
   }
 
+  function saldoPendiente(f: Factura): number {
+    const pagado = complementos
+      .filter((c) => c.facturaFacturapiId === f.id)
+      .reduce((sum, c) => sum + c.monto, 0);
+    return Math.round(((f.total ?? 0) - pagado) * 100) / 100;
+  }
+
   function openRegistrarPago(f: Factura) {
     setPagoTarget(f);
-    setPagoMonto(String(f.total ?? ""));
+    setPagoMonto(String(saldoPendiente(f)));
     setPagoFecha(new Date().toISOString().slice(0, 10));
     setPagoForma("03");
     setPagoError(null);
@@ -131,6 +142,11 @@ export default function FacturasPage() {
     }
     if (!pagoFecha) {
       setPagoError("Ingresa la fecha de pago");
+      return;
+    }
+    const saldo = saldoPendiente(pagoTarget);
+    if (montoNum - saldo > 0.01) {
+      setPagoError(`El monto excede el saldo pendiente ($${saldo})`);
       return;
     }
     setPagoSaving(true);
@@ -171,17 +187,40 @@ export default function FacturasPage() {
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
 
-  async function openSendEmail(id: string, folio: string, customerEmail?: string) {
+  async function openSendEmail(id: string, folio: string, customer?: { id?: string; email?: string }) {
     setEmailTarget({ id, folio });
-    setEmailAddress(customerEmail ?? "");
+    // Prefilled below with, in order: the cliente's primary FacturAPI email,
+    // its saved extras, then the logged-in user's own email so they get a
+    // copy by default — dedup since the user's email can coincide with a
+    // cliente's. Invoice list results only embed a partial `CustomerInfo`
+    // (id/legal_name/tax_id, no email — see docs/facturapi/api-es.yaml
+    // `CustomerInfo` schema), so the primary email has to be fetched from
+    // the full Customer record, same as the local extras.
+    setEmailAddresses(userEmail ? [userEmail] : [""]);
     setEmailError(null);
     setEmailPdfUrl(null);
     setEmailPdfLoading(true);
     try {
-      const res = await fetch(`/api/facturas/${id}/pdf`);
-      if (res.ok) {
-        const blob = await res.blob();
+      const [pdfRes, customerRes, emailsRes] = await Promise.all([
+        fetch(`/api/facturas/${id}/pdf`),
+        customer?.id ? fetch(`/api/clientes/${customer.id}`) : Promise.resolve(null),
+        customer?.id ? fetch(`/api/clientes/${customer.id}/emails`) : Promise.resolve(null),
+      ]);
+      if (pdfRes.ok) {
+        const blob = await pdfRes.blob();
         setEmailPdfUrl(URL.createObjectURL(blob));
+      }
+      const clienteEmails: string[] = [];
+      if (customerRes?.ok) {
+        const full = await customerRes.json();
+        if (full.email) clienteEmails.push(full.email);
+      }
+      if (emailsRes?.ok) {
+        const { emails } = await emailsRes.json();
+        clienteEmails.push(...emails);
+      }
+      if (clienteEmails.length > 0) {
+        setEmailAddresses((prev) => Array.from(new Set([...clienteEmails, ...prev.filter(Boolean)])));
       }
     } finally {
       setEmailPdfLoading(false);
@@ -195,11 +234,23 @@ export default function FacturasPage() {
     setEmailError(null);
   }
 
+  function updateEmailAddress(i: number, value: string) {
+    setEmailAddresses((prev) => prev.map((e, idx) => (idx === i ? value : e)));
+  }
+
+  function addEmailAddress() {
+    setEmailAddresses((prev) => [...prev, ""]);
+  }
+
+  function removeEmailAddress(i: number) {
+    setEmailAddresses((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
   async function confirmSendEmail() {
     if (!emailTarget) return;
-    const email = emailAddress.trim();
-    if (!email) {
-      setEmailError("Ingresa un correo de destino");
+    const emails = emailAddresses.map((e) => e.trim()).filter(Boolean);
+    if (emails.length === 0) {
+      setEmailError("Ingresa al menos un correo de destino");
       return;
     }
     setEmailSending(true);
@@ -208,7 +259,7 @@ export default function FacturasPage() {
       const res = await fetch(`/api/facturas/${emailTarget.id}/email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: emails.length === 1 ? emails[0] : emails }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -318,7 +369,8 @@ export default function FacturasPage() {
                         <td className="px-5 py-2.5 font-medium text-foreground">{f.customer?.legal_name || "—"}</td>
                         <td className="px-5 py-2.5 font-mono text-xs text-muted-foreground">{f.customer?.tax_id || "—"}</td>
                         <td className="px-5 py-2.5 text-right tabular-nums">
-                          ${(f.total ?? 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                          ${(f.total ?? 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}{" "}
+                          <span className="text-muted-foreground text-[11px]">{f.currency ?? "MXN"}</span>
                         </td>
                         <td className="px-5 py-2.5 text-xs text-muted-foreground">
                           {new Date(f.date).toLocaleDateString("es-MX")}
@@ -377,7 +429,7 @@ export default function FacturasPage() {
                                   <FileCode className="w-3.5 h-3.5" />
                                   Descargar XML
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openSendEmail(f.id, folio, f.customer?.email)}>
+                                <DropdownMenuItem onClick={() => openSendEmail(f.id, folio, f.customer)}>
                                   <Mail className="w-3.5 h-3.5" />
                                   Enviar por correo
                                 </DropdownMenuItem>
@@ -451,7 +503,7 @@ export default function FacturasPage() {
                                                   openSendEmail(
                                                     c.facturapiId,
                                                     c.uuid ?? c.facturapiId.slice(-6),
-                                                    f.customer?.email
+                                                    f.customer
                                                   )
                                                 }
                                               >
@@ -514,6 +566,14 @@ export default function FacturasPage() {
             <DialogTitle>Registrar pago</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3">
+            {pagoTarget && (
+              <p className="text-xs text-muted-foreground">
+                Saldo pendiente:{" "}
+                <span className="font-medium text-foreground">
+                  ${saldoPendiente(pagoTarget).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                </span>
+              </p>
+            )}
             <div>
               <label className="text-xs font-medium text-muted-foreground">Monto</label>
               <InputGroup>
@@ -570,13 +630,35 @@ export default function FacturasPage() {
           </DialogHeader>
           <div className="flex flex-col gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Correo destino</label>
-              <Input
-                type="email"
-                placeholder="cliente@ejemplo.com"
-                value={emailAddress}
-                onChange={(e) => setEmailAddress(e.target.value)}
-              />
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Correo{emailAddresses.length > 1 ? "s" : ""} destino
+                </label>
+                <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={addEmailAddress}>
+                  <Plus className="w-3 h-3" /> Agregar correo
+                </Button>
+              </div>
+              <div className="flex flex-col gap-1.5 mt-1">
+                {emailAddresses.map((email, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <Input
+                      type="email"
+                      placeholder="cliente@ejemplo.com"
+                      value={email}
+                      onChange={(e) => updateEmailAddress(i, e.target.value)}
+                    />
+                    {emailAddresses.length > 1 && (
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-red-600 shrink-0"
+                        onClick={() => removeEmailAddress(i)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-1.5">Vista previa del PDF adjunto</p>

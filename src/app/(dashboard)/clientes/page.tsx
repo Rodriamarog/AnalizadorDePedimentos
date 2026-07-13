@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Users, Plus, Loader2 } from "lucide-react";
+import { Users, Plus, Loader2, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,10 +36,13 @@ interface FormState {
   taxId: string;
   taxSystem: string;
   zip: string;
-  email: string;
+  // First entry is FacturAPI's primary customer.email; any further entries
+  // are extra send-to addresses stored locally (see /api/clientes/[id]/emails)
+  // since FacturAPI's Customer object has no multi-email field.
+  emails: string[];
 }
 
-const emptyForm: FormState = { legalName: "", taxId: "", taxSystem: "601", zip: "", email: "" };
+const emptyForm: FormState = { legalName: "", taxId: "", taxSystem: "601", zip: "", emails: [""] };
 
 export default function ClientesPage() {
   const [rows, setRows] = useState<Cliente[]>([]);
@@ -88,17 +91,36 @@ export default function ClientesPage() {
     setDialogOpen(true);
   }
 
-  function openEdit(c: Cliente) {
+  async function openEdit(c: Cliente) {
     setEditingId(c.id);
     setForm({
       legalName: c.legal_name,
       taxId: c.tax_id ?? "",
       taxSystem: c.tax_system ?? "601",
       zip: c.address?.zip ?? "",
-      email: c.email ?? "",
+      emails: [c.email ?? ""],
     });
     setError(null);
     setDialogOpen(true);
+    const res = await fetch(`/api/clientes/${c.id}/emails`);
+    if (res.ok) {
+      const { emails } = await res.json();
+      if (emails.length > 0) {
+        setForm((f) => ({ ...f, emails: [f.emails[0], ...emails] }));
+      }
+    }
+  }
+
+  function updateEmail(i: number, value: string) {
+    setForm((f) => ({ ...f, emails: f.emails.map((e, idx) => (idx === i ? value : e)) }));
+  }
+
+  function addEmail() {
+    setForm((f) => ({ ...f, emails: [...f.emails, ""] }));
+  }
+
+  function removeEmail(i: number) {
+    setForm((f) => ({ ...f, emails: f.emails.filter((_, idx) => idx !== i) }));
   }
 
   async function handleSave() {
@@ -109,12 +131,13 @@ export default function ClientesPage() {
     }
     setSaving(true);
     try {
+      const emails = form.emails.map((e) => e.trim()).filter(Boolean);
       const body = {
         legal_name: form.legalName,
         tax_id: form.taxId.toUpperCase(),
         tax_system: form.taxSystem,
         address: { zip: form.zip },
-        email: form.email || undefined,
+        email: emails[0] || undefined,
       };
       const res = await fetch(editingId ? `/api/clientes/${editingId}` : "/api/clientes", {
         method: editingId ? "PUT" : "POST",
@@ -126,6 +149,12 @@ export default function ClientesPage() {
         setError(data.error ?? "Error al guardar");
         return;
       }
+      const customerId = editingId ?? data.id;
+      await fetch(`/api/clientes/${customerId}/emails`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: emails.slice(1) }),
+      });
       setDialogOpen(false);
       await load();
     } finally {
@@ -266,13 +295,35 @@ export default function ClientesPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Email</label>
-              <Input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                placeholder="cliente@empresa.com"
-              />
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Email{form.emails.length > 1 ? "s" : ""}
+                </label>
+                <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={addEmail}>
+                  <Plus className="w-3 h-3" /> Agregar correo
+                </Button>
+              </div>
+              <div className="flex flex-col gap-1.5 mt-1">
+                {form.emails.map((email, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => updateEmail(i, e.target.value)}
+                      placeholder="cliente@empresa.com"
+                    />
+                    {form.emails.length > 1 && (
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-red-600 shrink-0"
+                        onClick={() => removeEmail(i)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
             {error && <p className="text-xs text-red-600">{error}</p>}
           </div>

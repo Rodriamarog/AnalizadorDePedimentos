@@ -86,6 +86,22 @@ export const facturas = pgTable("facturas", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Extra send-to addresses for a cliente, beyond the single `email` FacturAPI
+// stores on its Customer object (which has no array/multi-email field) —
+// used only to prefill the "send factura by email" form; the FacturAPI
+// customer email remains the primary/first address.
+export const clienteEmails = pgTable(
+  "cliente_emails",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    orgId: text("org_id").notNull().references(() => organizations.id),
+    customerId: text("customer_id").notNull(),
+    email: text("email").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("cliente_emails_org_customer_email_unique").on(t.orgId, t.customerId, t.email)]
+);
+
 export const complementosPago = pgTable("complementos_pago", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   orgId: text("org_id").notNull().references(() => organizations.id),
