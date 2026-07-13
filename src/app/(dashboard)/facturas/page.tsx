@@ -69,6 +69,7 @@ export default function FacturasPage() {
   const [pagoFecha, setPagoFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [pagoForma, setPagoForma] = useState("03");
   const [pagoSaving, setPagoSaving] = useState(false);
+  const [pagoPreviewing, setPagoPreviewing] = useState(false);
   const [pagoError, setPagoError] = useState<string | null>(null);
 
   // Text search is filtered client-side rather than forwarded to FacturAPI's
@@ -132,34 +133,63 @@ export default function FacturasPage() {
     setPagoError(null);
   }
 
-  async function handleRegistrarPago() {
-    if (!pagoTarget) return;
+  function buildPagoBody(): Record<string, unknown> | null {
+    if (!pagoTarget) return null;
     setPagoError(null);
     const montoNum = Number(pagoMonto);
     if (!montoNum || montoNum <= 0) {
       setPagoError("Ingresa un monto válido");
-      return;
+      return null;
     }
     if (!pagoFecha) {
       setPagoError("Ingresa la fecha de pago");
-      return;
+      return null;
     }
     const saldo = saldoPendiente(pagoTarget);
     if (montoNum - saldo > 0.01) {
       setPagoError(`El monto excede el saldo pendiente ($${saldo})`);
-      return;
+      return null;
     }
+    return {
+      factura_facturapi_id: pagoTarget.id,
+      monto: montoNum,
+      fecha_pago: pagoFecha,
+      forma_pago: pagoForma,
+    };
+  }
+
+  async function handlePreviewPago() {
+    const body = buildPagoBody();
+    if (!body) return;
+    setPagoPreviewing(true);
+    try {
+      const res = await fetch("/api/complementos/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setPagoError(data.error ?? "Vista previa no disponible");
+        return;
+      }
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob));
+    } finally {
+      setPagoPreviewing(false);
+    }
+  }
+
+  async function handleRegistrarPago() {
+    if (!pagoTarget) return;
+    const body = buildPagoBody();
+    if (!body) return;
     setPagoSaving(true);
     try {
       const res = await fetch("/api/complementos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          factura_facturapi_id: pagoTarget.id,
-          monto: montoNum,
-          fecha_pago: pagoFecha,
-          forma_pago: pagoForma,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -614,6 +644,10 @@ export default function FacturasPage() {
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setPagoTarget(null)}>
               Cancelar
+            </Button>
+            <Button variant="outline" size="sm" onClick={handlePreviewPago} disabled={pagoPreviewing}>
+              {pagoPreviewing && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+              Vista previa PDF
             </Button>
             <Button size="sm" onClick={handleRegistrarPago} disabled={pagoSaving}>
               {pagoSaving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
