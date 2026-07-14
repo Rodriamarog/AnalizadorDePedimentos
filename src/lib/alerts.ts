@@ -70,3 +70,33 @@ export async function confirmDelete(
   });
   return isConfirmed;
 }
+
+// Prompts for a positive decimal number (e.g. a tipo de cambio). Returns null
+// if the user cancels or leaves it blank/invalid.
+export async function promptNumber(
+  title: string,
+  text?: string,
+  inputValue?: string
+): Promise<number | null> {
+  const { value, isConfirmed } = await Swal.fire({
+    icon: "question",
+    title,
+    text,
+    input: "number",
+    inputValue,
+    inputAttributes: { step: "0.00001", min: "0.00001" },
+    showCancelButton: true,
+    confirmButtonText: "Aplicar",
+    cancelButtonText: "Cancelar",
+    confirmButtonColor: CONFIRM_COLOR,
+    cancelButtonColor: CANCEL_COLOR,
+    inputValidator: (value) => {
+      const n = Number(value);
+      if (!value || !n || n <= 0) return "Ingresa un valor válido";
+      return undefined;
+    },
+  });
+  if (!isConfirmed) return null;
+  const n = Number(value);
+  return n > 0 ? n : null;
+}

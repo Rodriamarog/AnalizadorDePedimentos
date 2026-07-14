@@ -13,7 +13,8 @@
     "db:fts": "psql \"$DATABASE_URL\" -f drizzle/0002_fts.sql",
     "db:app-role": "psql \"$DATABASE_URL\" -f drizzle/0003_app_role.sql",
     "db:cliente-emails": "psql \"$DATABASE_URL\" -f drizzle/0004_cliente_emails.sql",
-    "db:migrate": "npm run db:push && npm run db:cliente-emails && npm run db:rls && npm run db:fts && npm run db:app-role",
+    "db:partida-tc": "psql \"$DATABASE_URL\" -f drizzle/0005_partida_tipo_cambio.sql",
+    "db:migrate": "npm run db:push && npm run db:cliente-emails && npm run db:partida-tc && npm run db:rls && npm run db:fts && npm run db:app-role",
     "db:seed": "./scripts/seed-sat-catalogs.sh",
     "db:test-rls": "tsx --env-file=.env.local scripts/test-rls-isolation.ts"
   },

@@ -9,9 +9,16 @@ REMOTE=windows-mini-pc
 WSL_DISTRO=Ubuntu-24.04
 REMOTE_DIR=/opt/apps/pedimentos-v2
 ENV_FILE=.env.local
+PROD_SECRETS_FILE=scripts/.env.prod-secrets
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "Missing $ENV_FILE - can't build the remote .env from it." >&2
+  exit 1
+fi
+
+if [ ! -f "$PROD_SECRETS_FILE" ]; then
+  echo "Missing $PROD_SECRETS_FILE - can't override prod-only secrets (e.g. Clerk pk_live_/sk_live_ keys)." >&2
+  echo "$ENV_FILE has dev keys, which don't work on the production domain - refusing to deploy with them." >&2
   exit 1
 fi
 
@@ -27,6 +34,17 @@ sed -E \
   -e 's#(DATABASE_URL=.*@)[^:/]+(:[0-9]+)?/#\1postgres:5432/#' \
   -e 's#(APP_DATABASE_URL=.*@)[^:/]+(:[0-9]+)?/#\1postgres:5432/#' \
   "$ENV_FILE" > "$TMP_ENV"
+
+echo "==> Overriding with prod-only secrets from $PROD_SECRETS_FILE"
+while IFS='=' read -r key value; do
+  [ -z "$key" ] && continue
+  case "$key" in \#*) continue ;; esac
+  if grep -q "^${key}=" "$TMP_ENV"; then
+    sed -i "s#^${key}=.*#${key}=${value}#" "$TMP_ENV"
+  else
+    echo "${key}=${value}" >> "$TMP_ENV"
+  fi
+done < "$PROD_SECRETS_FILE"
 
 echo "==> Packaging app source"
 tar czf "$TARBALL" \

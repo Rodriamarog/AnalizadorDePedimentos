@@ -47,6 +47,10 @@ export const partidas = pgTable("partidas", {
   precioUnitario: doublePrecision("precio_unitario").notNull(),
   tieneIncrementables: boolean("tiene_incrementables").notNull(),
   umc: text("umc"),
+  // Per-partida T.C. override, for pedimentos covered by multiple invoices
+  // paid on different dates (each with its own real exchange rate). Null
+  // means "use the pedimento's tipoCambio" (the common case).
+  tipoCambio: doublePrecision("tipo_cambio"),
 });
 
 // Fracción → ClaveProdServ mapping. Per-org: two tenants can map the same

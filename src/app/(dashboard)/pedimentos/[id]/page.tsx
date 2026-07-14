@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, use } from "react";
-import { ArrowLeft, FileText, Sparkles, Loader2, Download, Receipt } from "lucide-react";
+import { ArrowLeft, FileText, Sparkles, Loader2, Download, Receipt, GripVertical, MousePointerClick } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { SatComboBox } from "@/components/sat-combobox";
 import { CrearFacturaDialog } from "@/components/crear-factura-dialog";
 import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
-import { alertError, alertInfo, alertSuccess } from "@/lib/alerts";
+import { alertError, alertInfo, alertSuccess, promptNumber } from "@/lib/alerts";
 
 const AUTOMAP_MESSAGES = [
   "Iniciando análisis…",
@@ -46,6 +46,7 @@ interface Partida {
   precioUnitario: number;
   tieneIncrementables: boolean;
   umc: string | null;
+  tipoCambio: number | null;
 }
 
 interface PedimentoDetail {
@@ -183,6 +184,88 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
   const [exporting, setExporting] = useState(false);
   const [facturarOpen, setFacturarOpen] = useState(false);
 
+  // Per-partida T.C. override — rarely used (only when a pedimento is
+  // covered by multiple invoices paid on different dates, each with its own
+  // real exchange rate), but must stay reachable. Selection is real
+  // click-and-drag across the checkbox gutter (mousedown starts the drag and
+  // decides add-vs-remove from the first row's current state, mouseenter on
+  // each row visited during the drag applies that same mode, mouseup anywhere
+  // ends it) — same interaction spreadsheets/file explorers use for a
+  // selection column, no drag-select library needed for row ranges like this.
+  const [tcEditMode, setTcEditMode] = useState(false);
+  const [tcSelected, setTcSelected] = useState<Set<string>>(new Set());
+  const [tcSaving, setTcSaving] = useState(false);
+  const tcDragModeRef = useRef<"add" | "remove" | null>(null);
+
+  useEffect(() => {
+    function endDrag() {
+      tcDragModeRef.current = null;
+    }
+    window.addEventListener("mouseup", endDrag);
+    return () => window.removeEventListener("mouseup", endDrag);
+  }, []);
+
+  function toggleTcEditMode() {
+    setTcEditMode((v) => !v);
+    setTcSelected(new Set());
+    tcDragModeRef.current = null;
+  }
+
+  function startTcDrag(id: string) {
+    const mode = tcSelected.has(id) ? "remove" : "add";
+    tcDragModeRef.current = mode;
+    setTcSelected((prev) => {
+      const next = new Set(prev);
+      if (mode === "add") next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function continueTcDrag(id: string) {
+    const mode = tcDragModeRef.current;
+    if (!mode) return;
+    setTcSelected((prev) => {
+      const has = prev.has(id);
+      if ((mode === "add") === has) return prev;
+      const next = new Set(prev);
+      if (mode === "add") next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  async function applyTcToSelection() {
+    if (tcSelected.size === 0 || !data) return;
+    const value = await promptNumber(
+      "Tipo de cambio",
+      `Se aplicará a ${tcSelected.size} partida${tcSelected.size > 1 ? "s" : ""} seleccionada${tcSelected.size > 1 ? "s" : ""}.`,
+      String(data.tipoCambio || "")
+    );
+    if (value == null) return;
+    setTcSaving(true);
+    try {
+      const res = await fetch(`/api/pedimentos/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ partidaIds: [...tcSelected], tipoCambio: value }),
+      });
+      if (!res.ok) {
+        alertError("Error", "No se pudo actualizar el tipo de cambio");
+        return;
+      }
+      const updated: Partida[] = await res.json();
+      const updatedMap = new Map(updated.map((p) => [p.id, p]));
+      setData((prev) =>
+        prev ? { ...prev, partidas: prev.partidas.map((p) => updatedMap.get(p.id) ?? p) } : prev
+      );
+      setTcEditMode(false);
+      setTcSelected(new Set());
+    } finally {
+      setTcSaving(false);
+    }
+  }
+
   async function handleExport() {
     setExporting(true);
     try {
@@ -294,6 +377,27 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
           ))}
         </div>
         <div className="flex items-center gap-2">
+          {tcEditMode && (
+            <>
+              <span className="inline-flex items-center gap-1.5 text-xs text-primary bg-primary/10 border border-primary/20 rounded-full px-2.5 py-1">
+                <MousePointerClick className="w-3.5 h-3.5" />
+                Arrastra sobre las filas para seleccionar
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {tcSelected.size} seleccionada{tcSelected.size !== 1 ? "s" : ""}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs"
+                onClick={applyTcToSelection}
+                disabled={tcSelected.size === 0 || tcSaving}
+              >
+                {tcSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Aplicar T.C.
+              </Button>
+            </>
+          )}
           <Button size="sm" className="gap-1.5 text-xs" onClick={() => setFacturarOpen(true)}>
             <Receipt className="w-3.5 h-3.5" />
             Facturar
@@ -317,11 +421,35 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
             <table className="w-full text-xs tabular-nums">
               <thead>
                 <tr className="border-b border-border">
+                  {tcEditMode && (
+                    <th className="w-9 px-2 py-2 bg-primary/5 border-r border-primary/20">
+                      <input
+                        type="checkbox"
+                        title="Seleccionar todas"
+                        checked={filtered.length > 0 && filtered.every((p) => tcSelected.has(p.id))}
+                        onChange={(e) =>
+                          setTcSelected(e.target.checked ? new Set(filtered.map((p) => p.id)) : new Set())
+                        }
+                      />
+                    </th>
+                  )}
                   <th className="text-left px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">Partida</th>
                   <th className="text-left px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Descripción</th>
                   <th className="text-right px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">Val. Aduana</th>
                   <th className="text-right px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">Piezas</th>
-                  <th className="text-right px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">T.C.</th>
+                  <th className="text-right px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1.5">
+                      T.C.
+                      <Button
+                        size="sm"
+                        variant={tcEditMode ? "default" : "outline"}
+                        className="h-6 px-2 text-[10px] normal-case tracking-normal"
+                        onClick={toggleTcEditMode}
+                      >
+                        {tcEditMode ? "Cancelar" : "Editar"}
+                      </Button>
+                    </div>
+                  </th>
                   <th className="text-right px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">P.U USD</th>
                   <th className="text-right px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">Valor Dlls</th>
                   <th className="text-right px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap">P.U MN</th>
@@ -349,33 +477,66 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
               </thead>
               <tbody className="divide-y divide-border">
                 {filtered.map((p) => {
+                  const rowTc = p.tipoCambio ?? tc;
                   const puMn = p.precioUnitario;
-                  const puUsd = tc ? puMn / tc : 0;
-                  const valorDlls = tc ? p.valAduana / tc : 0;
+                  const puUsd = rowTc ? puMn / rowTc : 0;
+                  const valorDlls = rowTc ? p.valAduana / rowTc : 0;
                   const prod = productosMap[p.fraccion];
                   const conf = prod?.confidence === "medium" || prod?.confidence === "low" ? prod.confidence : null;
                   return (
                     <tr
                       key={p.id}
-                      className={`hover:bg-muted/40 transition-colors ${p.tieneIncrementables ? "bg-amber-50/50" : ""}`}
+                      className={`transition-colors ${p.tieneIncrementables ? "bg-amber-50/50" : ""} ${
+                        tcEditMode
+                          ? `select-none cursor-crosshair ${tcSelected.has(p.id) ? "bg-primary/15" : "hover:bg-primary/5"}`
+                          : "hover:bg-muted/40"
+                      }`}
+                      onMouseDown={
+                        tcEditMode
+                          ? (e) => {
+                              e.preventDefault();
+                              startTcDrag(p.id);
+                            }
+                          : undefined
+                      }
+                      onMouseEnter={tcEditMode ? () => continueTcDrag(p.id) : undefined}
                     >
+                      {tcEditMode && (
+                        <td className={`px-2 py-2 align-middle border-r border-primary/20 group ${tcSelected.has(p.id) ? "bg-primary/15" : "bg-primary/5"}`}>
+                          <div className="flex items-center gap-0.5">
+                            <GripVertical className="w-3 h-3 text-primary/40 group-hover:text-primary/70 shrink-0" />
+                            <input
+                              type="checkbox"
+                              checked={tcSelected.has(p.id)}
+                              readOnly
+                              className="pointer-events-none"
+                            />
+                          </div>
+                        </td>
+                      )}
                       <td className="px-2.5 py-2 text-muted-foreground">{p.sec}</td>
                       <td className="px-2.5 py-2" title={p.descripcion}>
                         {p.descripcion}
                       </td>
                       <td className="px-2.5 py-2 text-right whitespace-nowrap">${p.valAduana.toLocaleString()}</td>
                       <td className="px-2.5 py-2 text-right text-muted-foreground whitespace-nowrap">{p.cantidad}</td>
-                      <td className="px-2.5 py-2 text-right text-muted-foreground whitespace-nowrap">
-                        {tc ? tc.toFixed(5) : "—"}
+                      <td
+                        className={`px-2.5 py-2 text-right whitespace-nowrap ${p.tipoCambio != null ? "font-semibold text-foreground" : "text-muted-foreground"}`}
+                        title={p.tipoCambio != null ? "T.C. sobreescrito para esta partida" : undefined}
+                      >
+                        {rowTc ? rowTc.toFixed(5) : "—"}
                       </td>
                       <td className="px-2.5 py-2 text-right text-muted-foreground whitespace-nowrap">
-                        {tc ? `$${puUsd.toFixed(5)}` : "—"}
+                        {rowTc ? `$${puUsd.toFixed(5)}` : "—"}
                       </td>
                       <td className="px-2.5 py-2 text-right text-muted-foreground whitespace-nowrap">
-                        {tc ? `$${valorDlls.toFixed(2)}` : "—"}
+                        {rowTc ? `$${valorDlls.toFixed(2)}` : "—"}
                       </td>
                       <td className="px-2.5 py-2 text-right whitespace-nowrap">${puMn.toFixed(5)}</td>
-                      <td className="px-2.5 py-2 min-w-[160px]">
+                      <td
+                        className="px-2.5 py-2 min-w-[160px]"
+                        onMouseDown={tcEditMode ? (e) => e.stopPropagation() : undefined}
+                      >
                         <SatComboBox
                           endpoint="/api/catalogs/products"
                           value={prod?.claveProdServ ?? ""}
@@ -388,7 +549,10 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
                           }
                         />
                       </td>
-                      <td className="px-2.5 py-2 min-w-[110px]">
+                      <td
+                        className="px-2.5 py-2 min-w-[110px]"
+                        onMouseDown={tcEditMode ? (e) => e.stopPropagation() : undefined}
+                      >
                         <SatComboBox
                           endpoint="/api/catalogs/units"
                           value={prod?.unitKey ?? ""}

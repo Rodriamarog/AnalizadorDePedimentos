@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireOrgId } from "@/lib/auth";
 import { pedimentos, partidas, facturas } from "@/lib/db/schema";
@@ -16,6 +16,33 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     }
     const rows = await tx.select().from(partidas).where(eq(partidas.pedimentoId, id));
     return NextResponse.json({ ...pedimento, partidas: rows });
+  });
+}
+
+// Bulk-sets a per-partida T.C. override, for pedimentos covered by multiple
+// invoices paid on different dates. Body: { partidaIds: string[], tipoCambio: number }.
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const orgId = await requireOrgId();
+  if (orgId instanceof NextResponse) return orgId;
+  const { id } = await params;
+
+  const body = await req.json();
+  const partidaIds: string[] = Array.isArray(body.partidaIds)
+    ? body.partidaIds.filter((v: unknown) => typeof v === "string")
+    : [];
+  const tipoCambio = Number(body.tipoCambio);
+
+  if (partidaIds.length === 0 || !tipoCambio || tipoCambio <= 0) {
+    return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+  }
+
+  return withOrg(orgId, async (tx) => {
+    const rows = await tx
+      .update(partidas)
+      .set({ tipoCambio })
+      .where(and(eq(partidas.pedimentoId, id), inArray(partidas.id, partidaIds)))
+      .returning();
+    return NextResponse.json(rows);
   });
 }
 

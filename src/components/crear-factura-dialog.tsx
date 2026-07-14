@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Loader2, X, Trash2, ChevronsUpDown, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -636,7 +636,8 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                     </tr>
                   )}
                   {items.map((it) => (
-                    <tr key={it.key} className={it.isAduaneros ? "bg-muted/30" : undefined}>
+                    <Fragment key={it.key}>
+                      <tr className={it.isAduaneros ? "bg-muted/30" : undefined}>
                       <td className="px-2 py-1.5 align-middle">
                         <input
                           type="checkbox"
@@ -725,54 +726,55 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                           </button>
                         )}
                       </td>
-                    </tr>
+                      </tr>
+                      {!pedimento && it.honorariosTipo === "comercializadora" && (
+                        <tr className="bg-muted/20">
+                          <td />
+                          <td colSpan={6} className="px-2 py-1.5">
+                            {!retencionesVisible ? (
+                              <button
+                                type="button"
+                                className="text-[11px] text-muted-foreground border border-dashed border-border rounded px-2 py-0.5"
+                                onClick={() => setRetencionesVisible(true)}
+                              >
+                                + Agregar retenciones
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                                <label className="flex items-center gap-1">
+                                  ISR
+                                  <Input
+                                    className="h-6 w-16 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    type="number"
+                                    value={retIsr}
+                                    onChange={(e) => setRetIsr(e.target.value)}
+                                  />
+                                  %
+                                </label>
+                                <label className="flex items-center gap-1">
+                                  IVA ret.
+                                  <Input
+                                    className="h-6 w-16 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    type="number"
+                                    value={retIva}
+                                    onChange={(e) => setRetIva(e.target.value)}
+                                  />
+                                  %
+                                </label>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-0.5 hover:text-foreground"
+                                  onClick={() => setRetencionesVisible(false)}
+                                >
+                                  <X className="w-3 h-3" /> Quitar
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   ))}
-                  {!pedimento && (
-                    <tr>
-                      <td />
-                      <td colSpan={6} className="px-2 py-1.5">
-                        {!retencionesVisible ? (
-                          <button
-                            type="button"
-                            className="text-[11px] text-muted-foreground border border-dashed border-border rounded px-2 py-0.5"
-                            onClick={() => setRetencionesVisible(true)}
-                          >
-                            + Agregar retenciones
-                          </button>
-                        ) : (
-                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                            <label className="flex items-center gap-1">
-                              ISR
-                              <Input
-                                className="h-6 w-16 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                type="number"
-                                value={retIsr}
-                                onChange={(e) => setRetIsr(e.target.value)}
-                              />
-                              %
-                            </label>
-                            <label className="flex items-center gap-1">
-                              IVA ret.
-                              <Input
-                                className="h-6 w-16 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                type="number"
-                                value={retIva}
-                                onChange={(e) => setRetIva(e.target.value)}
-                              />
-                              %
-                            </label>
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-0.5 hover:text-foreground"
-                              onClick={() => setRetencionesVisible(false)}
-                            >
-                              <X className="w-3 h-3" /> Quitar
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
