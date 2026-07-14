@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -57,8 +58,11 @@ export default function FacturasPage() {
 
   const [emailTarget, setEmailTarget] = useState<{ id: string; folio: string } | null>(null);
   const [emailAddresses, setEmailAddresses] = useState<string[]>([""]);
-  const [emailPdfUrl, setEmailPdfUrl] = useState<string | null>(null);
-  const [emailPdfLoading, setEmailPdfLoading] = useState(false);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [attachmentUrls, setAttachmentUrls] = useState<{ pdf?: string; xml?: string }>({});
+  const [attachmentLoading, setAttachmentLoading] = useState<"pdf" | "xml" | null>(null);
+  const [openPreview, setOpenPreview] = useState<"pdf" | "xml" | null>(null);
   const [emailSending, setEmailSending] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
@@ -227,19 +231,16 @@ export default function FacturasPage() {
     // `CustomerInfo` schema), so the primary email has to be fetched from
     // the full Customer record, same as the local extras.
     setEmailAddresses(userEmail ? [userEmail] : [""]);
+    setEmailSubject(`Factura ${folio}`);
+    setEmailBody(`Adjunto encontrarás tu factura ${folio} en PDF y XML.\n\nSaludos.`);
     setEmailError(null);
-    setEmailPdfUrl(null);
-    setEmailPdfLoading(true);
+    setAttachmentUrls({});
+    setOpenPreview(null);
     try {
-      const [pdfRes, customerRes, emailsRes] = await Promise.all([
-        fetch(`/api/facturas/${id}/pdf`),
+      const [customerRes, emailsRes] = await Promise.all([
         customer?.id ? fetch(`/api/clientes/${customer.id}`) : Promise.resolve(null),
         customer?.id ? fetch(`/api/clientes/${customer.id}/emails`) : Promise.resolve(null),
       ]);
-      if (pdfRes.ok) {
-        const blob = await pdfRes.blob();
-        setEmailPdfUrl(URL.createObjectURL(blob));
-      }
       const clienteEmails: string[] = [];
       if (customerRes?.ok) {
         const full = await customerRes.json();
@@ -252,16 +253,40 @@ export default function FacturasPage() {
       if (clienteEmails.length > 0) {
         setEmailAddresses((prev) => Array.from(new Set([...clienteEmails, ...prev.filter(Boolean)])));
       }
-    } finally {
-      setEmailPdfLoading(false);
+    } catch {
+      // Best-effort prefill — the send button still works with whatever
+      // addresses are already in the field.
     }
   }
 
   function closeSendEmail() {
-    if (emailPdfUrl) URL.revokeObjectURL(emailPdfUrl);
+    Object.values(attachmentUrls).forEach((url) => url && URL.revokeObjectURL(url));
     setEmailTarget(null);
-    setEmailPdfUrl(null);
+    setAttachmentUrls({});
+    setOpenPreview(null);
     setEmailError(null);
+  }
+
+  // Attachment previews are loaded on demand (only when the user clicks the
+  // PDF/XML card) instead of eagerly on dialog open, and cached per-kind so
+  // toggling back and forth doesn't re-fetch.
+  async function toggleAttachmentPreview(kind: "pdf" | "xml") {
+    if (openPreview === kind) {
+      setOpenPreview(null);
+      return;
+    }
+    setOpenPreview(kind);
+    if (attachmentUrls[kind] || !emailTarget) return;
+    setAttachmentLoading(kind);
+    try {
+      const res = await fetch(`/api/facturas/${emailTarget.id}/${kind}`);
+      if (res.ok) {
+        const blob = await res.blob();
+        setAttachmentUrls((prev) => ({ ...prev, [kind]: URL.createObjectURL(blob) }));
+      }
+    } finally {
+      setAttachmentLoading(null);
+    }
   }
 
   function updateEmailAddress(i: number, value: string) {
@@ -283,13 +308,17 @@ export default function FacturasPage() {
       setEmailError("Ingresa al menos un correo de destino");
       return;
     }
+    if (!emailSubject.trim()) {
+      setEmailError("Ingresa un asunto");
+      return;
+    }
     setEmailSending(true);
     setEmailError(null);
     try {
       const res = await fetch(`/api/facturas/${emailTarget.id}/email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emails.length === 1 ? emails[0] : emails }),
+        body: JSON.stringify({ to: emails, subject: emailSubject.trim(), message: emailBody }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -695,16 +724,59 @@ export default function FacturasPage() {
               </div>
             </div>
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1.5">Vista previa del PDF adjunto</p>
-              <div className="rounded-md border border-border overflow-hidden h-[420px] flex items-center justify-center bg-muted/20">
-                {emailPdfLoading && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
-                {!emailPdfLoading && emailPdfUrl && (
-                  <iframe src={emailPdfUrl} className="w-full h-full" title="Vista previa PDF" />
-                )}
-                {!emailPdfLoading && !emailPdfUrl && (
-                  <p className="text-xs text-muted-foreground">No se pudo cargar el PDF</p>
-                )}
+              <label className="text-xs font-medium text-muted-foreground">Asunto</label>
+              <Input
+                className="mt-1"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Mensaje</label>
+              <Textarea
+                className="mt-1 min-h-24"
+                value={emailBody}
+                onChange={(e) => setEmailBody(e.target.value)}
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Archivos adjuntos</p>
+              <div className="flex gap-2">
+                {(
+                  [
+                    ["pdf", FileText, "text-red-600"],
+                    ["xml", FileCode, "text-blue-600"],
+                  ] as const
+                ).map(([kind, Icon, iconClass]) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => toggleAttachmentPreview(kind)}
+                    className={`flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors ${
+                      openPreview === kind ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 shrink-0 ${iconClass}`} />
+                    {emailTarget?.folio}.{kind}
+                    {attachmentLoading === kind && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                  </button>
+                ))}
               </div>
+              {openPreview && (
+                <div className="mt-2 rounded-md border border-border overflow-hidden h-[420px] flex items-center justify-center bg-muted/20">
+                  {attachmentLoading === openPreview && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
+                  {attachmentLoading !== openPreview && attachmentUrls[openPreview] && (
+                    <iframe
+                      src={attachmentUrls[openPreview]}
+                      className="w-full h-full"
+                      title={`Vista previa ${openPreview.toUpperCase()}`}
+                    />
+                  )}
+                  {attachmentLoading !== openPreview && !attachmentUrls[openPreview] && (
+                    <p className="text-xs text-muted-foreground">No se pudo cargar el {openPreview.toUpperCase()}</p>
+                  )}
+                </div>
+              )}
             </div>
             {emailError && <p className="text-xs text-red-600">{emailError}</p>}
           </div>
