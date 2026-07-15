@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { Receipt, Plus, Loader2, ChevronDown, ChevronRight, Banknote, Mail, FileText, FileCode, MoreVertical, Trash2 } from "lucide-react";
+import { Receipt, Plus, Loader2, ChevronDown, ChevronRight, Banknote, Mail, FileText, FileCode, FileBarChart, MoreVertical, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -75,6 +75,11 @@ export default function FacturasPage() {
   const [pagoSaving, setPagoSaving] = useState(false);
   const [pagoPreviewing, setPagoPreviewing] = useState(false);
   const [pagoError, setPagoError] = useState<string | null>(null);
+
+  const [reporteOpen, setReporteOpen] = useState(false);
+  const [reporteMonth, setReporteMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [reporteLoading, setReporteLoading] = useState(false);
+  const [reporteError, setReporteError] = useState<string | null>(null);
 
   // Text search is filtered client-side rather than forwarded to FacturAPI's
   // `q` param — that endpoint silently requires 4+ characters before it
@@ -219,6 +224,27 @@ export default function FacturasPage() {
     if (fmt === "pdf") window.open(url, "_blank");
     else a.click();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  async function handleDescargarReporte() {
+    const [yearStr, monthStr] = reporteMonth.split("-");
+    setReporteError(null);
+    setReporteLoading(true);
+    try {
+      const res = await fetch(`/api/facturas/reporte-mensual?year=${yearStr}&month=${monthStr}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setReporteError(data.error ?? "No se pudo generar el reporte");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      setReporteOpen(false);
+    } finally {
+      setReporteLoading(false);
+    }
   }
 
   async function openSendEmail(id: string, folio: string, customer?: { id?: string; email?: string }) {
@@ -375,10 +401,21 @@ export default function FacturasPage() {
                   </th>
                   <th className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sticky top-0 z-10 bg-card">Status</th>
                   <th className="px-5 py-2.5 text-right sticky top-0 z-10 bg-card">
-                    <Button size="sm" className="gap-1.5 text-xs" onClick={() => setDialogOpen(true)}>
-                      <Plus className="w-3.5 h-3.5" />
-                      Nueva factura
-                    </Button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 text-xs"
+                        onClick={() => setReporteOpen(true)}
+                      >
+                        <FileBarChart className="w-3.5 h-3.5" />
+                        Reporte mensual
+                      </Button>
+                      <Button size="sm" className="gap-1.5 text-xs" onClick={() => setDialogOpen(true)}>
+                        <Plus className="w-3.5 h-3.5" />
+                        Nueva factura
+                      </Button>
+                    </div>
                   </th>
                 </tr>
               </thead>
@@ -595,6 +632,38 @@ export default function FacturasPage() {
         onOpenChange={setDialogOpen}
         onSaved={() => load(paymentMethodFilter)}
       />
+
+      <Dialog open={reporteOpen} onOpenChange={(open) => !open && setReporteOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reporte mensual de facturas</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">
+              Genera un PDF con el desglose de comprobantes emitidos en el mes seleccionado, agrupados por moneda,
+              con subtotal, IVA trasladado/retenido y total.
+            </p>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Mes</label>
+              <Input
+                type="month"
+                value={reporteMonth}
+                onChange={(e) => setReporteMonth(e.target.value)}
+              />
+            </div>
+            {reporteError && <p className="text-xs text-red-600">{reporteError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setReporteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={handleDescargarReporte} disabled={reporteLoading}>
+              {reporteLoading && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+              Descargar PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>
         <DialogContent>
