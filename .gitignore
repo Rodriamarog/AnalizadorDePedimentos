@@ -48,3 +48,6 @@ ds-dist/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+
+# real customer PDFs/docs used as local reference material (contains PII)
+/VerificacionDocumentos/
