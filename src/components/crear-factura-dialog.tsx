@@ -99,6 +99,7 @@ export interface PedimentoForFactura {
     cantidad: number;
     precioUnitario: number;
     umc: string | null;
+    tipoCambio: number | null;
   }[];
 }
 
@@ -125,6 +126,11 @@ interface ItemRow {
   // never the reverse. So `precio` only needs conversion when the invoice's
   // target currency is USD, by dividing by the pedimento's own T.C.
   baseAmountMxn?: number;
+  // The T.C. that actually applies to `baseAmountMxn` for this row — a
+  // partida with its own override uses that instead of the pedimento-wide
+  // rate, so re-converting on a currency switch keeps the same fixed USD
+  // amount that the override was meant to preserve.
+  effectiveTc?: number;
 }
 
 function mxnToCurrency(amountMxn: number, currency: "MXN" | "USD", tipoCambio: number): number {
@@ -184,11 +190,12 @@ export function mapPedimentoToItems(
     const prod = productoMap.get(p.fraccion);
     const clave = prod?.claveProdServ ?? "";
     const unit = prod?.unitKey ?? umcToUnitKey(p.umc);
+    const rowTc = p.tipoCambio ?? tipoCambio;
     return {
       key: `partida-${i}-${p.fraccion}`,
       descripcion: p.descripcion,
       cantidad: String(p.cantidad),
-      precio: mxnToCurrency(p.precioUnitario, currency, tipoCambio).toFixed(2),
+      precio: mxnToCurrency(p.precioUnitario, currency, rowTc).toFixed(2),
       clave,
       unitKey: unit,
       checked: true,
@@ -197,6 +204,7 @@ export function mapPedimentoToItems(
       claveDescription: prod?.descripcionSat ?? undefined,
       unitDescription: unitDescriptions[unit],
       baseAmountMxn: p.precioUnitario,
+      effectiveTc: rowTc,
     };
   });
 
@@ -216,6 +224,7 @@ export function mapPedimentoToItems(
       unitReadonly: true,
       qtyReadonly: true,
       baseAmountMxn: impTotal,
+      effectiveTc: tipoCambio,
     });
   }
   return partidaItems;
@@ -326,16 +335,17 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
 
   // Pedimento-sourced rows (partidas in USD, impuestos aduaneros in MXN)
   // carry their price in a fixed "home" currency — recompute `precio` from
-  // that base whenever the invoice's target currency changes, using the
-  // best exchange rate available (the pedimento's own T.C., which is fixed
-  // and not user-editable — see the T.C. field below).
+  // that base whenever the invoice's target currency changes, using each
+  // row's own effective T.C. (a partida's override if it has one, else the
+  // pedimento's own T.C.) so a currency switch preserves the same fixed USD
+  // amount the override was meant to fix, not the pedimento-wide rate.
   useEffect(() => {
     if (!pedimento || !pedimento.tipoCambio) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setItems((prev) =>
       prev.map((it) =>
         it.baseAmountMxn != null
-          ? { ...it, precio: mxnToCurrency(it.baseAmountMxn, currency, pedimento.tipoCambio).toFixed(2) }
+          ? { ...it, precio: mxnToCurrency(it.baseAmountMxn, currency, it.effectiveTc ?? pedimento.tipoCambio).toFixed(2) }
           : it
       )
     );

@@ -34,8 +34,8 @@ async function main() {
     igi: 1200,
     prv: 0,
     partidas: [
-      { fraccion: "87089999", descripcion: "PARTES PARA VEHICULOS", cantidad: 10, precioUnitario: 150.5, umc: "6" },
-      { fraccion: "39235000", descripcion: "TAPAS DE PLASTICO SIN MAPEO", cantidad: 5, precioUnitario: 20, umc: "1" },
+      { fraccion: "87089999", descripcion: "PARTES PARA VEHICULOS", cantidad: 10, precioUnitario: 150.5, umc: "6", tipoCambio: null },
+      { fraccion: "39235000", descripcion: "TAPAS DE PLASTICO SIN MAPEO", cantidad: 5, precioUnitario: 20, umc: "1", tipoCambio: null },
     ],
   };
   const productos: ProductoLookup[] = [

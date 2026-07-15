@@ -612,6 +612,7 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
             cantidad: p.cantidad,
             precioUnitario: p.precioUnitario,
             umc: p.umc,
+            tipoCambio: p.tipoCambio,
           })),
         }}
       />

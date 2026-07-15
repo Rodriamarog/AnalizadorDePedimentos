@@ -43,20 +43,21 @@ export async function buildExportWorkbook(pedimento: Pedimento, partidaRows: Par
 
   partidaRows.forEach((p, i) => {
     const row = 5 + i;
+    const rowTc = p.tipoCambio ?? tc;
     const puMn = p.cantidad ? p.valAduana / p.cantidad : 0;
-    const puUsd = tc ? puMn / tc : 0;
-    const valorDlls = tc ? p.valAduana / tc : 0;
+    const puUsd = rowTc ? puMn / rowTc : 0;
+    const valorDlls = rowTc ? p.valAduana / rowTc : 0;
     const hasInc = p.tieneIncrementables;
 
     ws.getCell(row, 1).value = p.sec;
     ws.getCell(row, 2).value = p.valAduana;
     ws.getCell(row, 2).numFmt = NUM_FMT_MONEY;
     ws.getCell(row, 3).value = p.cantidad;
-    ws.getCell(row, 4).value = tc || null;
+    ws.getCell(row, 4).value = rowTc || null;
     ws.getCell(row, 4).numFmt = NUM_FMT_PRECISE;
-    ws.getCell(row, 5).value = tc ? puUsd : null;
+    ws.getCell(row, 5).value = rowTc ? puUsd : null;
     ws.getCell(row, 5).numFmt = NUM_FMT_PRECISE;
-    ws.getCell(row, 6).value = tc ? valorDlls : null;
+    ws.getCell(row, 6).value = rowTc ? valorDlls : null;
     ws.getCell(row, 6).numFmt = NUM_FMT_MONEY;
     ws.getCell(row, 7).value = puMn;
     ws.getCell(row, 7).numFmt = NUM_FMT_PRECISE;
