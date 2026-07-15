@@ -6,6 +6,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SatComboBox } from "@/components/sat-combobox";
 import { CrearFacturaDialog } from "@/components/crear-factura-dialog";
 import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
@@ -47,6 +48,7 @@ interface Partida {
   tieneIncrementables: boolean;
   umc: string | null;
   tipoCambio: number | null;
+  nomClave: string | null;
 }
 
 interface PedimentoDetail {
@@ -60,6 +62,13 @@ interface PedimentoDetail {
   igi: number | null;
   prv: number | null;
   partidas: Partida[];
+}
+
+interface InspeccionPartida {
+  sec: number;
+  descripcion: string;
+  nomClave: string | null;
+  filename: string;
 }
 
 type Filter = "all" | "inc" | "no";
@@ -184,6 +193,14 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
   const [exporting, setExporting] = useState(false);
   const [facturarOpen, setFacturarOpen] = useState(false);
 
+  const [inspeccionOpen, setInspeccionOpen] = useState(false);
+  const [inspeccionLoading, setInspeccionLoading] = useState(false);
+  const [inspeccionPartidas, setInspeccionPartidas] = useState<InspeccionPartida[] | null>(null);
+  const [inspeccionZipping, setInspeccionZipping] = useState(false);
+  const [previewSec, setPreviewSec] = useState<number | null>(null);
+  const [previewLoadingSec, setPreviewLoadingSec] = useState<number | null>(null);
+  const [previewHtml, setPreviewHtml] = useState<Record<number, string>>({});
+
   // Per-partida T.C. override — rarely used (only when a pedimento is
   // covered by multiple invoices paid on different dates, each with its own
   // real exchange rate), but must stay reachable. Selection is real
@@ -288,6 +305,77 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
     }
   }
 
+  async function openInspeccionModal() {
+    setInspeccionOpen(true);
+    setPreviewSec(null);
+    setInspeccionLoading(true);
+    try {
+      const res = await fetch(`/api/pedimentos/${id}/inspeccion`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alertError("Error", body.error ?? "No se pudo cargar las solicitudes de inspección");
+        setInspeccionOpen(false);
+        return;
+      }
+      setInspeccionPartidas(body.partidas ?? []);
+    } finally {
+      setInspeccionLoading(false);
+    }
+  }
+
+  function closeInspeccionModal() {
+    setInspeccionOpen(false);
+    setInspeccionPartidas(null);
+    setPreviewSec(null);
+    setPreviewHtml({});
+  }
+
+  // Each file's HTML preview (the docx converted via mammoth) is fetched on
+  // demand, only the first time its card is clicked, then cached — same
+  // lazy-load-and-cache approach as the PDF/XML attachment preview in
+  // facturas/page.tsx.
+  async function togglePreview(sec: number) {
+    if (previewSec === sec) {
+      setPreviewSec(null);
+      return;
+    }
+    setPreviewSec(sec);
+    if (previewHtml[sec]) return;
+    setPreviewLoadingSec(sec);
+    try {
+      const res = await fetch(`/api/pedimentos/${id}/inspeccion/${sec}/preview`);
+      if (res.ok) {
+        const { html } = await res.json();
+        setPreviewHtml((prev) => ({ ...prev, [sec]: html }));
+      }
+    } finally {
+      setPreviewLoadingSec(null);
+    }
+  }
+
+  async function downloadInspeccionZip() {
+    setInspeccionZipping(true);
+    try {
+      const res = await fetch(`/api/pedimentos/${id}/inspeccion/zip`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alertError("Error", body.error ?? "No se pudo generar el zip");
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="(.+)"/);
+      const filename = match ? match[1] : `pedimento_${data?.pedimentoNum ?? id}_inspecciones.zip`;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } finally {
+      setInspeccionZipping(false);
+    }
+  }
+
   async function handleAutomap() {
     showAutomapOverlay();
     try {
@@ -315,6 +403,8 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
       alertError("Error", e instanceof Error ? e.message : "Error al automapear");
     }
   }
+
+  const hasNom = useMemo(() => data?.partidas.some((p) => p.nomClave) ?? false, [data]);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -402,6 +492,12 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
             <Receipt className="w-3.5 h-3.5" />
             Facturar
           </Button>
+          {hasNom && (
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={openInspeccionModal}>
+              <FileText className="w-3.5 h-3.5" />
+              Solicitud de Inspección NOM
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -616,6 +712,83 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
           })),
         }}
       />
+
+      <Dialog open={inspeccionOpen} onOpenChange={(open) => !open && closeInspeccionModal()}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Solicitudes de Inspección NOM</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            {inspeccionLoading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {!inspeccionLoading && inspeccionPartidas && (
+              <div className="flex flex-col gap-1.5">
+                {inspeccionPartidas.map((p) => (
+                  <div key={p.sec}>
+                    <button
+                      type="button"
+                      onClick={() => togglePreview(p.sec)}
+                      className={`w-full flex items-center gap-2.5 rounded-md border px-3 py-2 text-xs text-left transition-colors ${
+                        previewSec === p.sec ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      <FileText className="w-4 h-4 shrink-0 text-blue-600" />
+                      <span className="flex-1 min-w-0">
+                        <span className="font-medium">{p.filename}</span>
+                        <span className="block text-muted-foreground truncate">{p.descripcion}</span>
+                      </span>
+                      {previewLoadingSec === p.sec && (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
+                      )}
+                    </button>
+                    {previewSec === p.sec && (
+                      <div className="mt-1.5 rounded-md border border-border overflow-hidden bg-white">
+                        {previewLoadingSec === p.sec && (
+                          <div className="h-[420px] flex items-center justify-center bg-muted/20">
+                            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                          </div>
+                        )}
+                        {previewLoadingSec !== p.sec && previewHtml[p.sec] && (
+                          <div
+                            className="h-[420px] overflow-y-auto p-4 text-[13px] leading-snug text-black [&_table]:border-collapse [&_table]:w-full [&_td]:border [&_td]:border-gray-300 [&_td]:p-1.5"
+                            dangerouslySetInnerHTML={{ __html: previewHtml[p.sec] }}
+                          />
+                        )}
+                        {previewLoadingSec !== p.sec && !previewHtml[p.sec] && (
+                          <div className="h-[420px] flex items-center justify-center bg-muted/20">
+                            <p className="text-xs text-muted-foreground">No se pudo cargar la vista previa</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={closeInspeccionModal}>
+              Cerrar
+            </Button>
+            <Button
+              size="sm"
+              className="gap-1.5"
+              onClick={downloadInspeccionZip}
+              disabled={inspeccionZipping || !inspeccionPartidas?.length}
+            >
+              {inspeccionZipping ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              Descargar como Zip
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

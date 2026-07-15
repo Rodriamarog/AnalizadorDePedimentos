@@ -124,3 +124,13 @@ export async function searchSatUnitsForAutomap(q: string): Promise<SatCatalogRes
   if (words.length === 0) return [];
   return ftsSearch("sat_unidades", words, 15, false);
 }
+
+// Exact-key lookup (not a search), for resolving a known unit key to its
+// description — e.g. the Solicitud de Inspección docx's "Unidad de Medida"
+// field, derived from a partida's UMC code via umcToUnitKey.
+export async function getSatUnidadDescription(key: string): Promise<string | null> {
+  const result = await db.execute<SatCatalogResult>(sql`
+    select key, description from sat_unidades where key = ${key} limit 1
+  `);
+  return result.rows[0]?.description ?? null;
+}

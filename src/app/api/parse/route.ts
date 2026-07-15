@@ -83,6 +83,12 @@ export async function POST(req: NextRequest) {
             dta: result.dta,
             igi: result.igi,
             prv: result.prv,
+            rfc: result.rfc,
+            domicilioFiscal: result.domicilioFiscal,
+            regimen: result.regimen,
+            facturaNumero: result.facturaNumero,
+            fechaPedimento: result.fechaPedimento,
+            fechaEntrada: result.fechaEntrada,
           })
           .returning();
 
@@ -93,7 +99,11 @@ export async function POST(req: NextRequest) {
               pedimentoId: pedimento.id,
               sec: p.sec,
               fraccion: p.fraccion,
+              subd: p.subd,
               descripcion: p.descripcion,
+              marca: p.marca,
+              paisOrigen: p.paisOrigen,
+              nomClave: p.nomClave,
               cantidad: p.cantidad,
               valAduana: p.valAduana,
               valComercial: p.valComercial,

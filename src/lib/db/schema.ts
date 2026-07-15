@@ -32,6 +32,14 @@ export const pedimentos = pgTable("pedimentos", {
   dta: integer("dta"),
   igi: integer("igi"),
   prv: integer("prv"),
+  // Fields below are only needed to auto-fill the "Solicitud de Servicios de
+  // Inspección" (NOM) docx per partida — not used anywhere else in the app.
+  rfc: text("rfc"),
+  domicilioFiscal: text("domicilio_fiscal"),
+  regimen: text("regimen"),
+  facturaNumero: text("factura_numero"),
+  fechaPedimento: date("fecha_pedimento"),
+  fechaEntrada: date("fecha_entrada"),
 });
 
 export const partidas = pgTable("partidas", {
@@ -51,6 +59,15 @@ export const partidas = pgTable("partidas", {
   // paid on different dates (each with its own real exchange rate). Null
   // means "use the pedimento's tipoCambio" (the common case).
   tipoCambio: doublePrecision("tipo_cambio"),
+  // Fields below are only needed to auto-fill the "Solicitud de Servicios de
+  // Inspección" (NOM) docx per partida — not used anywhere else in the app.
+  subd: text("subd"),
+  marca: text("marca"),
+  paisOrigen: text("pais_origen"),
+  // The NOM clave declared on the pedimento for this partida (e.g.
+  // "NOM-050-SCFI-2004"), or null if the partida has none — a partida with
+  // no NOM clave doesn't need an inspection request generated for it.
+  nomClave: text("nom_clave"),
 });
 
 // Fracción → ClaveProdServ mapping. Per-org: two tenants can map the same

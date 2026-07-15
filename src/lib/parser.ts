@@ -6,7 +6,11 @@ const execFileAsync = promisify(execFile);
 export interface Partida {
   sec: number;
   fraccion: string;
+  subd: string | null;
   descripcion: string;
+  marca: string | null;
+  paisOrigen: string | null;
+  nomClave: string | null;
   cantidad: number;
   valAduana: number;
   valComercial: number;
@@ -22,6 +26,12 @@ export interface ParsedPedimento {
   dta: number | null;
   igi: number | null;
   prv: number | null;
+  rfc: string | null;
+  domicilioFiscal: string | null;
+  regimen: string | null;
+  facturaNumero: string | null;
+  fechaPedimento: string | null;
+  fechaEntrada: string | null;
   partidas: Partida[];
 }
 
@@ -89,10 +99,26 @@ function cleanPage(text: string, isFirst: boolean): string {
   return clean.join("\n");
 }
 
+// Converts a DD-MM-YYYY or DD/MM/YYYY date (the only formats the pedimento
+// prints) to ISO YYYY-MM-DD for storage. Returns null if it doesn't match.
+function toIsoDate(date: string | undefined): string | null {
+  if (!date) return null;
+  const m = date.match(/^(\d{2})[/-](\d{2})[/-](\d{4})$/);
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function extractHeaderInfo(fullText: string): {
   pedimentoNum: string;
   importador: string;
   tipoCambio: number;
+  rfc: string | null;
+  domicilioFiscal: string | null;
+  regimen: string | null;
+  facturaNumero: string | null;
+  fechaPedimento: string | null;
+  fechaEntrada: string | null;
 } {
   let pedimentoNum = "";
   let importador = "";
@@ -102,19 +128,62 @@ function extractHeaderInfo(fullText: string): {
   if (m) pedimentoNum = m[1].trim();
 
   m = fullText.match(/RAZON SOCIAL:\s*\n(.+)/);
-  if (m) importador = m[1].trim();
+  // The line following "RAZON SOCIAL:" starts with "CURP: <curp>" ahead of
+  // the actual name (the pedimento prints "Clave en el RFC: ... NOMBRE..."
+  // and "CURP: ..." as column headers on one line, with their values
+  // starting on the next), so strip that prefix to get just the name.
+  if (m) importador = m[1].replace(/^CURP:\s*\S+\s*/, "").trim();
 
   m = fullText.match(/TIPO CAMBIO:\s*([\d.,]+)/);
   if (m) tipoCambio = parseFloat(m[1].replace(/,/g, ""));
 
-  return { pedimentoNum, importador, tipoCambio };
+  let rfc: string | null = null;
+  m = fullText.match(/Clave en el RFC:\s*(\S+)\s+NOMBRE, DENOMINACION O RAZON SOCIAL/);
+  if (m) rfc = m[1].trim();
+
+  let domicilioFiscal: string | null = null;
+  m = fullText.match(/DOMICILIO:(.+)\n\s*(.+)\n/);
+  if (m) {
+    // The pedimento spells out "MEXICO (ESTADOS UNIDOS MEXICANOS)" in full;
+    // drop that redundant parenthetical to match how these addresses are
+    // conventionally written on the inspection request (just the country
+    // name), same as this org's own hand-filled sample docs do.
+    domicilioFiscal = `${m[1].trim()} ${m[2].trim()}`
+      .replace(/\s*\(ESTADOS UNIDOS MEXICANOS\)\s*$/i, "")
+      .trim();
+  }
+
+  let regimen: string | null = null;
+  m = fullText.match(/REGIMEN:\s*(\S+)/);
+  if (m) regimen = m[1].trim();
+
+  let facturaNumero: string | null = null;
+  m = fullText.match(/NUM\. FACTURA[^\n]*\n\s*(\S+)\s+\d{2}\/\d{2}\/\d{4}/);
+  if (m) facturaNumero = m[1].trim();
+
+  const fechaPedimento = toIsoDate(fullText.match(/Fecha:(\d{2}-\d{2}-\d{4})/)?.[1]);
+  const fechaEntrada = toIsoDate(fullText.match(/^ENTRADA\s+(\d{2}\/\d{2}\/\d{4})/m)?.[1]);
+
+  return {
+    pedimentoNum,
+    importador,
+    tipoCambio,
+    rfc,
+    domicilioFiscal,
+    regimen,
+    facturaNumero,
+    fechaPedimento,
+    fechaEntrada,
+  };
 }
 
 interface PartidaHeader {
   sec: number;
   fraccion: string;
+  subd: string | null;
   cantidad: number;
   umc: string | null;
+  paisOrigen: string | null;
 }
 
 function isPartidaHeader(line: string): PartidaHeader | null {
@@ -131,7 +200,11 @@ function isPartidaHeader(line: string): PartidaHeader | null {
   if (Number.isNaN(cantidad)) return null;
 
   const umc = tokens.length > 5 ? tokens[5] : null;
-  return { sec, fraccion, cantidad, umc };
+  const subd = tokens.length > 2 ? tokens[2] : null;
+  // Tokens 9/10 are the P.V/C and P.O/D country codes (e.g. "USA CHN"); not
+  // every pedimento line has both populated, so guard the index.
+  const paisOrigen = tokens.length > 10 ? tokens[10] : null;
+  return { sec, fraccion, subd, cantidad, umc, paisOrigen };
 }
 
 function isValuesLine(line: string): [number, number] | null {
@@ -188,7 +261,7 @@ export async function parsePedimento(pdfPath: string): Promise<ParsedPedimento> 
     cleanText += cleanPage(page, i === 0) + "\n";
   });
 
-  const { pedimentoNum, importador, tipoCambio } = extractHeaderInfo(fullText);
+  const headerInfo = extractHeaderInfo(fullText);
   const liquidacion = parseCuadroLiquidacion(fullText);
 
   const lines = cleanText.split("\n");
@@ -232,13 +305,36 @@ export async function parsePedimento(pdfPath: string): Promise<ParsedPedimento> 
       i++;
     }
 
-    const descripcion = descParts.join(" ").trim();
+    // Scan forward through this partida's REGULACIONES Y RESTRICCIONES NO
+    // ARANCELARIAS / IDENTIFICADORES block, up to the next partida header (or
+    // end of pedimento), looking for a "NM <clave>" row. Its presence is what
+    // determines whether this partida requires a NOM inspection dictamen —
+    // a partida with no such row (e.g. a plain plastic lid, no labeling
+    // requirement) doesn't need one.
+    let nomClave: string | null = null;
+    while (i < lines.length && !isPartidaHeader(lines[i])) {
+      const tokens = lines[i].split(/\s+/).filter(Boolean);
+      if (tokens[0] === "NM" && tokens.length > 1) {
+        nomClave = tokens.slice(1).join(" ");
+      }
+      i++;
+    }
+
+    const rawDescripcion = descParts.join(" ").trim();
+    const marcaMatch = rawDescripcion.match(/^(.*?)\s*MARCA:\s*(.+)$/i);
+    const descripcion = marcaMatch ? marcaMatch[1].trim() : rawDescripcion;
+    const marca = marcaMatch ? marcaMatch[2].trim() : null;
+
     if (valAduana !== null && valComercial !== null) {
       const precioUnitario = Math.round((valAduana / header.cantidad) * 1e5) / 1e5;
       partidas.push({
         sec: header.sec,
         fraccion: header.fraccion,
+        subd: header.subd,
         descripcion,
+        marca,
+        paisOrigen: header.paisOrigen,
+        nomClave,
         cantidad: header.cantidad,
         valAduana,
         valComercial,
@@ -250,9 +346,7 @@ export async function parsePedimento(pdfPath: string): Promise<ParsedPedimento> 
   }
 
   return {
-    pedimentoNum,
-    importador,
-    tipoCambio,
+    ...headerInfo,
     dta: liquidacion.dta,
     igi: liquidacion.igi,
     prv: liquidacion.prv,
