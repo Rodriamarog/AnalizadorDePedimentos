@@ -1,0 +1,66 @@
+Catálogo de aduanas (clave de 2 dígitos -> nombre) usado en src/lib/aduanas.ts.
+
+Fuente: Anexo 22, Apéndice 1 "Aduana-Sección" de las Reglas Generales de
+Comercio Exterior (RGCE) 2026, dado a conocer en el Art. Segundo Transitorio
+de las RGCE para 2026 (DOF 27/XII/2025), publicado el 15/01/2026
+(Circular G-020/26), entró en vigor el 02/02/2026.
+Copia local: public/pedimentos/apendice 1 anexo 22 rgce.pdf
+
+Cada renglón abajo corresponde a la "Sección 0" (oficina principal) de cada
+aduana en el apéndice oficial — el catálogo completo también incluye
+secciones adicionales (aeropuertos, cruces fronterizos, terminales, etc. con
+sección 1, 2, 3...) que NO están mapeadas aquí; el código de 3 dígitos que
+imprime el pedimento ("ADUANA E/S") es aduana + sección, y esta tabla solo
+resuelve el nombre de la aduana (los 2 primeros dígitos), no la sección
+específica.
+
+01  Acapulco, Guerrero
+02  Agua Prieta, Sonora
+05  Subteniente López, Quintana Roo
+06  Ciudad del Carmen, Campeche
+07  Ciudad Juárez, Chihuahua
+08  Coatzacoalcos, Veracruz
+11  Ensenada, Baja California
+12  Guaymas, Sonora
+14  La Paz, Baja California Sur
+16  Manzanillo, Colima
+17  Matamoros, Tamaulipas
+18  Mazatlán, Sinaloa
+19  Mexicali, Baja California
+20  México, Ciudad de México
+22  Naco, Sonora
+23  Nogales, Sonora
+24  Nuevo Laredo, Tamaulipas
+25  Ojinaga, Chihuahua
+26  Puerto Palomas, Chihuahua
+27  Piedras Negras, Coahuila de Zaragoza
+28  Progreso, Yucatán
+30  Ciudad Reynosa, Tamaulipas
+31  Salina Cruz, Oaxaca
+33  San Luis Río Colorado, Sonora
+34  Ciudad Miguel Alemán, Tamaulipas
+37  Ciudad Hidalgo, Chiapas
+38  Tampico, Tamaulipas
+39  Tecate, Baja California
+40  Tijuana, Baja California
+42  Tuxpan, Veracruz
+43  Veracruz, Veracruz
+44  Ciudad Acuña, Coahuila de Zaragoza
+46  Torreón, Coahuila de Zaragoza
+47  Aeropuerto Internacional de la Ciudad de México
+48  Guadalajara, Jalisco
+50  Sonoyta, Sonora
+51  Lázaro Cárdenas, Michoacán
+52  Monterrey, Nuevo León
+53  Cancún, Quintana Roo
+64  Querétaro, Querétaro
+65  Toluca, Estado de México
+67  Chihuahua, Chihuahua
+73  Aguascalientes, Aguascalientes
+75  Puebla, Puebla
+80  Colombia, Nuevo León
+81  Altamira, Tamaulipas
+82  Ciudad Camargo, Tamaulipas
+83  Dos Bocas, Tabasco
+84  Guanajuato, Guanajuato
+85  Aeropuerto Internacional Felipe Ángeles, Estado de México

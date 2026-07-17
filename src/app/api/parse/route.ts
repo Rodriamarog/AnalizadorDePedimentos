@@ -89,6 +89,8 @@ export async function POST(req: NextRequest) {
             facturaNumero: result.facturaNumero,
             fechaPedimento: result.fechaPedimento,
             fechaEntrada: result.fechaEntrada,
+            fechaPago: result.fechaPago,
+            claveAduana: result.claveAduana,
           })
           .returning();
 

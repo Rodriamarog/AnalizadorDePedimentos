@@ -11,6 +11,7 @@ import { SatComboBox } from "@/components/sat-combobox";
 import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
 import { umcToUnitKey } from "@/lib/umc";
 import { alertSuccess } from "@/lib/alerts";
+import { aduanaName } from "@/lib/aduanas";
 
 const USO_CFDI_OPTIONS = [
   ["G01", "Adquisición de mercancias"],
@@ -83,6 +84,8 @@ interface PedimentoLite {
   pedimentoNum: string;
   importador: string;
   tipoCambio: number;
+  fechaPago: string | null;
+  claveAduana: string | null;
 }
 
 export interface PedimentoForFactura {
@@ -90,6 +93,8 @@ export interface PedimentoForFactura {
   pedimentoNum: string;
   importador: string;
   tipoCambio: number;
+  fechaPago: string | null;
+  claveAduana: string | null;
   dta: number | null;
   igi: number | null;
   prv: number | null;
@@ -304,6 +309,8 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
         pedimentoNum: pedimento.pedimentoNum,
         importador: pedimento.importador,
         tipoCambio: pedimento.tipoCambio,
+        fechaPago: pedimento.fechaPago,
+        claveAduana: pedimento.claveAduana,
       });
       setItems([]);
       setItemsLoading(true);
@@ -373,6 +380,11 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
   // AA  AA  AAAA  AAAAAAA with two spaces between groups; FacturAPI accepts
   // single-space too, but some clients' other facturación software insists
   // on the literal double-space form, so we normalize to it here.
+  function isoToSlash(iso: string): string {
+    const [yyyy, mm, dd] = iso.split("-");
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
   function formatPedimentoForCfdi(pedNum: string): string {
     const digits = pedNum.replace(/\D/g, "");
     if (digits.length !== 15) return pedNum;
@@ -458,6 +470,19 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
       currency,
       pedimento_id: pedimentoLink?.id ?? null,
     };
+    // customs_keys on each item is what legally ties the CFDI to the
+    // pedimento (InformacionAduanera), but FacturAPI's own PDF template
+    // repeats it under every line item; this adds one clean summary line
+    // for readability. It renders after the totals block, not at the top —
+    // FacturAPI's template doesn't offer a way to inject content above the
+    // items table.
+    if (pedNum) {
+      const parts = [`<strong>Pedimento:</strong> ${formatPedimentoForCfdi(pedNum)}`];
+      if (pedimentoLink?.fechaPago) parts.push(`<strong>Fecha:</strong> ${isoToSlash(pedimentoLink.fechaPago)}`);
+      const aduana = aduanaName(pedimentoLink?.claveAduana);
+      if (aduana) parts.push(`<strong>Aduana:</strong> ${pedimentoLink!.claveAduana} - ${aduana}`);
+      body.pdf_custom_section = `<div style="margin-top:8px;padding:6px 8px;border:1px solid #2f6fed;font-size:12px">${parts.join(" &nbsp;|&nbsp; ")}</div>`;
+    }
     if (currency !== "MXN") {
       const tc = Number(exchangeRate);
       if (!tc) {

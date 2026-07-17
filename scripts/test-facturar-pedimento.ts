@@ -30,6 +30,8 @@ async function main() {
     pedimentoNum: "26 40 3362 6000505",
     importador: "IMPORTADORA DE PRUEBA SA DE CV",
     tipoCambio: 18.5,
+    fechaPago: "2026-07-10",
+    claveAduana: "400",
     dta: 500,
     igi: 1200,
     prv: 0,

@@ -32,6 +32,8 @@ export interface ParsedPedimento {
   facturaNumero: string | null;
   fechaPedimento: string | null;
   fechaEntrada: string | null;
+  fechaPago: string | null;
+  claveAduana: string | null;
   partidas: Partida[];
 }
 
@@ -119,6 +121,8 @@ function extractHeaderInfo(fullText: string): {
   facturaNumero: string | null;
   fechaPedimento: string | null;
   fechaEntrada: string | null;
+  fechaPago: string | null;
+  claveAduana: string | null;
 } {
   let pedimentoNum = "";
   let importador = "";
@@ -163,6 +167,11 @@ function extractHeaderInfo(fullText: string): {
 
   const fechaPedimento = toIsoDate(fullText.match(/Fecha:(\d{2}-\d{2}-\d{4})/)?.[1]);
   const fechaEntrada = toIsoDate(fullText.match(/^ENTRADA\s+(\d{2}\/\d{2}\/\d{4})/m)?.[1]);
+  const fechaPago = toIsoDate(fullText.match(/^PAGO\s+(\d{2}\/\d{2}\/\d{4})/m)?.[1]);
+
+  let claveAduana: string | null = null;
+  m = fullText.match(/ADUANA E\/S:\s*(\d+)/);
+  if (m) claveAduana = m[1].trim();
 
   return {
     pedimentoNum,
@@ -174,6 +183,8 @@ function extractHeaderInfo(fullText: string): {
     facturaNumero,
     fechaPedimento,
     fechaEntrada,
+    fechaPago,
+    claveAduana,
   };
 }
 

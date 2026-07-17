@@ -40,6 +40,11 @@ export const pedimentos = pgTable("pedimentos", {
   facturaNumero: text("factura_numero"),
   fechaPedimento: date("fecha_pedimento"),
   fechaEntrada: date("fecha_entrada"),
+  // Fecha de pago (from the pedimento's "FECHAS" box) and the 3-digit
+  // "CLAVE DE LA SECCION ADUANERA DE DESPACHO" (aduana + sección) — shown on
+  // facturas linked to this pedimento, alongside the pedimento number.
+  fechaPago: date("fecha_pago"),
+  claveAduana: text("clave_aduana"),
 });
 
 export const partidas = pgTable("partidas", {

@@ -58,6 +58,8 @@ interface PedimentoDetail {
   tipoCambio: number;
   pdfFilename: string;
   fechaUpload: string;
+  fechaPago: string | null;
+  claveAduana: string | null;
   dta: number | null;
   igi: number | null;
   prv: number | null;
@@ -699,6 +701,8 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
           pedimentoNum: data.pedimentoNum,
           importador: data.importador,
           tipoCambio: data.tipoCambio,
+          fechaPago: data.fechaPago,
+          claveAduana: data.claveAduana,
           dta: data.dta,
           igi: data.igi,
           prv: data.prv,
