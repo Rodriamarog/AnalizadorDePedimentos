@@ -1,22 +1,77 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   AlignmentType,
   BorderStyle,
   Document,
+  Header,
   HeightRule,
+  HorizontalPositionRelativeFrom,
+  ImageRun,
   Packer,
   Paragraph,
   Table,
   TableCell,
   TableRow,
   TextRun,
+  TextWrappingType,
   VerticalAlign,
   VerticalAlignTable,
   VerticalMergeType,
+  VerticalPositionRelativeFrom,
   WidthType,
 } from "docx";
 import type { pedimentos, partidas } from "./db/schema";
 import { paisToName } from "./paisOrigen";
 import { regimenToName } from "./regimen";
+
+// Letterhead ("hoja membretada") the client asked to have printed behind
+// every generated report — logo/header + faint watermark + footer, supplied
+// as public/pedimentos/logistic meginter hoja.docx. Pre-extracted to a
+// smaller JPEG once (150dpi Letter, ~150KB vs. the original PNG's 4.7MB) so
+// it doesn't bloat every generated docx.
+//
+// Read lazily (not at module load) via process.cwd(), not __dirname —
+// __dirname points into the webpack-bundled server output, which doesn't
+// contain this asset and breaks Next's build-time page-data collection.
+// process.cwd() reliably resolves to the project root at request time, in
+// both dev and production.
+let letterheadImageCache: Buffer | null = null;
+function getLetterheadImage(): Buffer {
+  if (!letterheadImageCache) {
+    letterheadImageCache = readFileSync(
+      join(process.cwd(), "public", "pedimentos", "logistic-meginter-hoja.jpg")
+    );
+  }
+  return letterheadImageCache;
+}
+
+// Letter page at 96 DPI (the pixel convention docx.js's ImageRun uses for
+// `transformation`), so the floating image exactly covers one page.
+const LETTERHEAD_WIDTH_PX = 816;
+const LETTERHEAD_HEIGHT_PX = 1056;
+
+function letterheadHeader(): Header {
+  return new Header({
+    children: [
+      new Paragraph({
+        children: [
+          new ImageRun({
+            type: "jpg",
+            data: getLetterheadImage(),
+            transformation: { width: LETTERHEAD_WIDTH_PX, height: LETTERHEAD_HEIGHT_PX },
+            floating: {
+              horizontalPosition: { relative: HorizontalPositionRelativeFrom.PAGE, offset: 0 },
+              verticalPosition: { relative: VerticalPositionRelativeFrom.PAGE, offset: 0 },
+              wrap: { type: TextWrappingType.NONE },
+              behindDocument: true,
+            },
+          }),
+        ],
+      }),
+    ],
+  });
+}
 
 type Pedimento = typeof pedimentos.$inferSelect;
 type Partida = typeof partidas.$inferSelect;
@@ -26,6 +81,7 @@ type Partida = typeof partidas.$inferSelect;
 const CONTRATO = "25040UCS000355";
 const SERVICIO_SOLICITADO = "DICTAMEN";
 const NUM_SOLICITUD = "0402500XXXX";
+const TELEFONO = "664 624 8324 ext 112";
 const DOMICILIO_INSPECCION =
   "CALLE CINCO NORTE No.805 CD.INDUSTRIAL TIJUANA, BAJA CALIFORNIA, C.P 22444 MEXICO";
 const YELLOW_HIGHLIGHT = "FFFF00";
@@ -73,6 +129,7 @@ interface LabelRowOptions {
 function labelRow(label: string, value: string, options: LabelRowOptions = {}): TableRow {
   const { valueBold = true, highlight = false } = options;
   return new TableRow({
+    cantSplit: true,
     children: [
       new TableCell({
         width: { size: LABEL_WIDTH, type: WidthType.DXA },
@@ -80,7 +137,7 @@ function labelRow(label: string, value: string, options: LabelRowOptions = {}): 
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: label, bold: true, size: 20, font: "Arial", color: "000000" })],
+            children: [new TextRun({ text: label, bold: true, size: 18, font: "Arial", color: "000000" })],
           }),
         ],
       }),
@@ -91,7 +148,7 @@ function labelRow(label: string, value: string, options: LabelRowOptions = {}): 
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: value, bold: valueBold, size: 20, font: "Arial", color: "000000" })],
+            children: [new TextRun({ text: value, bold: valueBold, size: 18, font: "Arial", color: "000000" })],
           }),
         ],
       }),
@@ -106,8 +163,8 @@ function sectionHeader(text: string): Paragraph {
   // entirely like this.
   return new Paragraph({
     alignment: AlignmentType.CENTER,
-    spacing: { before: 200, after: 100 },
-    children: [new TextRun({ text, bold: true, size: 20, font: "Arial", color: "000000" })],
+    spacing: { before: 100, after: 40 },
+    children: [new TextRun({ text, bold: true, size: 18, font: "Arial", color: "000000" })],
   });
 }
 
@@ -214,6 +271,11 @@ function table(rows: TableRow[], columnWidths?: number[]): Table {
   return new Table({
     width: { size: LABEL_WIDTH + VALUE_WIDTH, type: WidthType.DXA },
     columnWidths,
+    // Tighter than Word's default cell padding (~115 twips top/bottom) —
+    // needed to fit everything above the letterhead's pre-printed footer on
+    // a single real US Letter page (shorter than the A4 this was previously,
+    // accidentally, being measured against).
+    margins: { top: 20, bottom: 20, left: 80, right: 80 },
     borders: {
       top: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
       bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
@@ -262,6 +324,7 @@ function buildFooterTable(pedimento: Pedimento): Table {
 
   return table([
     new TableRow({
+      cantSplit: true,
       height: { value: 200, rule: HeightRule.ATLEAST },
       children: [
         obsCells[0],
@@ -275,7 +338,8 @@ function buildFooterTable(pedimento: Pedimento): Table {
       ],
     }),
     new TableRow({
-      height: { value: 900, rule: HeightRule.ATLEAST },
+      cantSplit: true,
+      height: { value: 400, rule: HeightRule.ATLEAST },
       children: [
         obsCells[1],
         selloCells[1],
@@ -288,6 +352,7 @@ function buildFooterTable(pedimento: Pedimento): Table {
       ],
     }),
     new TableRow({
+      cantSplit: true,
       height: { value: 200, rule: HeightRule.ATLEAST },
       children: [
         obsCells[2],
@@ -301,6 +366,7 @@ function buildFooterTable(pedimento: Pedimento): Table {
       ],
     }),
     new TableRow({
+      cantSplit: true,
       children: [
         obsCells[3],
         selloCells[3],
@@ -321,6 +387,7 @@ function buildFooterTable(pedimento: Pedimento): Table {
       ],
     }),
     new TableRow({
+      cantSplit: true,
       height: { value: 300, rule: HeightRule.ATLEAST },
       children: [
         obsCells[4],
@@ -350,16 +417,34 @@ export function buildInspeccionDocx(
   const doc = new Document({
     sections: [
       {
+        properties: {
+          page: {
+            // Explicit US Letter ("tamaño carta") — required for this
+            // document in Mexico, and also what the letterhead image is
+            // sized for. `docx`'s own default page size is A4, which is
+            // taller than Letter; left implicit, the letterhead image (sized
+            // to exactly one Letter page) fell short of the real page
+            // bottom, and our own margins — tuned for a Letter-height page —
+            // ended up overlapping the letterhead's pre-printed footer text,
+            // which sits higher up on the taller A4 page.
+            size: { width: 12240, height: 15840 },
+            // Extra top/bottom margin so our own content clears the
+            // letterhead's pre-printed logo/header and contact-info footer,
+            // which the background image doesn't leave room for otherwise.
+            margin: { top: 2700, bottom: 1400, left: 1080, right: 1080 },
+          },
+        },
+        headers: { default: letterheadHeader() },
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            spacing: { after: 200 },
+            spacing: { after: 90 },
             children: [
               new TextRun({ text: "SOLICITUD DE SERVICIOS DE INSPECCION", bold: true, size: 24, font: "Arial" }),
             ],
           }),
           new Paragraph({
-            spacing: { after: 200 },
+            spacing: { after: 90 },
             children: [
               new TextRun({
                 text:
@@ -390,7 +475,7 @@ export function buildInspeccionDocx(
             labelRow("DOMICILIO FISCAL:", pedimento.domicilioFiscal ?? ""),
             labelRow("REP. O APODERADO LEGAL:", pedimento.importador),
             labelRow("SOLICITANTE:", pedimento.importador),
-            labelRow("TELÉFONOS:", ""),
+            labelRow("TELÉFONOS:", TELEFONO),
           ]),
           sectionHeader("INFORMACION COMERCIAL"),
           table([
@@ -409,7 +494,7 @@ export function buildInspeccionDocx(
             labelRow("CONTROL:", ""),
             labelRow("DOMICILIO DE LA INSPECCIÓN:", DOMICILIO_INSPECCION),
           ]),
-          new Paragraph({ spacing: { before: 200 }, children: [] }),
+          new Paragraph({ spacing: { before: 60 }, children: [] }),
           buildFooterTable(pedimento),
         ],
       },

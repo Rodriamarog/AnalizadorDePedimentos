@@ -326,7 +326,10 @@ export async function parsePedimento(pdfPath: string): Promise<ParsedPedimento> 
     while (i < lines.length && !isPartidaHeader(lines[i])) {
       const tokens = lines[i].split(/\s+/).filter(Boolean);
       if (tokens[0] === "NM" && tokens.length > 1) {
-        nomClave = tokens.slice(1).join(" ");
+        // Only the clave itself (e.g. "NOM-050-SCFI-2004") — further tokens
+        // on this row are the permit number / firma descargo / etc. columns,
+        // not part of the clave.
+        nomClave = tokens[1];
       }
       i++;
     }
