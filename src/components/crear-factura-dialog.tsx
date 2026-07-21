@@ -200,7 +200,7 @@ export function mapPedimentoToItems(
       key: `partida-${i}-${p.fraccion}`,
       descripcion: p.descripcion,
       cantidad: String(p.cantidad),
-      precio: mxnToCurrency(p.precioUnitario, currency, rowTc).toFixed(2),
+      precio: mxnToCurrency(p.precioUnitario, currency, rowTc).toFixed(5),
       clave,
       unitKey: unit,
       checked: true,
@@ -219,7 +219,7 @@ export function mapPedimentoToItems(
       key: "aduaneros",
       descripcion: "Impuestos Aduaneros (DTA + IGI + PRV)",
       cantidad: "1",
-      precio: mxnToCurrency(impTotal, currency, tipoCambio).toFixed(2),
+      precio: mxnToCurrency(impTotal, currency, tipoCambio).toFixed(5),
       clave: "93161608",
       unitKey: "ACT",
       checked: true,
@@ -352,7 +352,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
     setItems((prev) =>
       prev.map((it) =>
         it.baseAmountMxn != null
-          ? { ...it, precio: mxnToCurrency(it.baseAmountMxn, currency, it.effectiveTc ?? pedimento.tipoCambio).toFixed(2) }
+          ? { ...it, precio: mxnToCurrency(it.baseAmountMxn, currency, it.effectiveTc ?? pedimento.tipoCambio).toFixed(5) }
           : it
       )
     );
@@ -433,10 +433,15 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
         taxes = [ivaTax];
       }
 
+      let description = it.descripcion.trim();
+      if (pedNum && pedimentoLink?.fechaPago) {
+        description += ` - Fecha pedimento: ${isoToSlash(pedimentoLink.fechaPago)}`;
+      }
+
       const item: Record<string, unknown> = {
         quantity: Number(it.cantidad) || 1,
         product: {
-          description: it.descripcion.trim(),
+          description,
           product_key: clave,
           price,
           unit_key: it.unitKey.trim() || "H87",
@@ -704,7 +709,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                         <Input
                           className="h-7 text-xs md:text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           type="number"
-                          placeholder="0.00"
+                          placeholder="0.00000"
                           value={it.precio}
                           onChange={(e) => updateItem(it.key, { precio: e.target.value })}
                         />
