@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { requireOrgId } from "@/lib/auth";
 import { pedimentos, partidas, facturas } from "@/lib/db/schema";
@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     if (!pedimento) {
       return NextResponse.json({ error: "Pedimento no encontrado" }, { status: 404 });
     }
-    const rows = await tx.select().from(partidas).where(eq(partidas.pedimentoId, id));
+    const rows = await tx.select().from(partidas).where(eq(partidas.pedimentoId, id)).orderBy(asc(partidas.sec));
     return NextResponse.json({ ...pedimento, partidas: rows });
   });
 }
