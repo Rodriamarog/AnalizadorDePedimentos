@@ -136,6 +136,10 @@ interface ItemRow {
   // rate, so re-converting on a currency switch keeps the same fixed USD
   // amount that the override was meant to preserve.
   effectiveTc?: number;
+  // Per-row IVA override. Undefined means "follow the dialog-level ivaRate
+  // toggle" — so changing that toggle still updates every row that hasn't
+  // been manually overridden.
+  ivaRate?: 16 | 8 | 0;
 }
 
 function mxnToCurrency(amountMxn: number, currency: "MXN" | "USD", tipoCambio: number): number {
@@ -269,7 +273,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
   const [documentType, setDocumentType] = useState<DocumentType>("factura");
   const [paymentForm, setPaymentForm] = useState("03");
   const [paymentMethod, setPaymentMethod] = useState<"PUE" | "PPD">("PUE");
-  const [ivaRate, setIvaRate] = useState<16 | 8>(8);
+  const [ivaRate, setIvaRate] = useState<16 | 8 | 0>(8);
   const [currency, setCurrency] = useState<"MXN" | "USD">("MXN");
   const [exchangeRate, setExchangeRate] = useState("");
   const [items, setItems] = useState<ItemRow[]>([]);
@@ -404,7 +408,6 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
       return null;
     }
 
-    const ivaTax = { type: "IVA", rate: ivaRate / 100, factor: "Tasa", withholding: false };
     const pedNum = pedimentoLink?.pedimentoNum ?? null;
 
     const outItems: Record<string, unknown>[] = [];
@@ -420,17 +423,18 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
         continue;
       }
 
+      const rowIvaRate = it.ivaRate ?? ivaRate;
       let taxes: Record<string, unknown>[];
       if (it.honorariosTipo === "comercializadora") {
         const isrRet = retencionesVisible ? (Number(retIsr) || 0) / 100 : 0;
         const ivaRet = retencionesVisible ? (Number(retIva) || 0) / 100 : 0;
         taxes = [
-          { type: "IVA", rate: ivaRate / 100, factor: "Tasa", withholding: false },
+          { type: "IVA", rate: rowIvaRate / 100, factor: "Tasa", withholding: false },
           ...(isrRet > 0 ? [{ type: "ISR", rate: isrRet, factor: "Tasa", withholding: true }] : []),
           ...(ivaRet > 0 ? [{ type: "IVA", rate: ivaRet, factor: "Tasa", withholding: true }] : []),
         ];
       } else {
-        taxes = [ivaTax];
+        taxes = [{ type: "IVA", rate: rowIvaRate / 100, factor: "Tasa", withholding: false }];
       }
 
       let description = it.descripcion.trim();
@@ -664,13 +668,14 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                     <th className="text-right px-2 py-2 font-semibold w-24">Precio ({currency})</th>
                     <th className="text-left px-2 py-2 font-semibold w-32">ClaveProdServ</th>
                     <th className="text-left px-2 py-2 font-semibold w-20">Unidad</th>
+                    <th className="text-left px-2 py-2 font-semibold w-16">IVA</th>
                     <th className="w-6" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {itemsLoading && (
                     <tr>
-                      <td colSpan={7} className="px-2 py-4 text-center text-muted-foreground">
+                      <td colSpan={8} className="px-2 py-4 text-center text-muted-foreground">
                         Cargando partidas…
                       </td>
                     </tr>
@@ -756,6 +761,17 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                           />
                         )}
                       </td>
+                      <td className="px-2 py-1.5">
+                        <select
+                          className="w-full rounded-md border border-input px-1 py-1 text-xs h-7"
+                          value={it.ivaRate ?? ivaRate}
+                          onChange={(e) => updateItem(it.key, { ivaRate: Number(e.target.value) as 16 | 8 | 0 })}
+                        >
+                          <option value={16}>16%</option>
+                          <option value={8}>8%</option>
+                          <option value={0}>0%</option>
+                        </select>
+                      </td>
                       <td className="px-1 py-1.5">
                         {it.removable && (
                           <button
@@ -770,7 +786,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                       {!pedimento && it.honorariosTipo === "comercializadora" && (
                         <tr className="bg-muted/20">
                           <td />
-                          <td colSpan={6} className="px-2 py-1.5">
+                          <td colSpan={7} className="px-2 py-1.5">
                             {!retencionesVisible ? (
                               <button
                                 type="button"
@@ -898,6 +914,14 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
                   onClick={() => setIvaRate(8)}
                 >
                   8%
+                </Button>
+                <Button
+                  size="sm"
+                  variant={ivaRate === 0 ? "default" : "outline"}
+                  className="h-8 px-3 text-xs flex-1"
+                  onClick={() => setIvaRate(0)}
+                >
+                  0%
                 </Button>
               </div>
             </div>
