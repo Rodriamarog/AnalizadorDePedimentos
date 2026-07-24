@@ -137,7 +137,7 @@ function labelRow(label: string, value: string, options: LabelRowOptions = {}): 
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: label, bold: true, size: 18, font: "Arial", color: "000000" })],
+            children: [new TextRun({ text: label, bold: true, size: 16, font: "Arial", color: "000000" })],
           }),
         ],
       }),
@@ -148,7 +148,7 @@ function labelRow(label: string, value: string, options: LabelRowOptions = {}): 
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: value, bold: valueBold, size: 18, font: "Arial", color: "000000" })],
+            children: [new TextRun({ text: value, bold: valueBold, size: 16, font: "Arial", color: "000000" })],
           }),
         ],
       }),
@@ -163,8 +163,8 @@ function sectionHeader(text: string): Paragraph {
   // entirely like this.
   return new Paragraph({
     alignment: AlignmentType.CENTER,
-    spacing: { before: 100, after: 40 },
-    children: [new TextRun({ text, bold: true, size: 18, font: "Arial", color: "000000" })],
+    spacing: { before: 40, after: 20 },
+    children: [new TextRun({ text, bold: true, size: 16, font: "Arial", color: "000000" })],
   });
 }
 
@@ -209,7 +209,7 @@ function footerCell(
             new TextRun({
               text: line.text,
               bold: line.bold ?? true,
-              size: options.size ?? 16,
+              size: options.size ?? 14,
               font: "Arial",
               color: "000000",
             }),
@@ -247,7 +247,7 @@ function verticalMergeCells(
                   new TextRun({
                     text: line.text,
                     bold: line.bold ?? true,
-                    size: options.size ?? 16,
+                    size: options.size ?? 14,
                     font: "Arial",
                     color: "000000",
                   }),
@@ -314,7 +314,7 @@ function buildFooterTable(pedimento: Pedimento): Table {
   const ROW_COUNT = 5;
   const obsCells = verticalMergeCells(
     OBS_LINES.map((text) => ({ text, bold: true })),
-    { width: FOOTER_OBS_WIDTH, rowCount: ROW_COUNT, align: AlignmentType.LEFT, size: 14 }
+    { width: FOOTER_OBS_WIDTH, rowCount: ROW_COUNT, align: AlignmentType.LEFT, size: 12 }
   );
   const selloCells = verticalMergeCells([{ text: "SELLO Y/O FIRMA DIGITAL" }], {
     width: FOOTER_SELLO_WIDTH,
@@ -438,19 +438,19 @@ export function buildInspeccionDocx(
         children: [
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            spacing: { after: 90 },
+            spacing: { after: 40 },
             children: [
-              new TextRun({ text: "SOLICITUD DE SERVICIOS DE INSPECCION", bold: true, size: 24, font: "Arial" }),
+              new TextRun({ text: "SOLICITUD DE SERVICIOS DE INSPECCION", bold: true, size: 22, font: "Arial" }),
             ],
           }),
           new Paragraph({
-            spacing: { after: 90 },
+            spacing: { after: 40 },
             children: [
               new TextRun({
                 text:
                   "En cumplimiento con lo dispuesto en los artículos; 6, 53 y 56 de la LEY DE INFRAESTUCTURA DE LA CALIDAD. " +
                   "Así como en la Norma Oficial Mexicana especificada posteriormente, me permito solicitar la inspección de:",
-                size: 20,
+                size: 16,
                 font: "Arial",
               }),
             ],
@@ -491,10 +491,10 @@ export function buildInspeccionDocx(
             labelRow("PAÍS DE ORIGEN:", paisToName(partida.paisOrigen)),
             labelRow("FACTURA (S):", pedimento.facturaNumero ?? ""),
             labelRow("No. PEDIMENTO:", pedimento.pedimentoNum),
-            labelRow("CONTROL:", ""),
+            labelRow("CONTROL:", `PARTIDA ${partida.sec}`),
             labelRow("DOMICILIO DE LA INSPECCIÓN:", DOMICILIO_INSPECCION),
           ]),
-          new Paragraph({ spacing: { before: 60 }, children: [] }),
+          new Paragraph({ spacing: { before: 20 }, children: [] }),
           buildFooterTable(pedimento),
         ],
       },
