@@ -483,7 +483,7 @@ export function buildInspeccionDocx(
             labelRow("MARCA DEL PRODUCTO:", partida.marca ?? ""),
             labelRow("DESCRIPCION DEL PRODUCTO:", partida.descripcion),
             labelRow("FRACCIÓN ARANCELARIA:", fraccionCompleta),
-            labelRow("MODELO (S):", ""),
+            labelRow("MODELO (S):", "SIN MODELO"),
             labelRow("UNIDAD DE MEDIDA:", unidadMedida),
             labelRow("TAMAÑO DE LOTE:", cantidad),
             labelRow("NUMERO DE ETIQUETAS A INSPECCIONAR:", cantidad),

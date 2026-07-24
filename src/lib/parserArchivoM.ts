@@ -1,4 +1,5 @@
 import type { ParsedPedimento, Partida } from "@/lib/parser";
+import { regimenCodeFromText } from "@/lib/regimen";
 
 // Parses the pipe-delimited "archivo M" export (record types 500-999) that
 // some customs-broker software (e.g. Vantec DARWIN) produces alongside the
@@ -12,8 +13,9 @@ import type { ParsedPedimento, Partida } from "@/lib/parser";
 // 22 Apéndice 12 (not the DTA/IGI/PRV text labels the PDF prints): 1 = DTA,
 // 6 = IGI/IGE, 15 = PRV. Clave 23 ("IVA/PRV", the IVA prevalidación fee) is
 // a distinct concept from clave 15's PRV and has no field on
-// ParsedPedimento, so it's ignored. `regimen` is left null — no regimen
-// clave appears anywhere in this record layout.
+// ParsedPedimento, so it's ignored. There's no dedicated regimen clave
+// anywhere in this record layout either — it's derived from the free-text
+// observaciones (511) instead, see regimenCodeFromText.
 const CONTRIBUCION_CLAVE: Record<string, "dta" | "igi" | "prv"> = {
   "1": "dta",
   "6": "igi",
@@ -58,6 +60,8 @@ export function parseArchivoM(text: string): ParsedPedimento {
   let dta: number | null = null;
   let igi: number | null = null;
   let prv: number | null = null;
+
+  const observacionesBySeq = new Map<number, string>();
 
   const partidaOrder: number[] = [];
   const partidaBySec = new Map<number, PartidaAccum>();
@@ -105,6 +109,11 @@ export function parseArchivoM(text: string): ParsedPedimento {
           else if (field === "igi") igi = importe;
           else prv = importe;
         }
+        break;
+      }
+      case "511": {
+        const seq = parseInt(f[2], 10);
+        if (!Number.isNaN(seq)) observacionesBySeq.set(seq, f[3] ?? "");
         break;
       }
       case "551": {
@@ -179,6 +188,12 @@ export function parseArchivoM(text: string): ParsedPedimento {
   // number the rest of the app expects (año + aduana + patente + folio);
   // reconstruct it the same way the printed pedimento's "NUM. PEDIMENTO"
   // does, using the year from fechaPago/fechaEntrada.
+  const observaciones = [...observacionesBySeq.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, text]) => text)
+    .join(" ");
+  const regimen = regimenCodeFromText(observaciones);
+
   const yearSource = fechaPago ?? fechaEntrada;
   const yy = yearSource ? yearSource.slice(2, 4) : String(new Date().getFullYear()).slice(2, 4);
   const aduana2 = (claveAduana ?? "").slice(0, 2).padStart(2, "0");
@@ -195,7 +210,7 @@ export function parseArchivoM(text: string): ParsedPedimento {
     prv,
     rfc,
     domicilioFiscal,
-    regimen: null,
+    regimen,
     facturaNumero,
     fechaPedimento: fechaPago ?? fechaEntrada,
     fechaEntrada,
