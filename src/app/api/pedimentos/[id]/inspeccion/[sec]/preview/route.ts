@@ -9,12 +9,13 @@ import { buildInspeccionDocxFor, loadPedimentoConNom } from "@/lib/inspeccionDat
 // the way they can a PDF, so this is the equivalent of the PDF/XML iframe
 // preview used elsewhere in the app (see facturas/page.tsx).
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string; sec: string }> }
 ) {
   const orgId = await requireOrgId();
   if (orgId instanceof NextResponse) return orgId;
   const { id, sec } = await params;
+  const facturaOverride = new URL(req.url).searchParams.get("factura");
 
   const data = await withOrg(orgId, (tx) => loadPedimentoConNom(tx, id));
   if (!data) {
@@ -25,7 +26,7 @@ export async function GET(
     return NextResponse.json({ error: "Partida no encontrada o sin requisito NOM" }, { status: 404 });
   }
 
-  const buf = await buildInspeccionDocxFor(data.pedimento, partida);
+  const buf = await buildInspeccionDocxFor(data.pedimento, partida, facturaOverride);
   const { value: html } = await mammoth.convertToHtml({ buffer: buf });
   return NextResponse.json({ html });
 }

@@ -403,6 +403,12 @@ export interface InspeccionOptions {
   // Resolved from partida.umc via umcToUnitKey + the sat_unidades catalog —
   // resolved by the caller (a DB lookup), not computed here.
   unidadMedida: string;
+  // Overrides pedimento.facturaNumero for the "FACTURA (S):" field — that
+  // column is parsed from the COVE and often isn't the factura number that
+  // actually belongs there, so the user can type the correct one(s) in the
+  // inspección modal before generating. Not persisted; supplied fresh on
+  // each request.
+  facturaOverride?: string | null;
 }
 
 export function buildInspeccionDocx(
@@ -413,6 +419,7 @@ export function buildInspeccionDocx(
   const fraccionCompleta = `${partida.fraccion}${partida.subd ?? ""}`;
   const unidadMedida = options.unidadMedida.toUpperCase();
   const cantidad = formatCantidad(partida.cantidad);
+  const factura = options.facturaOverride || pedimento.facturaNumero || "";
 
   const doc = new Document({
     sections: [
@@ -489,7 +496,7 @@ export function buildInspeccionDocx(
             labelRow("NUMERO DE ETIQUETAS A INSPECCIONAR:", cantidad),
             labelRow("PRESENTACION Y CONTENIDO:", unidadMedida),
             labelRow("PAÍS DE ORIGEN:", paisToName(partida.paisOrigen)),
-            labelRow("FACTURA (S):", pedimento.facturaNumero ?? ""),
+            labelRow("FACTURA (S):", factura),
             labelRow("No. PEDIMENTO:", pedimento.pedimentoNum),
             labelRow("CONTROL:", `PARTIDA ${partida.sec}`),
             labelRow("DOMICILIO DE LA INSPECCIÓN:", DOMICILIO_INSPECCION),

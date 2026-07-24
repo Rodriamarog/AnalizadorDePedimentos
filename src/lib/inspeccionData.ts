@@ -33,6 +33,13 @@ export function inspeccionFilename(partida: Partida): string {
   return `PARTIDA ${partida.sec}.docx`;
 }
 
-export async function buildInspeccionDocxFor(pedimento: Pedimento, partida: Partida): Promise<Buffer> {
-  return buildInspeccionDocx(pedimento, partida, { unidadMedida: await unitDescriptionFor(partida.umc) });
+export async function buildInspeccionDocxFor(
+  pedimento: Pedimento,
+  partida: Partida,
+  facturaOverride?: string | null
+): Promise<Buffer> {
+  return buildInspeccionDocx(pedimento, partida, {
+    unidadMedida: await unitDescriptionFor(partida.umc),
+    facturaOverride,
+  });
 }

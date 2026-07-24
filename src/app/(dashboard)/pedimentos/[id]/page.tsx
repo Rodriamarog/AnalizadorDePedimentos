@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, use } from "react";
-import { ArrowLeft, FileText, Sparkles, Loader2, Download, Receipt, GripVertical, MousePointerClick } from "lucide-react";
+import { ArrowLeft, FileText, Sparkles, Loader2, Download, Receipt, GripVertical, MousePointerClick, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SatComboBox } from "@/components/sat-combobox";
 import { CrearFacturaDialog } from "@/components/crear-factura-dialog";
@@ -60,6 +61,7 @@ interface PedimentoDetail {
   fechaUpload: string;
   fechaPago: string | null;
   claveAduana: string | null;
+  facturaNumero: string | null;
   dta: number | null;
   igi: number | null;
   prv: number | null;
@@ -203,6 +205,28 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
   const [previewLoadingSec, setPreviewLoadingSec] = useState<number | null>(null);
   const [previewHtml, setPreviewHtml] = useState<Record<number, string>>({});
 
+  // The parsed facturaNumero comes from the COVE and often isn't the right
+  // value for the docx's "FACTURA (S):" field, and a pedimento can cover
+  // more than one factura — so let the user type the correct one(s) here to
+  // override it before generating, instead of trusting the parsed value.
+  const [facturas, setFacturas] = useState<string[]>([""]);
+  const facturaParam = useMemo(
+    () => facturas.map((f) => f.trim()).filter(Boolean).join(", "),
+    [facturas]
+  );
+
+  function withFactura(url: string) {
+    if (!facturaParam) return url;
+    return `${url}${url.includes("?") ? "&" : "?"}factura=${encodeURIComponent(facturaParam)}`;
+  }
+
+  // Any cached preview HTML was rendered with the previous factura value(s),
+  // so it goes stale the moment the user edits them — clear it and let
+  // togglePreview re-fetch on next click.
+  useEffect(() => {
+    setPreviewHtml({});
+  }, [facturaParam]);
+
   // Per-partida T.C. override — rarely used (only when a pedimento is
   // covered by multiple invoices paid on different dates, each with its own
   // real exchange rate), but must stay reachable. Selection is real
@@ -310,6 +334,7 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
   async function openInspeccionModal() {
     setInspeccionOpen(true);
     setPreviewSec(null);
+    setFacturas([data?.facturaNumero ?? ""]);
     setInspeccionLoading(true);
     try {
       const res = await fetch(`/api/pedimentos/${id}/inspeccion`);
@@ -332,6 +357,18 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
     setPreviewHtml({});
   }
 
+  function updateFactura(index: number, value: string) {
+    setFacturas((prev) => prev.map((f, i) => (i === index ? value : f)));
+  }
+
+  function addFactura() {
+    setFacturas((prev) => [...prev, ""]);
+  }
+
+  function removeFactura(index: number) {
+    setFacturas((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }
+
   // Each file's HTML preview (the docx converted via mammoth) is fetched on
   // demand, only the first time its card is clicked, then cached — same
   // lazy-load-and-cache approach as the PDF/XML attachment preview in
@@ -345,7 +382,7 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
     if (previewHtml[sec]) return;
     setPreviewLoadingSec(sec);
     try {
-      const res = await fetch(`/api/pedimentos/${id}/inspeccion/${sec}/preview`);
+      const res = await fetch(withFactura(`/api/pedimentos/${id}/inspeccion/${sec}/preview`));
       if (res.ok) {
         const { html } = await res.json();
         setPreviewHtml((prev) => ({ ...prev, [sec]: html }));
@@ -358,7 +395,7 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
   async function downloadInspeccionZip() {
     setInspeccionZipping(true);
     try {
-      const res = await fetch(`/api/pedimentos/${id}/inspeccion/zip`);
+      const res = await fetch(withFactura(`/api/pedimentos/${id}/inspeccion/zip`));
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         alertError("Error", body.error ?? "No se pudo generar el zip");
@@ -723,6 +760,40 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
             <DialogTitle>Solicitudes de Inspección NOM</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5 rounded-md border border-border p-3">
+              <span className="text-xs font-medium text-muted-foreground">
+                Factura(s) — sobreescribe el valor en los documentos generados
+              </span>
+              {facturas.map((factura, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <Input
+                    value={factura}
+                    placeholder="Número de factura"
+                    className="h-7 text-xs"
+                    onChange={(e) => updateFactura(i, e.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 shrink-0"
+                    onClick={() => removeFactura(i)}
+                    disabled={facturas.length === 1}
+                    aria-label="Eliminar factura"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 text-xs self-start"
+                onClick={addFactura}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Agregar factura
+              </Button>
+            </div>
             {inspeccionLoading && (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />

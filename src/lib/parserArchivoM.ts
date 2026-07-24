@@ -42,6 +42,7 @@ interface PartidaAccum {
   paisOrigen: string | null;
   nomClave: string | null;
   marcaFromIdentificador: string | null;
+  marcaFromRde: string | null;
 }
 
 export function parseArchivoM(text: string): ParsedPedimento {
@@ -141,6 +142,7 @@ export function parseArchivoM(text: string): ParsedPedimento {
           paisOrigen,
           nomClave: null,
           marcaFromIdentificador: null,
+          marcaFromRde: null,
         });
         break;
       }
@@ -156,6 +158,18 @@ export function parseArchivoM(text: string): ParsedPedimento {
         if (p && f[4] === "MA" && f[5]) p.marcaFromIdentificador = f[5].trim();
         break;
       }
+      case "558": {
+        // "Relación de Descripciones Específicas" — a structured
+        // "DE: <marca>,<modelo>,<serie>" tuple present for every partida,
+        // unlike the free-text "MARCA:" label in the 551 descripción
+        // (which some partidas omit even though they share the same brand).
+        const sec = parseInt(f[3], 10);
+        const p = partidaBySec.get(sec);
+        const m = (f[5] ?? "").match(/DE:\s*([^,]*)/i);
+        const marca = m?.[1].trim();
+        if (p && marca) p.marcaFromRde = marca;
+        break;
+      }
       default:
         break;
     }
@@ -165,7 +179,7 @@ export function parseArchivoM(text: string): ParsedPedimento {
     const p = partidaBySec.get(sec)!;
     const marcaMatch = p.descripcionRaw.match(/^(.*?)\s*MARCA:\s*(.+)$/i);
     const descripcion = marcaMatch ? marcaMatch[1].trim() : p.descripcionRaw;
-    const marca = marcaMatch ? marcaMatch[2].trim() : p.marcaFromIdentificador;
+    const marca = p.marcaFromRde ?? (marcaMatch ? marcaMatch[2].trim() : p.marcaFromIdentificador);
     const precioUnitario = p.cantidad !== 0 ? Math.round((p.valAduana / p.cantidad) * 1e5) / 1e5 : 0;
     return {
       sec: p.sec,

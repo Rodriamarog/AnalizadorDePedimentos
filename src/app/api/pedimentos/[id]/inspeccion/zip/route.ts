@@ -4,10 +4,11 @@ import { requireOrgId } from "@/lib/auth";
 import { withOrg } from "@/lib/db/withOrg";
 import { buildInspeccionDocxFor, inspeccionFilename, loadPedimentoConNom } from "@/lib/inspeccionData";
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const orgId = await requireOrgId();
   if (orgId instanceof NextResponse) return orgId;
   const { id } = await params;
+  const facturaOverride = new URL(req.url).searchParams.get("factura");
 
   const data = await withOrg(orgId, (tx) => loadPedimentoConNom(tx, id));
   if (!data) {
@@ -22,7 +23,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   const zip = new JSZip();
   for (const partida of data.partidas) {
-    zip.file(inspeccionFilename(partida), await buildInspeccionDocxFor(data.pedimento, partida));
+    zip.file(inspeccionFilename(partida), await buildInspeccionDocxFor(data.pedimento, partida, facturaOverride));
   }
   const zipBuf = await zip.generateAsync({ type: "nodebuffer" });
 
