@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { requireOrgId } from "@/lib/auth";
-import { parsePedimento } from "@/lib/parser";
+import { parsePedimento, ParsedPedimento } from "@/lib/parser";
+import { parseArchivoM } from "@/lib/parserArchivoM";
 import { pedimentos, partidas, productos } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
 import { umcToUnitKey } from "@/lib/umc";
@@ -21,8 +22,13 @@ export async function POST(req: NextRequest) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "No se recibió ningún archivo" }, { status: 400 });
   }
-  if (!file.name.toLowerCase().endsWith(".pdf")) {
-    return NextResponse.json({ error: "Solo se aceptan archivos PDF" }, { status: 400 });
+  const isPdf = file.name.toLowerCase().endsWith(".pdf");
+  const isArchivoM = file.name.toLowerCase().endsWith(".txt");
+  if (!isPdf && !isArchivoM) {
+    return NextResponse.json(
+      { error: "Solo se aceptan archivos PDF o archivo M (.txt)" },
+      { status: 400 }
+    );
   }
   if (file.size > MAX_UPLOAD_BYTES) {
     return NextResponse.json(
@@ -32,18 +38,28 @@ export async function POST(req: NextRequest) {
   }
 
   const dir = await mkdtemp(join(tmpdir(), "pedimento-"));
-  const pdfPath = join(dir, `${randomUUID()}.pdf`);
   try {
-    await writeFile(pdfPath, Buffer.from(await file.arrayBuffer()));
-
-    let result;
-    try {
-      result = await parsePedimento(pdfPath);
-    } catch (e) {
-      return NextResponse.json(
-        { error: `Error al procesar el PDF: ${e instanceof Error ? e.message : e}` },
-        { status: 422 }
-      );
+    let result: ParsedPedimento;
+    if (isArchivoM) {
+      try {
+        result = parseArchivoM(await file.text());
+      } catch (e) {
+        return NextResponse.json(
+          { error: `Error al procesar el archivo M: ${e instanceof Error ? e.message : e}` },
+          { status: 422 }
+        );
+      }
+    } else {
+      const pdfPath = join(dir, `${randomUUID()}.pdf`);
+      await writeFile(pdfPath, Buffer.from(await file.arrayBuffer()));
+      try {
+        result = await parsePedimento(pdfPath);
+      } catch (e) {
+        return NextResponse.json(
+          { error: `Error al procesar el PDF: ${e instanceof Error ? e.message : e}` },
+          { status: 422 }
+        );
+      }
     }
 
     try {
