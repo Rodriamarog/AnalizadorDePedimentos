@@ -81,7 +81,9 @@ export function parseArchivoM(text: string): ParsedPedimento {
         break;
       }
       case "501": {
-        rfc = f[7] || null;
+        // f[7] is the CURP (18 chars); f[8] is the actual RFC (13 chars,
+        // 4 letters + 6-digit date + 3-char homoclave).
+        rfc = f[8] || null;
         tipoCambio = parseFloat(f[10]) || 0;
         importador = (f[21] ?? "").trim();
         const domicilioParts = [f[22], f[23], f[24], f[25], f[26], f[27], f[28]]
