@@ -638,16 +638,14 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-muted-foreground">Partidas a facturar</label>
-              {!pedimento && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => setItems((p) => [...p, newItemRow()])}
-                >
-                  + Agregar concepto
-                </Button>
-              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 text-xs"
+                onClick={() => setItems((p) => [...p, newItemRow()])}
+              >
+                + Agregar concepto
+              </Button>
             </div>
             <div className="overflow-x-auto rounded-md border border-border">
               <table className="w-full text-xs">
