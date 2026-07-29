@@ -22,11 +22,14 @@ export async function POST(req: NextRequest) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "No se recibió ningún archivo" }, { status: 400 });
   }
-  const isPdf = file.name.toLowerCase().endsWith(".pdf");
-  const isArchivoM = file.name.toLowerCase().endsWith(".txt");
+  const lowerName = file.name.toLowerCase();
+  const isPdf = lowerName.endsWith(".pdf");
+  // Archivo M files usually end in .txt, but some systems export them with a
+  // numeric "fecha juliana" style extension instead (e.g. archivoM-....205).
+  const isArchivoM = !isPdf && (lowerName.endsWith(".txt") || /\.\d+$/.test(lowerName));
   if (!isPdf && !isArchivoM) {
     return NextResponse.json(
-      { error: "Solo se aceptan archivos PDF o archivo M (.txt)" },
+      { error: "Solo se aceptan archivos PDF o archivo M (.txt o con extensión numérica)" },
       { status: 400 }
     );
   }

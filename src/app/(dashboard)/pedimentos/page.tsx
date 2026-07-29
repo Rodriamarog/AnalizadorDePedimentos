@@ -87,7 +87,6 @@ export default function PedimentosPage() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="application/pdf,.txt,text/plain"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];

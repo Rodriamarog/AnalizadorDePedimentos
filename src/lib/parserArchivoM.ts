@@ -104,7 +104,7 @@ export function parseArchivoM(text: string): ParsedPedimento {
         break;
       }
       case "510": {
-        const claveContribucion = f[2] ?? "";
+        const claveContribucion = String(parseInt(f[2] ?? "", 10));
         const importe = Number(f[4]);
         const field = CONTRIBUCION_CLAVE[claveContribucion];
         if (field && !Number.isNaN(importe)) {
