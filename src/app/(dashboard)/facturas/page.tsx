@@ -27,6 +27,11 @@ interface Factura {
   date: string;
   payment_method: string;
   status: string;
+  // CFDI type ("I" Ingreso, "E" Egreso/nota de crédito, …) and, for a nota de
+  // crédito, the folio of the invoice it corrects — both added by
+  // GET /api/facturas (see src/app/api/facturas/route.ts).
+  type?: string;
+  related_folio?: string | null;
 }
 
 const statusBadge: Record<string, string> = {
@@ -461,7 +466,24 @@ export default function FacturasPage() {
                             </button>
                           )}
                         </td>
-                        <td className="px-5 py-2.5 font-mono text-xs font-semibold">{folio}</td>
+                        <td className="px-5 py-2.5 font-mono text-xs font-semibold">
+                          {folio}
+                          {f.type === "E" && (
+                            <div className="mt-0.5 flex flex-col gap-0.5">
+                              <Badge
+                                variant="outline"
+                                className="w-fit text-[10px] font-medium bg-amber-50 text-amber-700 border-amber-200"
+                              >
+                                Nota de Crédito
+                              </Badge>
+                              {f.related_folio && (
+                                <span className="text-[10px] font-normal text-muted-foreground">
+                                  Corrige {f.related_folio}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
                         <td className="px-5 py-2.5 font-medium text-foreground">{f.customer?.legal_name || "—"}</td>
                         <td className="px-5 py-2.5 font-mono text-xs text-muted-foreground">{f.customer?.tax_id || "—"}</td>
                         <td className="px-5 py-2.5 text-right tabular-nums">

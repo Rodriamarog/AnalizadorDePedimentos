@@ -422,7 +422,9 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
     }
     setRelatedInvoice(null);
     setRelatedInvoiceLoading(true);
-    fetch(`/api/facturas?customer=${encodeURIComponent(customerId)}`)
+    // Explicit type=I: a nota de crédito can only relate to an Ingreso
+    // invoice, and GET /api/facturas defaults to returning both I and E.
+    fetch(`/api/facturas?customer=${encodeURIComponent(customerId)}&type=I`)
       .then((res) => (res.ok ? res.json() : { data: [] }))
       .then((data: { data?: FacturaListItem[] }) => {
         const candidates: RelatedInvoiceCandidate[] = (data.data ?? [])
