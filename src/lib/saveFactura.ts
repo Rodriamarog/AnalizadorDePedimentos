@@ -7,6 +7,8 @@ export interface FacturapiInvoice {
   uuid?: string;
   status?: string;
   cancellation_status?: string | null;
+  type?: string;
+  related_documents?: { relationship?: string; documents?: string[] }[];
   payment_method?: string;
   total?: number;
   currency?: string;
@@ -27,6 +29,7 @@ export interface FacturapiInvoice {
 // transaction; takes the transaction handle rather than opening its own.
 export async function saveFactura(tx: OrgTx, orgId: string, inv: FacturapiInvoice, pedimentoId: string | null) {
   const [existing] = await tx.select().from(facturas).where(eq(facturas.facturapiId, inv.id)).limit(1);
+  const relatedUuid = inv.related_documents?.[0]?.documents?.[0] ?? null;
 
   if (existing) {
     const [updated] = await tx
@@ -35,6 +38,8 @@ export async function saveFactura(tx: OrgTx, orgId: string, inv: FacturapiInvoic
         status: inv.status ?? existing.status,
         cancellationStatus: inv.cancellation_status || "none",
         uuid: inv.uuid ?? existing.uuid,
+        cfdiType: inv.type ?? existing.cfdiType,
+        relatedUuid: relatedUuid ?? existing.relatedUuid,
       })
       .where(eq(facturas.id, existing.id))
       .returning();
@@ -51,6 +56,8 @@ export async function saveFactura(tx: OrgTx, orgId: string, inv: FacturapiInvoic
       pedimentoId,
       status: inv.status ?? "valid",
       cancellationStatus: inv.cancellation_status || "none",
+      cfdiType: inv.type ?? "I",
+      relatedUuid,
       paymentMethod: inv.payment_method ?? "PUE",
       total: inv.total ?? 0,
       currency: inv.currency ?? "MXN",

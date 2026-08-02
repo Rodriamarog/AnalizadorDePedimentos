@@ -73,6 +73,41 @@ const DOCUMENT_TYPE_TO_CFDI: Record<DocumentType, "I" | "E" | "T"> = {
   carta_porte_ingreso: "I",
 };
 
+// SAT catálogo c_TipoRelacion — only relevant for a Nota de Crédito's
+// `related_documents[].relationship`, describing how it relates to the
+// invoice(s) it references. "01" (the straightforward credit-note case) is
+// the default.
+const RELATIONSHIP_CODE_OPTIONS = [
+  ["01", "Nota de crédito de los documentos relacionados"],
+  ["02", "Nota de débito de los documentos relacionados"],
+  ["03", "Devolución de mercancía sobre facturas o traslados previos"],
+  ["04", "Sustitución de los CFDI previos"],
+  ["05", "Traslados de mercancías facturados previamente"],
+  ["06", "Factura generada por los traslados previos"],
+  ["07", "CFDI por aplicación de anticipo"],
+] as const;
+
+type RelationshipCode = (typeof RELATIONSHIP_CODE_OPTIONS)[number][0];
+
+interface RelatedInvoiceCandidate {
+  id: string;
+  uuid: string;
+  folio: string;
+  total?: number;
+  status?: string;
+}
+
+// Shape of each row in GET /api/facturas's `data` array (a passthrough of
+// FacturAPI's invoice list) — only the fields the related-invoice picker uses.
+interface FacturaListItem {
+  id: string;
+  uuid?: string;
+  series?: string;
+  folio_number?: number;
+  total?: number;
+  status?: string;
+}
+
 interface Cliente {
   id: string;
   legal_name: string;
@@ -284,6 +319,11 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
   const [pedimentoLinkOpen, setPedimentoLinkOpen] = useState(false);
   const [pedimentoLinkQuery, setPedimentoLinkQuery] = useState("");
   const [pedimentoLink, setPedimentoLink] = useState<PedimentoLite | null>(null);
+  const [relatedInvoiceCandidates, setRelatedInvoiceCandidates] = useState<RelatedInvoiceCandidate[]>([]);
+  const [relatedInvoiceLoading, setRelatedInvoiceLoading] = useState(false);
+  const [relatedInvoiceOpen, setRelatedInvoiceOpen] = useState(false);
+  const [relatedInvoice, setRelatedInvoice] = useState<RelatedInvoiceCandidate | null>(null);
+  const [relationshipCode, setRelationshipCode] = useState<RelationshipCode>("01");
   const [itemsLoading, setItemsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
@@ -301,6 +341,9 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
     setRetencionesVisible(false);
     setRetIsr("10");
     setRetIva("5.33");
+    setRelatedInvoice(null);
+    setRelatedInvoiceCandidates([]);
+    setRelationshipCode("01");
 
     if (pedimento) {
       setUse("G01");
@@ -363,6 +406,39 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currency]);
 
+  // The invoice a Nota de Crédito can relate to must belong to the same
+  // customer, so re-fetch candidates whenever either changes; switching away
+  // from Nota de Crédito or away from the customer that was selected drops
+  // whatever was picked, since it's no longer a valid choice.
+  useEffect(() => {
+    // Resetting selection state in response to a prop/state change is the
+    // same class of finding already present, unaddressed, in
+    // src/hooks/use-mobile.ts and the dialog-open-reset effect above.
+    if (documentType !== "nota_credito" || !customerId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRelatedInvoiceCandidates([]);
+      setRelatedInvoice(null);
+      return;
+    }
+    setRelatedInvoice(null);
+    setRelatedInvoiceLoading(true);
+    fetch(`/api/facturas?customer=${encodeURIComponent(customerId)}`)
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((data: { data?: FacturaListItem[] }) => {
+        const candidates: RelatedInvoiceCandidate[] = (data.data ?? [])
+          .filter((f): f is FacturaListItem & { uuid: string } => f.status === "valid" && !!f.uuid)
+          .map((f) => ({
+            id: f.id,
+            uuid: f.uuid,
+            folio: [f.series, f.folio_number].filter(Boolean).join("-") || f.id,
+            total: f.total,
+            status: f.status,
+          }));
+        setRelatedInvoiceCandidates(candidates);
+      })
+      .finally(() => setRelatedInvoiceLoading(false));
+  }, [documentType, customerId]);
+
   function updateItem(key: string, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
   }
@@ -405,6 +481,11 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
   function buildInvoiceBody(): Record<string, unknown> | null {
     if (!customerId) {
       setError("Selecciona un cliente");
+      return null;
+    }
+
+    if (documentType === "nota_credito" && !relatedInvoice) {
+      setError("Selecciona la factura que esta nota de crédito corrige");
       return null;
     }
 
@@ -479,6 +560,9 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
       currency,
       pedimento_id: pedimentoLink?.id ?? null,
     };
+    if (documentType === "nota_credito" && relatedInvoice) {
+      body.related_documents = [{ relationship: relationshipCode, documents: [relatedInvoice.uuid] }];
+    }
     // customs_keys on each item is what legally ties the CFDI to the
     // pedimento (InformacionAduanera), but FacturAPI's own PDF template
     // repeats it under every line item; this adds one clean summary line
@@ -962,6 +1046,72 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
               )}
             </div>
           </div>
+
+          {documentType === "nota_credito" && (
+            <div className="grid grid-cols-2 gap-3 rounded-md border border-border bg-muted/20 p-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Factura relacionada</label>
+                <Popover open={relatedInvoiceOpen} onOpenChange={setRelatedInvoiceOpen}>
+                  <PopoverTrigger
+                    disabled={!customerId}
+                    className="w-full flex items-center justify-between rounded-md border border-input px-3 py-2 text-sm text-left mt-1 disabled:opacity-50"
+                  >
+                    <span className={relatedInvoice ? "" : "text-muted-foreground"}>
+                      {!customerId
+                        ? "Selecciona un cliente primero"
+                        : relatedInvoice
+                          ? `${relatedInvoice.folio}${relatedInvoice.total != null ? ` — $${relatedInvoice.total}` : ""}`
+                          : "— Selecciona la factura a corregir —"}
+                    </span>
+                    <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar folio…" />
+                      <CommandList>
+                        <CommandEmpty>
+                          {relatedInvoiceLoading ? "Cargando…" : "Sin facturas vigentes para este cliente."}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {relatedInvoiceCandidates.map((c) => (
+                            <CommandItem
+                              key={c.id}
+                              value={c.folio}
+                              onSelect={() => {
+                                setRelatedInvoice(c);
+                                setRelatedInvoiceOpen(false);
+                              }}
+                            >
+                              <div>
+                                <div className="font-mono text-xs">{c.folio}</div>
+                                {c.total != null && (
+                                  <div className="text-[10px] text-muted-foreground">${c.total}</div>
+                                )}
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Relación (SAT)</label>
+                <select
+                  className="w-full rounded-md border border-input px-2 py-1.5 text-xs mt-1"
+                  value={relationshipCode}
+                  onChange={(e) => setRelationshipCode(e.target.value as RelationshipCode)}
+                >
+                  {RELATIONSHIP_CODE_OPTIONS.map(([code, label]) => (
+                    <option key={code} value={code}>
+                      {code} – {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
 
           {error && <p className="text-xs text-red-600">{error}</p>}
         </div>

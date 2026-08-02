@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
     const data = await client.get("invoices", {
       type: "I",
       q: searchParams.get("q") ?? undefined,
+      customer: searchParams.get("customer") ?? undefined,
       page: searchParams.get("page") ?? "1",
       limit: searchParams.get("limit") ?? "50",
       payment_method: searchParams.get("payment_method") ?? undefined,

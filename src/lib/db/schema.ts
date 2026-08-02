@@ -101,6 +101,14 @@ export const facturas = pgTable("facturas", {
   pedimentoId: text("pedimento_id").references(() => pedimentos.id),
   status: text("status").notNull(),
   cancellationStatus: text("cancellation_status").notNull().default("none"),
+  // CFDI `type` ("I" Ingreso, "E" Egreso/nota de crédito, "P" Pago, "N"
+  // Nómina, "T" Traslado). `relatedUuid` is the folio fiscal of the invoice
+  // this one credits (only set for nota de crédito rows) — a UUID rather
+  // than a foreign key to `facturas.id` because the related invoice is
+  // identified to FacturAPI by UUID, and that's also what's echoed back on
+  // the create-invoice response we save from.
+  cfdiType: text("cfdi_type").notNull().default("I"),
+  relatedUuid: text("related_uuid"),
   paymentMethod: text("payment_method").notNull(),
   total: doublePrecision("total").notNull(),
   currency: text("currency").notNull().default("MXN"),

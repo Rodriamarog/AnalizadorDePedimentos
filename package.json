@@ -16,7 +16,8 @@
     "db:partida-tc": "psql \"$DATABASE_URL\" -f drizzle/0005_partida_tipo_cambio.sql",
     "db:inspeccion-fields": "psql \"$DATABASE_URL\" -f drizzle/0006_inspeccion_fields.sql",
     "db:pago-aduana-fields": "psql \"$DATABASE_URL\" -f drizzle/0007_pago_aduana_fields.sql",
-    "db:migrate": "npm run db:push && npm run db:cliente-emails && npm run db:partida-tc && npm run db:inspeccion-fields && npm run db:pago-aduana-fields && npm run db:rls && npm run db:fts && npm run db:app-role",
+    "db:nota-credito-fields": "psql \"$DATABASE_URL\" -f drizzle/0008_nota_credito_fields.sql",
+    "db:migrate": "npm run db:push && npm run db:cliente-emails && npm run db:partida-tc && npm run db:inspeccion-fields && npm run db:pago-aduana-fields && npm run db:nota-credito-fields && npm run db:rls && npm run db:fts && npm run db:app-role",
     "db:seed": "./scripts/seed-sat-catalogs.sh",
     "db:test-rls": "tsx --env-file=.env.local scripts/test-rls-isolation.ts"
   },
