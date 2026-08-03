@@ -3,8 +3,47 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireOrgId } from "@/lib/auth";
 import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 import { FacturapiError } from "@/lib/facturapi";
+import { saveFactura } from "@/lib/saveFactura";
 import { facturas } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const orgId = await requireOrgId();
+  if (orgId instanceof NextResponse) return orgId;
+  const client = await getOrgFacturapiClient(orgId);
+  if (client instanceof NextResponse) return client;
+  const { id } = await params;
+
+  try {
+    const inv = await client.get<Record<string, unknown>>(`invoices/${id}`);
+    return NextResponse.json(inv);
+  } catch (e) {
+    if (e instanceof FacturapiError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
+  }
+}
+
+// Edits a `draft` invoice in place (FacturAPI's `updateDraftInvoice`) — the
+// only status this method supports; editing a stamped invoice isn't possible.
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const orgId = await requireOrgId();
+  if (orgId instanceof NextResponse) return orgId;
+  const client = await getOrgFacturapiClient(orgId);
+  if (client instanceof NextResponse) return client;
+  const { id } = await params;
+
+  const body = await req.json();
+  delete body.pedimento_id;
+
+  try {
+    const inv = await client.put<{ id: string }>(`invoices/${id}`, body);
+    await withOrg(orgId, (tx) => saveFactura(tx, orgId, inv, null));
+    return NextResponse.json(inv);
+  } catch (e) {
+    if (e instanceof FacturapiError) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
+  }
+}
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const orgId = await requireOrgId();

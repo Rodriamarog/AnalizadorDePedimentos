@@ -32,7 +32,11 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e) {
-    if (e instanceof FacturapiError) return NextResponse.json({ error: e.message }, { status: e.status });
-    throw e;
+    if (e instanceof FacturapiError) {
+      return NextResponse.json({ error: e.message }, { status: e.status || 502 });
+    }
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("reporte-mensual failed", { orgId, year, month, error: e });
+    return NextResponse.json({ error: `No se pudo generar el reporte: ${message}` }, { status: 500 });
   }
 }

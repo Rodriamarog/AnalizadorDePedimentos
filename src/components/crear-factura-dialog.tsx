@@ -294,14 +294,48 @@ async function buildItemsFromPedimento(
   return mapPedimentoToItems(pedimento, productos, unitDescriptions, currency, tipoCambio);
 }
 
+// Shape of GET /api/facturas/[id] — a raw FacturAPI invoice, used to prefill
+// the dialog when reopening a saved draft for editing.
+export interface FacturaDraftDetail {
+  id: string;
+  status?: string;
+  type?: "I" | "E" | "P" | "N" | "T";
+  use?: string;
+  payment_form?: string;
+  payment_method?: "PUE" | "PPD";
+  currency?: "MXN" | "USD";
+  exchange?: number;
+  customer?: { id?: string };
+  related_documents?: { relationship?: string; documents?: string[] }[];
+  items?: {
+    quantity?: number;
+    product?: {
+      description?: string;
+      product_key?: string;
+      price?: number;
+      unit_key?: string;
+      taxes?: { type: string; rate: number; withholding?: boolean }[];
+    };
+  }[];
+}
+
+const CFDI_TO_DOCUMENT_TYPE: Record<string, DocumentType> = {
+  I: "factura",
+  E: "nota_credito",
+  T: "carta_porte",
+};
+
 interface CrearFacturaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
   pedimento?: PedimentoForFactura;
+  // A previously-saved draft to reopen for editing — mutually exclusive with
+  // `pedimento`, which only applies to a brand new invoice.
+  draft?: FacturaDraftDetail;
 }
 
-export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: CrearFacturaDialogProps) {
+export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, draft }: CrearFacturaDialogProps) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [use, setUse] = useState("G03");
@@ -324,8 +358,13 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
   const [relatedInvoiceOpen, setRelatedInvoiceOpen] = useState(false);
   const [relatedInvoice, setRelatedInvoice] = useState<RelatedInvoiceCandidate | null>(null);
   const [relationshipCode, setRelationshipCode] = useState<RelationshipCode>("01");
+  // Set while loading a nota_credito draft, whose related invoice's uuid is
+  // known before its full candidate object (id/folio/total) is fetched —
+  // consumed by the candidates effect below once the list arrives.
+  const [pendingRelatedUuid, setPendingRelatedUuid] = useState<string | null>(null);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -345,7 +384,40 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
     setRelatedInvoiceCandidates([]);
     setRelationshipCode("01");
 
-    if (pedimento) {
+    if (draft) {
+      setUse(draft.use ?? "G03");
+      setDocumentType(CFDI_TO_DOCUMENT_TYPE[draft.type ?? "I"] ?? "factura");
+      setPaymentForm(draft.payment_form ?? "03");
+      setPaymentMethod(draft.payment_method ?? "PUE");
+      setCurrency(draft.currency ?? "MXN");
+      setExchangeRate(draft.exchange ? String(draft.exchange) : "");
+      setCustomerId(draft.customer?.id ?? "");
+      setPedimentoLink(null);
+      setPedimentoLinkQuery("");
+      const draftItems: ItemRow[] = (draft.items ?? []).map((it, i) => {
+        const ivaTax = it.product?.taxes?.find((t) => t.type === "IVA" && !t.withholding);
+        return {
+          key: `draft-${i}`,
+          descripcion: it.product?.description ?? "",
+          cantidad: String(it.quantity ?? 1),
+          precio: String(it.product?.price ?? 0),
+          clave: it.product?.product_key ?? "",
+          unitKey: it.product?.unit_key ?? "H87",
+          checked: true,
+          removable: true,
+          ivaRate: ivaTax ? ((ivaTax.rate * 100) as 16 | 8 | 0) : undefined,
+        };
+      });
+      setItems(draftItems.length > 0 ? draftItems : [newItemRow()]);
+      const relatedUuid = draft.related_documents?.[0]?.documents?.[0];
+      setPendingRelatedUuid(relatedUuid ?? null);
+      if (relatedUuid) {
+        setRelationshipCode((draft.related_documents?.[0]?.relationship as RelationshipCode) ?? "01");
+      }
+      fetch("/api/pedimentos")
+        .then((res) => (res.ok ? res.json() : []))
+        .then(setPedimentosList);
+    } else if (pedimento) {
       setUse("G01");
       setDocumentType("factura");
       setIvaRate(16);
@@ -385,7 +457,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
       .then((res) => (res.ok ? res.json() : { data: [] }))
       .then((data) => setClientes(data.data ?? []));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, pedimento?.id]);
+  }, [open, pedimento?.id, draft?.id]);
 
   // Pedimento-sourced rows (partidas in USD, impuestos aduaneros in MXN)
   // carry their price in a fixed "home" currency — recompute `precio` from
@@ -437,8 +509,13 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
             status: f.status,
           }));
         setRelatedInvoiceCandidates(candidates);
+        if (pendingRelatedUuid) {
+          setRelatedInvoice(candidates.find((c) => c.uuid === pendingRelatedUuid) ?? null);
+          setPendingRelatedUuid(null);
+        }
       })
       .finally(() => setRelatedInvoiceLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentType, customerId]);
 
   function updateItem(key: string, patch: Partial<ItemRow>) {
@@ -480,13 +557,18 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
     setPedimentoLinkOpen(false);
   }
 
-  function buildInvoiceBody(): Record<string, unknown> | null {
-    if (!customerId) {
+  // `draftMode` relaxes the checks that only matter for a stamped CFDI
+  // (customer selected, every item priced and mapped to a ClaveProdServ, a
+  // related invoice for notas de crédito) since FacturAPI's own `draft`
+  // status already makes all of those optional — the point of a draft is to
+  // save incomplete work. Full validation still runs for "Timbrar factura".
+  function buildInvoiceBody(draftMode = false): Record<string, unknown> | null {
+    if (!customerId && !draftMode) {
       setError("Selecciona un cliente");
       return null;
     }
 
-    if (documentType === "nota_credito" && !relatedInvoice) {
+    if (documentType === "nota_credito" && !relatedInvoice && !draftMode) {
       setError("Selecciona la factura que esta nota de crédito corrige");
       return null;
     }
@@ -498,10 +580,10 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
     for (const it of items) {
       if (!it.checked) continue;
       const clave = it.clave.trim();
-      if (!clave) continue;
+      if (!clave && !draftMode) continue;
 
       const price = Number(it.precio) || 0;
-      if (price <= 0) {
+      if (price <= 0 && !draftMode) {
         zeroPriceDescs.push(it.descripcion.trim() || "(sin descripción)");
         continue;
       }
@@ -540,20 +622,19 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
       outItems.push(item);
     }
 
-    if (zeroPriceDescs.length > 0) {
+    if (zeroPriceDescs.length > 0 && !draftMode) {
       setError(
         `El precio no puede ser 0: ${zeroPriceDescs.join(", ")}. Ingresa un precio válido para cada concepto.`
       );
       return null;
     }
 
-    if (outItems.length === 0) {
+    if (outItems.length === 0 && !draftMode) {
       setError("Selecciona al menos una partida con ClaveProdServ asignada");
       return null;
     }
 
     const body: Record<string, unknown> = {
-      customer: customerId,
       type: DOCUMENT_TYPE_TO_CFDI[documentType],
       use,
       items: outItems,
@@ -562,6 +643,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
       currency,
       pedimento_id: pedimentoLink?.id ?? null,
     };
+    if (customerId) body.customer = customerId;
     if (documentType === "nota_credito" && relatedInvoice) {
       body.related_documents = [{ relationship: relationshipCode, documents: [relatedInvoice.uuid] }];
     }
@@ -580,11 +662,11 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
     }
     if (currency !== "MXN") {
       const tc = Number(exchangeRate);
-      if (!tc) {
+      if (!tc && !draftMode) {
         setError("Ingresa el tipo de cambio para facturar en USD");
         return null;
       }
-      body.exchange = tc;
+      if (tc) body.exchange = tc;
     }
     return body;
   }
@@ -618,11 +700,29 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
     if (!body) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/facturas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      // Editing a saved draft: persist the latest edits first (a stamp call
+      // takes no body and just timbra whatever FacturAPI already has stored
+      // for it), then timbrar it.
+      if (draft) {
+        const putRes = await fetch(`/api/facturas/${draft.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const putData = await putRes.json();
+        if (!putRes.ok) {
+          setError(putData.error ?? "Error al guardar los cambios del borrador");
+          return;
+        }
+      }
+
+      const res = draft
+        ? await fetch(`/api/facturas/${draft.id}/stamp`, { method: "POST" })
+        : await fetch("/api/facturas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? "Error al timbrar la factura");
@@ -637,13 +737,43 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
     }
   }
 
+  async function handleSaveDraft() {
+    setError(null);
+    const body = buildInvoiceBody(true);
+    if (!body) return;
+    setSavingDraft(true);
+    try {
+      const res = draft
+        ? await fetch(`/api/facturas/${draft.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          })
+        : await fetch("/api/facturas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...body, status: "draft" }),
+          });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Error al guardar el borrador");
+        return;
+      }
+      onOpenChange(false);
+      onSaved?.();
+      alertSuccess("Borrador guardado", "Podrás retomarlo desde la lista de facturas.");
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
   const selectableItems = items.filter((it) => !it.isAduaneros);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Crear factura</DialogTitle>
+          <DialogTitle>{draft ? "Editar borrador" : "Crear factura"}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
@@ -1126,7 +1256,11 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento }: C
             {previewing && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
             Vista previa PDF
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving}>
+          <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={savingDraft || saving}>
+            {savingDraft && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+            Guardar borrador
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={saving || savingDraft}>
             {saving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
             Timbrar factura
           </Button>

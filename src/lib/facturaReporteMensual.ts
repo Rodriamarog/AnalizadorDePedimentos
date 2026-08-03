@@ -1,5 +1,26 @@
 import type { FacturapiClient } from "./facturapi";
 
+// FacturAPI rate-limits with 429s under bursty concurrency — confirmed live
+// that even 8 concurrent requests can draw one — and firing dozens of
+// requests in one Promise.all (one per invoice/customer) was also observed
+// to trigger network-level ETIMEDOUT failures for orgs with a few dozen
+// invoices in a month. Cap how many run at once; the client's own
+// retry-with-backoff (facturapi.ts) absorbs any 429s that still occur.
+const CONCURRENCY = 4;
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 interface FacturapiTax {
   type: "IVA" | "ISR" | "IEPS";
   rate: number;
@@ -157,30 +178,28 @@ export async function buildMonthlyReportData(
   // (skipping cancelled ones and complementos de pago, whose items are just
   // a placeholder "Pago" concept with no tax to recompute) to get the real
   // items array.
-  await Promise.all(
-    invoices
-      .filter((inv) => inv.status !== "canceled" && inv.type === "I")
-      .map(async (inv) => {
-        const full = await client.get<{ items?: FacturapiLineItem[] }>(`invoices/${inv.id}`);
-        inv.items = full.items;
-      })
+  await mapWithConcurrency(
+    invoices.filter((inv) => inv.status !== "canceled" && inv.type === "I"),
+    CONCURRENCY,
+    async (inv) => {
+      const full = await client.get<{ items?: FacturapiLineItem[] }>(`invoices/${inv.id}`);
+      inv.items = full.items;
+    }
   );
 
   const customerIds = Array.from(
     new Set(invoices.map((inv) => inv.customer?.id).filter((id): id is string => Boolean(id)))
   );
   const customers = new Map<string, FacturapiCustomer>();
-  await Promise.all(
-    customerIds.map(async (id) => {
-      try {
-        const c = await client.get<FacturapiCustomer>(`customers/${id}`);
-        customers.set(id, c);
-      } catch {
-        // Best-effort — if a customer was deleted after the invoice was
-        // stamped, fall back to blank domicilio rather than failing the report.
-      }
-    })
-  );
+  await mapWithConcurrency(customerIds, CONCURRENCY, async (id) => {
+    try {
+      const c = await client.get<FacturapiCustomer>(`customers/${id}`);
+      customers.set(id, c);
+    } catch {
+      // Best-effort — if a customer was deleted after the invoice was
+      // stamped, fall back to blank domicilio rather than failing the report.
+    }
+  });
 
   invoices.sort((a, b) => (a.folio_number ?? 0) - (b.folio_number ?? 0));
 

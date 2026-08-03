@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { Receipt, Plus, Loader2, ChevronDown, ChevronRight, Banknote, Mail, FileText, FileCode, FileBarChart, MoreVertical, Trash2 } from "lucide-react";
+import { Receipt, Plus, Loader2, ChevronDown, ChevronRight, Banknote, Mail, FileText, FileCode, FileBarChart, MoreVertical, Trash2, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,9 +13,9 @@ import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { CrearFacturaDialog, PAYMENT_FORM_OPTIONS } from "@/components/crear-factura-dialog";
+import { CrearFacturaDialog, PAYMENT_FORM_OPTIONS, type FacturaDraftDetail } from "@/components/crear-factura-dialog";
 import { GridSearchInput } from "@/components/grid-search-input";
-import { alertSuccess } from "@/lib/alerts";
+import { alertSuccess, confirmDelete } from "@/lib/alerts";
 
 interface Factura {
   id: string;
@@ -37,6 +37,13 @@ interface Factura {
 const statusBadge: Record<string, string> = {
   valid: "bg-emerald-50 text-emerald-700 border-emerald-200",
   canceled: "bg-red-50 text-red-700 border-red-200",
+  draft: "bg-slate-100 text-slate-700 border-slate-300",
+};
+
+const statusLabel: Record<string, string> = {
+  valid: "Válida",
+  canceled: "Cancelada",
+  draft: "Borrador",
 };
 
 interface Complemento {
@@ -58,6 +65,8 @@ export default function FacturasPage() {
   const [q, setQ] = useState("");
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingDraft, setEditingDraft] = useState<FacturaDraftDetail | null>(null);
+  const [draftLoadingId, setDraftLoadingId] = useState<string | null>(null);
 
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
 
@@ -370,6 +379,24 @@ export default function FacturasPage() {
     if (res.ok) await load(paymentMethodFilter);
   }
 
+  async function openEditDraft(id: string) {
+    setDraftLoadingId(id);
+    try {
+      const res = await fetch(`/api/facturas/${id}`);
+      if (!res.ok) return;
+      setEditingDraft(await res.json());
+    } finally {
+      setDraftLoadingId(null);
+    }
+  }
+
+  async function handleDeleteDraft(id: string, folio: string) {
+    const confirmed = await confirmDelete("¿Eliminar borrador?", `Se eliminará el borrador "${folio}" permanentemente.`);
+    if (!confirmed) return;
+    const res = await fetch(`/api/facturas/${id}`, { method: "DELETE" });
+    if (res.ok) await load(paymentMethodFilter);
+  }
+
   return (
     <div className="h-full flex flex-col min-h-0">
       <PageHeader title="Facturas" description="Documentos fiscales (FacturAPI)" icon={Receipt} />
@@ -503,11 +530,37 @@ export default function FacturasPage() {
                         </td>
                         <td className="px-5 py-2.5">
                           <Badge variant="outline" className={`text-[11px] font-medium ${statusBadge[f.status] ?? ""}`}>
-                            {f.status === "valid" ? "Válida" : f.status === "canceled" ? "Cancelada" : f.status}
+                            {statusLabel[f.status] ?? f.status}
                           </Badge>
                         </td>
                         <td className="px-5 py-2.5 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1.5">
+                            {f.status === "draft" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2.5 text-xs gap-1"
+                                onClick={() => openEditDraft(f.id)}
+                                disabled={draftLoadingId === f.id}
+                              >
+                                {draftLoadingId === f.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Pencil className="w-3.5 h-3.5" />
+                                )}
+                                Editar
+                              </Button>
+                            )}
+                            {f.status === "draft" && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-7 px-2.5 text-xs"
+                                onClick={() => handleDeleteDraft(f.id, folio)}
+                              >
+                                Eliminar
+                              </Button>
+                            )}
                             {isPpd && f.status === "valid" && (
                               <Tooltip>
                                 <TooltipTrigger
@@ -530,29 +583,31 @@ export default function FacturasPage() {
                                 Cancelar
                               </Button>
                             )}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger
-                                render={
-                                  <Button size="sm" variant="outline" className="h-7 w-7 p-0">
-                                    <MoreVertical className="w-3.5 h-3.5" />
-                                  </Button>
-                                }
-                              />
-                              <DropdownMenuContent>
-                                <DropdownMenuItem onClick={() => handleDownload(f.id, "pdf")}>
-                                  <FileText className="w-3.5 h-3.5" />
-                                  Descargar PDF
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDownload(f.id, "xml")}>
-                                  <FileCode className="w-3.5 h-3.5" />
-                                  Descargar XML
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openSendEmail(f.id, folio, f.customer)}>
-                                  <Mail className="w-3.5 h-3.5" />
-                                  Enviar por correo
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            {f.status !== "draft" && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  render={
+                                    <Button size="sm" variant="outline" className="h-7 w-7 p-0">
+                                      <MoreVertical className="w-3.5 h-3.5" />
+                                    </Button>
+                                  }
+                                />
+                                <DropdownMenuContent>
+                                  <DropdownMenuItem onClick={() => handleDownload(f.id, "pdf")}>
+                                    <FileText className="w-3.5 h-3.5" />
+                                    Descargar PDF
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleDownload(f.id, "xml")}>
+                                    <FileCode className="w-3.5 h-3.5" />
+                                    Descargar XML
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => openSendEmail(f.id, folio, f.customer)}>
+                                    <Mail className="w-3.5 h-3.5" />
+                                    Enviar por correo
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -650,8 +705,14 @@ export default function FacturasPage() {
       </Card>
 
       <CrearFacturaDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        open={dialogOpen || !!editingDraft}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDialogOpen(false);
+            setEditingDraft(null);
+          }
+        }}
+        draft={editingDraft ?? undefined}
         onSaved={() => load(paymentMethodFilter)}
       />
 
