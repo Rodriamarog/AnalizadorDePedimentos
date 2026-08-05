@@ -1330,6 +1330,8 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
               onChange={setCartaPorte}
               vehiculos={vehiculosList}
               choferes={choferesList}
+              onVehiculoCreated={(v) => setVehiculosList((prev) => [...prev, v])}
+              onChoferCreated={(c) => setChoferesList((prev) => [...prev, c])}
             />
           )}
 

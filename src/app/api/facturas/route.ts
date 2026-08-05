@@ -29,12 +29,12 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl;
   const typeParam = searchParams.get("type");
-  // No explicit `type` means "the facturas list" — fetch Ingreso and Egreso
-  // (nota de crédito) both, since FacturAPI's `type` filter only accepts one
-  // value per call. Deliberately excludes P/N (complementos de pago and
-  // nómina, tracked in their own tables/UI) and T (carta porte, out of this
-  // ticket's scope) so they don't get mixed into this list.
-  const types = typeParam ? [typeParam] : ["I", "E"];
+  // No explicit `type` means "the facturas list" — fetch Ingreso, Egreso
+  // (nota de crédito) and Traslado (carta porte), since FacturAPI's `type`
+  // filter only accepts one value per call. Deliberately excludes P/N
+  // (complementos de pago and nómina, tracked in their own tables/UI) so
+  // they don't get mixed into this list.
+  const types = typeParam ? [typeParam] : ["I", "E", "T"];
   try {
     const results = await Promise.all(
       types.map((type) =>

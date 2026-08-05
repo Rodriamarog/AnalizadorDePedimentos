@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ChevronsUpDown, Trash2 } from "lucide-react";
+import { ChevronsUpDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -282,6 +282,8 @@ export function validateCartaPorteState(state: CartaPorteFormState): string | nu
     }
   }
 
+  if (!state.autotransporte.placa.trim()) return "Selecciona o captura un vehículo (placa)";
+
   if (state.figuras.length === 0) return "Agrega al menos una figura de transporte (ej. el chofer operador)";
   for (const f of state.figuras) {
     if (!f.tipoFigura || !f.nombre.trim()) {
@@ -305,6 +307,309 @@ interface CartaPorteFieldsProps {
   onChange: (next: CartaPorteFormState) => void;
   vehiculos: VehiculoLite[];
   choferes: ChoferLite[];
+  // Called after a successful inline registry create so the parent can grow
+  // its vehiculos/choferes lists — this component doesn't own that state,
+  // it's fetched once by the invoice dialog and shared with the picker.
+  onVehiculoCreated?: (v: VehiculoLite) => void;
+  onChoferCreated?: (c: ChoferLite) => void;
+}
+
+interface InlineVehiculoFormState {
+  placa: string;
+  configVehicular: string;
+  permisoSct: string;
+  numeroPermiso: string;
+}
+
+function InlineVehiculoForm({
+  onCancel,
+  onCreated,
+}: {
+  onCancel: () => void;
+  onCreated: (v: VehiculoLite) => void;
+}) {
+  const [form, setForm] = useState<InlineVehiculoFormState>({
+    placa: "",
+    configVehicular: "",
+    permisoSct: "",
+    numeroPermiso: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!form.placa.trim()) {
+      setError("La placa es requerida");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/vehiculos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placa: form.placa.trim().toUpperCase(),
+          config_vehicular: form.configVehicular || null,
+          permiso_sct: form.permisoSct || null,
+          numero_permiso: form.numeroPermiso.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Error al guardar");
+        return;
+      }
+      onCreated(data as VehiculoLite);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="p-3 flex flex-col gap-2">
+      <p className="text-xs font-semibold">Nuevo vehículo</p>
+      <div>
+        <label className="text-[10px] text-muted-foreground">Placa</label>
+        <Input
+          className="h-7 text-xs"
+          value={form.placa}
+          onChange={(e) => setForm((f) => ({ ...f, placa: e.target.value.toUpperCase() }))}
+          autoFocus
+        />
+      </div>
+      <div>
+        <label className="text-[10px] text-muted-foreground">Config. vehicular</label>
+        <select
+          className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
+          value={form.configVehicular}
+          onChange={(e) => setForm((f) => ({ ...f, configVehicular: e.target.value }))}
+        >
+          <option value="">—</option>
+          {CONFIG_VEHICULAR_OPTIONS.map(([code, label]) => (
+            <option key={code} value={code}>
+              {code} – {label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Permiso SCT</label>
+          <select
+            className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
+            value={form.permisoSct}
+            onChange={(e) => setForm((f) => ({ ...f, permisoSct: e.target.value }))}
+          >
+            <option value="">—</option>
+            {PERMISO_SCT_OPTIONS.map(([code, label]) => (
+              <option key={code} value={code}>
+                {code} – {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">No. Permiso</label>
+          <Input
+            className="h-7 text-xs"
+            value={form.numeroPermiso}
+            onChange={(e) => setForm((f) => ({ ...f, numeroPermiso: e.target.value }))}
+          />
+        </div>
+      </div>
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      <div className="flex items-center justify-end gap-1.5 mt-1">
+        <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={onCancel} disabled={saving}>
+          Cancelar
+        </Button>
+        <Button size="sm" className="h-6 px-2 text-xs" onClick={handleSave} disabled={saving}>
+          {saving && <Loader2 className="w-3 h-3 animate-spin mr-1" />}
+          Guardar y usar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface InlineChoferFormState {
+  nombre: string;
+  rfc: string;
+  numeroLicencia: string;
+}
+
+function InlineChoferForm({
+  onCancel,
+  onCreated,
+}: {
+  onCancel: () => void;
+  onCreated: (c: ChoferLite) => void;
+}) {
+  const [form, setForm] = useState<InlineChoferFormState>({ nombre: "", rfc: "", numeroLicencia: "" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!form.nombre.trim() || !form.rfc.trim()) {
+      setError("Nombre y RFC son requeridos");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/choferes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: form.nombre.trim(),
+          rfc: form.rfc.trim().toUpperCase(),
+          numero_licencia: form.numeroLicencia.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Error al guardar");
+        return;
+      }
+      onCreated(data as ChoferLite);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="p-3 flex flex-col gap-2">
+      <p className="text-xs font-semibold">Nuevo chofer</p>
+      <div>
+        <label className="text-[10px] text-muted-foreground">Nombre</label>
+        <Input
+          className="h-7 text-xs"
+          value={form.nombre}
+          onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+          autoFocus
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">RFC</label>
+          <Input
+            className="h-7 text-xs font-mono"
+            value={form.rfc}
+            onChange={(e) => setForm((f) => ({ ...f, rfc: e.target.value.toUpperCase() }))}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">Núm. Licencia</label>
+          <Input
+            className="h-7 text-xs"
+            value={form.numeroLicencia}
+            onChange={(e) => setForm((f) => ({ ...f, numeroLicencia: e.target.value }))}
+          />
+        </div>
+      </div>
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      <div className="flex items-center justify-end gap-1.5 mt-1">
+        <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={onCancel} disabled={saving}>
+          Cancelar
+        </Button>
+        <Button size="sm" className="h-6 px-2 text-xs" onClick={handleSave} disabled={saving}>
+          {saving && <Loader2 className="w-3 h-3 animate-spin mr-1" />}
+          Guardar y usar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface OneOffFiguraFormState {
+  nombre: string;
+  rfc: string;
+  numeroLicencia: string;
+  tipoFigura: string;
+}
+
+// A figura de transporte that isn't backed by a choferes registry entry —
+// e.g. a one-off propietario/arrendatario/notificado for this invoice only.
+// Unlike InlineChoferForm, this never hits the API; it's added straight to
+// the form's figuras array with an empty choferId marking it as non-registry.
+function OneOffFiguraForm({
+  onCancel,
+  onAdd,
+}: {
+  onCancel: () => void;
+  onAdd: (f: OneOffFiguraFormState) => void;
+}) {
+  const [form, setForm] = useState<OneOffFiguraFormState>({
+    nombre: "",
+    rfc: "",
+    numeroLicencia: "",
+    tipoFigura: "02",
+  });
+  const [error, setError] = useState<string | null>(null);
+
+  function handleAdd() {
+    if (!form.nombre.trim()) {
+      setError("El nombre es requerido");
+      return;
+    }
+    onAdd(form);
+  }
+
+  return (
+    <div className="p-3 flex flex-col gap-2">
+      <p className="text-xs font-semibold">Figura sin registro</p>
+      <div>
+        <label className="text-[10px] text-muted-foreground">Nombre</label>
+        <Input
+          className="h-7 text-xs"
+          value={form.nombre}
+          onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+          autoFocus
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">RFC</label>
+          <Input
+            className="h-7 text-xs font-mono"
+            value={form.rfc}
+            onChange={(e) => setForm((f) => ({ ...f, rfc: e.target.value.toUpperCase() }))}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">Núm. Licencia</label>
+          <Input
+            className="h-7 text-xs"
+            value={form.numeroLicencia}
+            onChange={(e) => setForm((f) => ({ ...f, numeroLicencia: e.target.value }))}
+          />
+        </div>
+      </div>
+      <div>
+        <label className="text-[10px] text-muted-foreground">Tipo de figura</label>
+        <select
+          className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
+          value={form.tipoFigura}
+          onChange={(e) => setForm((f) => ({ ...f, tipoFigura: e.target.value }))}
+        >
+          {FIGURA_TRANSPORTE_OPTIONS.filter(([code]) => code !== "01").map(([code, label]) => (
+            <option key={code} value={code}>
+              {code} – {label}
+            </option>
+          ))}
+        </select>
+      </div>
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      <div className="flex items-center justify-end gap-1.5 mt-1">
+        <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button size="sm" className="h-6 px-2 text-xs" onClick={handleAdd}>
+          Agregar
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function UbicacionSection({
@@ -409,9 +714,19 @@ function UbicacionSection({
   );
 }
 
-export function CartaPorteFields({ value, onChange, vehiculos, choferes }: CartaPorteFieldsProps) {
+export function CartaPorteFields({
+  value,
+  onChange,
+  vehiculos,
+  choferes,
+  onVehiculoCreated,
+  onChoferCreated,
+}: CartaPorteFieldsProps) {
   const [vehiculoPickerOpen, setVehiculoPickerOpen] = useState(false);
   const [choferPickerOpen, setChoferPickerOpen] = useState(false);
+  const [addingVehiculo, setAddingVehiculo] = useState(false);
+  const [addingChofer, setAddingChofer] = useState(false);
+  const [oneOffFiguraOpen, setOneOffFiguraOpen] = useState(false);
 
   function updateMercancia(key: string, patch: Partial<MercanciaRow>) {
     onChange({
@@ -463,6 +778,36 @@ export function CartaPorteFields({ value, onChange, vehiculos, choferes }: Carta
 
   function removeFigura(key: string) {
     onChange({ ...value, figuras: value.figuras.filter((f) => f.key !== key) });
+  }
+
+  function addOneOffFigura(f: OneOffFiguraFormState) {
+    onChange({
+      ...value,
+      figuras: [
+        ...value.figuras,
+        {
+          key: crypto.randomUUID(),
+          choferId: "",
+          nombre: f.nombre.trim(),
+          rfc: f.rfc.trim().toUpperCase(),
+          numeroLicencia: f.numeroLicencia.trim(),
+          tipoFigura: f.tipoFigura,
+        },
+      ],
+    });
+    setOneOffFiguraOpen(false);
+  }
+
+  function handleVehiculoCreated(v: VehiculoLite) {
+    onVehiculoCreated?.(v);
+    selectVehiculo(v);
+    setAddingVehiculo(false);
+  }
+
+  function handleChoferCreated(c: ChoferLite) {
+    onChoferCreated?.(c);
+    addChofer(c);
+    setAddingChofer(false);
   }
 
   const selectedVehiculo = vehiculos.find((v) => v.id === value.vehiculoId);
@@ -712,7 +1057,13 @@ export function CartaPorteFields({ value, onChange, vehiculos, choferes }: Carta
 
       <div>
         <label className="text-xs font-medium text-muted-foreground">Vehículo</label>
-        <Popover open={vehiculoPickerOpen} onOpenChange={setVehiculoPickerOpen}>
+        <Popover
+          open={vehiculoPickerOpen}
+          onOpenChange={(open) => {
+            setVehiculoPickerOpen(open);
+            if (!open) setAddingVehiculo(false);
+          }}
+        >
           <PopoverTrigger className="w-full flex items-center justify-between rounded-md border border-input px-3 py-2 text-sm text-left mt-1">
             <span className={selectedVehiculo ? "" : "text-muted-foreground"}>
               {selectedVehiculo ? selectedVehiculo.placa : "— Selecciona un vehículo —"}
@@ -720,24 +1071,38 @@ export function CartaPorteFields({ value, onChange, vehiculos, choferes }: Carta
             <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           </PopoverTrigger>
           <PopoverContent className="w-80 p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Buscar placa…" />
-              <CommandList>
-                <CommandEmpty>Sin vehículos activos.</CommandEmpty>
-                <CommandGroup>
-                  {vehiculos.map((v) => (
-                    <CommandItem key={v.id} value={v.placa} onSelect={() => selectVehiculo(v)}>
-                      <div>
-                        <div className="font-mono text-xs">{v.placa}</div>
-                        {v.configVehicular && (
-                          <div className="text-[10px] text-muted-foreground">{v.configVehicular}</div>
-                        )}
-                      </div>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
+            {addingVehiculo ? (
+              <InlineVehiculoForm onCancel={() => setAddingVehiculo(false)} onCreated={handleVehiculoCreated} />
+            ) : (
+              <Command>
+                <CommandInput placeholder="Buscar placa…" />
+                <CommandList>
+                  <CommandEmpty>Sin vehículos activos.</CommandEmpty>
+                  <CommandGroup>
+                    {vehiculos.map((v) => (
+                      <CommandItem key={v.id} value={v.placa} onSelect={() => selectVehiculo(v)}>
+                        <div>
+                          <div className="font-mono text-xs">{v.placa}</div>
+                          {v.configVehicular && (
+                            <div className="text-[10px] text-muted-foreground">{v.configVehicular}</div>
+                          )}
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+                <div className="border-t border-border p-1">
+                  <button
+                    type="button"
+                    className="w-full flex items-center gap-1.5 rounded px-2 py-1.5 text-xs hover:bg-muted"
+                    onClick={() => setAddingVehiculo(true)}
+                  >
+                    <Plus className="w-3 h-3" />
+                    Nuevo vehículo
+                  </button>
+                </div>
+              </Command>
+            )}
           </PopoverContent>
         </Popover>
 
@@ -849,29 +1214,59 @@ export function CartaPorteFields({ value, onChange, vehiculos, choferes }: Carta
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <label className="text-xs font-medium text-muted-foreground">Figuras de transporte</label>
-          <Popover open={choferPickerOpen} onOpenChange={setChoferPickerOpen}>
-            <PopoverTrigger className="h-6 px-2 text-xs rounded-md border border-input">
-              + Agregar chofer
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="end">
-              <Command>
-                <CommandInput placeholder="Buscar chofer…" />
-                <CommandList>
-                  <CommandEmpty>Sin choferes activos.</CommandEmpty>
-                  <CommandGroup>
-                    {choferes.map((c) => (
-                      <CommandItem key={c.id} value={c.nombre} onSelect={() => addChofer(c)}>
-                        <div>
-                          <div className="text-xs">{c.nombre}</div>
-                          <div className="text-[10px] text-muted-foreground font-mono">{c.rfc}</div>
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+          <div className="flex items-center gap-1.5">
+            <Popover open={oneOffFiguraOpen} onOpenChange={setOneOffFiguraOpen}>
+              <PopoverTrigger className="h-6 px-2 text-xs rounded-md border border-dashed border-input">
+                + Figura sin registro
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-0" align="end">
+                <OneOffFiguraForm onCancel={() => setOneOffFiguraOpen(false)} onAdd={addOneOffFigura} />
+              </PopoverContent>
+            </Popover>
+            <Popover
+              open={choferPickerOpen}
+              onOpenChange={(open) => {
+                setChoferPickerOpen(open);
+                if (!open) setAddingChofer(false);
+              }}
+            >
+              <PopoverTrigger className="h-6 px-2 text-xs rounded-md border border-input">
+                + Agregar chofer
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="end">
+                {addingChofer ? (
+                  <InlineChoferForm onCancel={() => setAddingChofer(false)} onCreated={handleChoferCreated} />
+                ) : (
+                  <Command>
+                    <CommandInput placeholder="Buscar chofer…" />
+                    <CommandList>
+                      <CommandEmpty>Sin choferes activos.</CommandEmpty>
+                      <CommandGroup>
+                        {choferes.map((c) => (
+                          <CommandItem key={c.id} value={c.nombre} onSelect={() => addChofer(c)}>
+                            <div>
+                              <div className="text-xs">{c.nombre}</div>
+                              <div className="text-[10px] text-muted-foreground font-mono">{c.rfc}</div>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                    <div className="border-t border-border p-1">
+                      <button
+                        type="button"
+                        className="w-full flex items-center gap-1.5 rounded px-2 py-1.5 text-xs hover:bg-muted"
+                        onClick={() => setAddingChofer(true)}
+                      >
+                        <Plus className="w-3 h-3" />
+                        Nuevo chofer
+                      </button>
+                    </div>
+                  </Command>
+                )}
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
         {value.figuras.length === 0 ? (
           <p className="text-[11px] text-muted-foreground">Sin figuras agregadas.</p>

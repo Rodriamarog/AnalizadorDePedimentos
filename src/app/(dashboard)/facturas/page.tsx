@@ -32,6 +32,14 @@ interface Factura {
   // GET /api/facturas (see src/app/api/facturas/route.ts).
   type?: string;
   related_folio?: string | null;
+  // Present when the CFDI carries a Complemento Carta Porte — used to tell
+  // "Carta Porte Ingreso" (type I + carta_porte complement) apart from a
+  // plain factura, which also has type I but no complement.
+  complements?: { type?: string }[];
+}
+
+function isCartaPorte(f: Factura): boolean {
+  return f.complements?.some((c) => c.type === "carta_porte") ?? false;
 }
 
 const statusBadge: Record<string, string> = {
@@ -508,6 +516,26 @@ export default function FacturasPage() {
                                   Corrige {f.related_folio}
                                 </span>
                               )}
+                            </div>
+                          )}
+                          {f.type === "T" && (
+                            <div className="mt-0.5">
+                              <Badge
+                                variant="outline"
+                                className="w-fit text-[10px] font-medium bg-sky-50 text-sky-700 border-sky-200"
+                              >
+                                Carta Porte
+                              </Badge>
+                            </div>
+                          )}
+                          {f.type === "I" && isCartaPorte(f) && (
+                            <div className="mt-0.5">
+                              <Badge
+                                variant="outline"
+                                className="w-fit text-[10px] font-medium bg-sky-50 text-sky-700 border-sky-200"
+                              >
+                                Carta Porte Ingreso
+                              </Badge>
                             </div>
                           )}
                         </td>
