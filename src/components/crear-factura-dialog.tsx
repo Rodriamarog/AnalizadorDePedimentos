@@ -8,10 +8,21 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { SatComboBox } from "@/components/sat-combobox";
+import {
+  CartaPorteFields,
+  cartaPorteStateToInput,
+  defaultCartaPorteState,
+  mercanciaRowFromPrefill,
+  validateCartaPorteState,
+  type CartaPorteFormState,
+  type ChoferLite,
+  type VehiculoLite,
+} from "@/components/carta-porte-fields";
 import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
 import { umcToUnitKey } from "@/lib/umc";
 import { alertSuccess } from "@/lib/alerts";
 import { aduanaName } from "@/lib/aduanas";
+import { buildCartaPorteComplement, mapPedimentoToMercancias, type PedimentoForCartaPorte } from "@/lib/buildCartaPorte";
 
 const USO_CFDI_OPTIONS = [
   ["G01", "Adquisición de mercancias"],
@@ -363,6 +374,9 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
   // consumed by the candidates effect below once the list arrives.
   const [pendingRelatedUuid, setPendingRelatedUuid] = useState<string | null>(null);
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [cartaPorte, setCartaPorte] = useState<CartaPorteFormState>(defaultCartaPorteState());
+  const [vehiculosList, setVehiculosList] = useState<VehiculoLite[]>([]);
+  const [choferesList, setChoferesList] = useState<ChoferLite[]>([]);
   const [saving, setSaving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [previewing, setPreviewing] = useState(false);
@@ -383,6 +397,14 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
     setRelatedInvoice(null);
     setRelatedInvoiceCandidates([]);
     setRelationshipCode("01");
+    setCartaPorte(defaultCartaPorteState());
+
+    fetch("/api/vehiculos?active=true")
+      .then((res) => (res.ok ? res.json() : []))
+      .then(setVehiculosList);
+    fetch("/api/choferes?active=true")
+      .then((res) => (res.ok ? res.json() : []))
+      .then(setChoferesList);
 
     if (draft) {
       setUse(draft.use ?? "G03");
@@ -518,6 +540,39 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentType, customerId]);
 
+  const isCartaPorte = documentType === "carta_porte" || documentType === "carta_porte_ingreso";
+  const isTraslado = documentType === "carta_porte";
+
+  // A linked pedimento's partidas prefill mercancías (still editable
+  // afterward) whenever the link changes while a Carta Porte variant is
+  // selected — mirrors buildItemsFromPedimento's prefill-on-link pattern for
+  // the regular items table.
+  useEffect(() => {
+    if (!isCartaPorte || !pedimentoLink) return;
+    fetch(`/api/pedimentos/${pedimentoLink.id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: PedimentoForCartaPorte | null) => {
+        if (!data) return;
+        const { mercancias, paisOrigenDestino } = mapPedimentoToMercancias(data);
+        setCartaPorte((prev) => ({
+          ...prev,
+          mercancias: mercancias.map(mercanciaRowFromPrefill),
+          paisOrigenDestino: paisOrigenDestino ?? prev.paisOrigenDestino,
+        }));
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCartaPorte, pedimentoLink?.id]);
+
+  // Switching the Tipo de Documento away from a Carta Porte variant clears
+  // the Carta Porte-specific form state — those fields are meaningless (and
+  // shouldn't linger) once the user picks a different document type.
+  function handleDocumentTypeChange(next: DocumentType) {
+    setDocumentType(next);
+    if (next !== "carta_porte" && next !== "carta_porte_ingreso") {
+      setCartaPorte(defaultCartaPorteState());
+    }
+  }
+
   function updateItem(key: string, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
   }
@@ -582,24 +637,14 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
       const clave = it.clave.trim();
       if (!clave && !draftMode) continue;
 
+      // Traslado (CFDI type "T") line items have no price/taxes at all —
+      // FacturAPI's LineItemTrasladoProductInput schema only has
+      // description/product_key/unit_key/unit_name/sku, since no
+      // consideration changes hands on a mercancía transfer.
       const price = Number(it.precio) || 0;
-      if (price <= 0 && !draftMode) {
+      if (!isTraslado && price <= 0 && !draftMode) {
         zeroPriceDescs.push(it.descripcion.trim() || "(sin descripción)");
         continue;
-      }
-
-      const rowIvaRate = it.ivaRate ?? ivaRate;
-      let taxes: Record<string, unknown>[];
-      if (it.honorariosTipo === "comercializadora") {
-        const isrRet = retencionesVisible ? (Number(retIsr) || 0) / 100 : 0;
-        const ivaRet = retencionesVisible ? (Number(retIva) || 0) / 100 : 0;
-        taxes = [
-          { type: "IVA", rate: rowIvaRate / 100, factor: "Tasa", withholding: false },
-          ...(isrRet > 0 ? [{ type: "ISR", rate: isrRet, factor: "Tasa", withholding: true }] : []),
-          ...(ivaRet > 0 ? [{ type: "IVA", rate: ivaRet, factor: "Tasa", withholding: true }] : []),
-        ];
-      } else {
-        taxes = [{ type: "IVA", rate: rowIvaRate / 100, factor: "Tasa", withholding: false }];
       }
 
       let description = it.descripcion.trim();
@@ -607,17 +652,38 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
         description += ` - Fecha pedimento: ${isoToSlash(pedimentoLink.fechaPago)}`;
       }
 
-      const item: Record<string, unknown> = {
-        quantity: Number(it.cantidad) || 1,
-        product: {
+      let product: Record<string, unknown>;
+      if (isTraslado) {
+        product = {
+          description,
+          product_key: clave,
+          unit_key: it.unitKey.trim() || "H87",
+        };
+      } else {
+        const rowIvaRate = it.ivaRate ?? ivaRate;
+        let taxes: Record<string, unknown>[];
+        if (it.honorariosTipo === "comercializadora") {
+          const isrRet = retencionesVisible ? (Number(retIsr) || 0) / 100 : 0;
+          const ivaRet = retencionesVisible ? (Number(retIva) || 0) / 100 : 0;
+          taxes = [
+            { type: "IVA", rate: rowIvaRate / 100, factor: "Tasa", withholding: false },
+            ...(isrRet > 0 ? [{ type: "ISR", rate: isrRet, factor: "Tasa", withholding: true }] : []),
+            ...(ivaRet > 0 ? [{ type: "IVA", rate: ivaRet, factor: "Tasa", withholding: true }] : []),
+          ];
+        } else {
+          taxes = [{ type: "IVA", rate: rowIvaRate / 100, factor: "Tasa", withholding: false }];
+        }
+        product = {
           description,
           product_key: clave,
           price,
           unit_key: it.unitKey.trim() || "H87",
           tax_included: false,
           taxes,
-        },
-      };
+        };
+      }
+
+      const item: Record<string, unknown> = { quantity: Number(it.cantidad) || 1, product };
       if (pedNum) item.customs_keys = [formatPedimentoForCfdi(pedNum)];
       outItems.push(item);
     }
@@ -634,18 +700,31 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
       return null;
     }
 
+    const cartaPorteError = isCartaPorte ? validateCartaPorteState(cartaPorte) : null;
+    if (cartaPorteError && !draftMode) {
+      setError(cartaPorteError);
+      return null;
+    }
+
     const body: Record<string, unknown> = {
       type: DOCUMENT_TYPE_TO_CFDI[documentType],
       use,
       items: outItems,
-      payment_form: paymentForm,
-      payment_method: paymentMethod,
       currency,
       pedimento_id: pedimentoLink?.id ?? null,
     };
+    // Traslado has no payment_form/payment_method in FacturAPI's
+    // InvoiceTrasladoInput schema — a mercancía transfer has no payment.
+    if (!isTraslado) {
+      body.payment_form = paymentForm;
+      body.payment_method = paymentMethod;
+    }
     if (customerId) body.customer = customerId;
     if (documentType === "nota_credito" && relatedInvoice) {
       body.related_documents = [{ relationship: relationshipCode, documents: [relatedInvoice.uuid] }];
+    }
+    if (isCartaPorte && !cartaPorteError) {
+      body.complements = [buildCartaPorteComplement(cartaPorteStateToInput(cartaPorte))];
     }
     // customs_keys on each item is what legally ties the CFDI to the
     // pedimento (InformacionAduanera), but FacturAPI's own PDF template
@@ -1101,7 +1180,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
               <select
                 className="w-full rounded-md border border-input px-2 py-1.5 text-xs mt-1"
                 value={documentType}
-                onChange={(e) => setDocumentType(e.target.value as DocumentType)}
+                onChange={(e) => handleDocumentTypeChange(e.target.value as DocumentType)}
               >
                 {DOCUMENT_TYPE_OPTIONS.map(([code, label]) => (
                   <option key={code} value={code}>
@@ -1243,6 +1322,15 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
                 </select>
               </div>
             </div>
+          )}
+
+          {isCartaPorte && (
+            <CartaPorteFields
+              value={cartaPorte}
+              onChange={setCartaPorte}
+              vehiculos={vehiculosList}
+              choferes={choferesList}
+            />
           )}
 
           {error && <p className="text-xs text-red-600">{error}</p>}

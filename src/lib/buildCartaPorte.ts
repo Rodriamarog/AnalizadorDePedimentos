@@ -151,6 +151,8 @@ export interface AutotransporteInput {
   anioModeloVehiculo?: number;
   aseguradoraCarga?: string;
   polizaCarga?: string;
+  aseguradoraRespCivil?: string;
+  polizaRespCivil?: string;
   remolques?: { subTipoRemolque: string; placa: string }[];
 }
 
@@ -224,6 +226,8 @@ function buildAutotransporte(a: AutotransporteInput): CartaPorteAutotransporte {
     Seguros: {
       AseguraCarga: a.aseguradoraCarga,
       PolizaCarga: a.polizaCarga,
+      AseguraRespCivil: a.aseguradoraRespCivil,
+      PolizaRespCivil: a.polizaRespCivil,
     },
     Remolques: a.remolques?.map((r) => ({ SubTipoRem: r.subTipoRemolque, Placa: r.placa })),
   };

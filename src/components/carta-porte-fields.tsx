@@ -1,0 +1,930 @@
+"use client";
+
+import { Fragment, useState } from "react";
+import { ChevronsUpDown, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { SatComboBox } from "@/components/sat-combobox";
+import {
+  CONFIG_VEHICULAR_OPTIONS,
+  ENTRADA_SALIDA_OPTIONS,
+  FIGURA_TRANSPORTE_OPTIONS,
+  PERMISO_SCT_OPTIONS,
+  TIPO_EMBALAJE_OPTIONS,
+  UNIDAD_PESO_OPTIONS,
+  VIA_ENTRADA_SALIDA_OPTIONS,
+} from "@/lib/cartaPorteOptions";
+import type { CartaPorteComplementInput, CartaPorteDomicilio, MercanciaInput } from "@/lib/buildCartaPorte";
+
+export interface VehiculoLite {
+  id: string;
+  placa: string;
+  configVehicular: string | null;
+  permisoSct: string | null;
+  numeroPermiso: string | null;
+  aseguradora: string | null;
+  poliza: string | null;
+  remolques: { subTipoRemolque: string; placa: string }[];
+}
+
+export interface ChoferLite {
+  id: string;
+  nombre: string;
+  rfc: string;
+  numeroLicencia: string | null;
+}
+
+interface UbicacionFields {
+  rfc: string;
+  nombre: string;
+  fechaHoraSalidaLlegada: string; // datetime-local value: AAAA-MM-DDThh:mm
+  calle: string;
+  numeroExterior: string;
+  numeroInterior: string;
+  colonia: string;
+  municipio: string;
+  localidad: string;
+  estado: string;
+  pais: string;
+  codigoPostal: string;
+}
+
+function defaultUbicacion(): UbicacionFields {
+  return {
+    rfc: "",
+    nombre: "",
+    fechaHoraSalidaLlegada: "",
+    calle: "",
+    numeroExterior: "",
+    numeroInterior: "",
+    colonia: "",
+    municipio: "",
+    localidad: "",
+    estado: "",
+    pais: "MEX",
+    codigoPostal: "",
+  };
+}
+
+export interface MercanciaRow {
+  key: string;
+  bienesTransp: string;
+  bienesTranspDescription?: string;
+  descripcion: string;
+  cantidad: string;
+  claveUnidad: string;
+  claveUnidadDescription?: string;
+  pesoEnKg: string;
+  materialPeligroso: boolean;
+  cveMaterialPeligroso: string;
+  embalaje: string;
+  descripEmbalaje: string;
+}
+
+function newMercanciaRow(): MercanciaRow {
+  return {
+    key: crypto.randomUUID(),
+    bienesTransp: "",
+    descripcion: "",
+    cantidad: "1",
+    claveUnidad: "",
+    pesoEnKg: "0",
+    materialPeligroso: false,
+    cveMaterialPeligroso: "",
+    embalaje: "",
+    descripEmbalaje: "",
+  };
+}
+
+// Turns a mapPedimentoToMercancias() result row into a UI MercanciaRow —
+// shares newMercanciaRow's defaults for the fields a pedimento partida can't
+// supply (materialPeligroso/embalaje/etc.), so both stay in sync in one place.
+export function mercanciaRowFromPrefill(m: MercanciaInput): MercanciaRow {
+  return {
+    ...newMercanciaRow(),
+    bienesTransp: m.bienesTransp,
+    descripcion: m.descripcion,
+    cantidad: String(m.cantidad),
+    claveUnidad: m.claveUnidad,
+    pesoEnKg: String(m.pesoEnKg),
+  };
+}
+
+interface AutotransporteFields {
+  permisoSct: string;
+  numeroPermisoSct: string;
+  configVehicular: string;
+  placa: string;
+  pesoBrutoVehicular: string;
+  anioModeloVehiculo: string;
+  aseguradoraCarga: string;
+  polizaCarga: string;
+  aseguradoraRespCivil: string;
+  polizaRespCivil: string;
+  remolques: { subTipoRemolque: string; placa: string }[];
+}
+
+function defaultAutotransporte(): AutotransporteFields {
+  return {
+    permisoSct: "",
+    numeroPermisoSct: "",
+    configVehicular: "",
+    placa: "",
+    pesoBrutoVehicular: "",
+    anioModeloVehiculo: "",
+    aseguradoraCarga: "",
+    polizaCarga: "",
+    aseguradoraRespCivil: "",
+    polizaRespCivil: "",
+    remolques: [],
+  };
+}
+
+export interface FiguraRow {
+  key: string;
+  choferId: string;
+  nombre: string;
+  rfc: string;
+  numeroLicencia: string;
+  tipoFigura: string;
+}
+
+export interface CartaPorteFormState {
+  ubicacionOrigen: UbicacionFields;
+  ubicacionDestino: UbicacionFields;
+  mercancias: MercanciaRow[];
+  pesoBrutoTotal: string;
+  unidadPeso: string;
+  internacionalEnabled: boolean;
+  entradaSalidaMerc: "Entrada" | "Salida";
+  paisOrigenDestino: string;
+  viaEntradaSalida: string;
+  vehiculoId: string;
+  autotransporte: AutotransporteFields;
+  figuras: FiguraRow[];
+}
+
+export function defaultCartaPorteState(): CartaPorteFormState {
+  return {
+    ubicacionOrigen: defaultUbicacion(),
+    ubicacionDestino: defaultUbicacion(),
+    mercancias: [newMercanciaRow()],
+    pesoBrutoTotal: "0",
+    unidadPeso: "KGM",
+    internacionalEnabled: false,
+    entradaSalidaMerc: "Salida",
+    paisOrigenDestino: "",
+    viaEntradaSalida: "01",
+    vehiculoId: "",
+    autotransporte: defaultAutotransporte(),
+    figuras: [],
+  };
+}
+
+function buildDomicilio(u: UbicacionFields): CartaPorteDomicilio {
+  return {
+    Estado: u.estado,
+    Pais: u.pais,
+    CodigoPostal: u.codigoPostal,
+    Calle: u.calle || undefined,
+    NumeroExterior: u.numeroExterior || undefined,
+    NumeroInterior: u.numeroInterior || undefined,
+    Colonia: u.colonia || undefined,
+    Localidad: u.localidad || undefined,
+    Municipio: u.municipio || undefined,
+  };
+}
+
+// Pure transformation from the dialog's UI-shaped state (strings for every
+// numeric input, same convention as ItemRow) to buildCartaPorteComplement's
+// input shape.
+export function cartaPorteStateToInput(state: CartaPorteFormState): CartaPorteComplementInput {
+  return {
+    ubicacionOrigen: {
+      rfc: state.ubicacionOrigen.rfc.trim(),
+      nombre: state.ubicacionOrigen.nombre.trim() || undefined,
+      fechaHoraSalidaLlegada: state.ubicacionOrigen.fechaHoraSalidaLlegada,
+      domicilio: buildDomicilio(state.ubicacionOrigen),
+    },
+    ubicacionDestino: {
+      rfc: state.ubicacionDestino.rfc.trim(),
+      nombre: state.ubicacionDestino.nombre.trim() || undefined,
+      fechaHoraSalidaLlegada: state.ubicacionDestino.fechaHoraSalidaLlegada,
+      domicilio: buildDomicilio(state.ubicacionDestino),
+    },
+    mercancias: state.mercancias.map((m) => ({
+      bienesTransp: m.bienesTransp.trim(),
+      descripcion: m.descripcion.trim(),
+      cantidad: Number(m.cantidad) || 0,
+      claveUnidad: m.claveUnidad.trim(),
+      pesoEnKg: Number(m.pesoEnKg) || 0,
+      materialPeligroso: m.materialPeligroso,
+      cveMaterialPeligroso: m.materialPeligroso ? m.cveMaterialPeligroso.trim() || undefined : undefined,
+      embalaje: m.embalaje || undefined,
+      descripEmbalaje: m.descripEmbalaje.trim() || undefined,
+    })),
+    pesoBrutoTotal: Number(state.pesoBrutoTotal) || 0,
+    unidadPeso: state.unidadPeso,
+    autotransporte: {
+      permisoSct: state.autotransporte.permisoSct || undefined,
+      numeroPermisoSct: state.autotransporte.numeroPermisoSct.trim() || undefined,
+      configVehicular: state.autotransporte.configVehicular || undefined,
+      placa: state.autotransporte.placa.trim() || undefined,
+      pesoBrutoVehicular: state.autotransporte.pesoBrutoVehicular
+        ? Number(state.autotransporte.pesoBrutoVehicular)
+        : undefined,
+      anioModeloVehiculo: state.autotransporte.anioModeloVehiculo
+        ? Number(state.autotransporte.anioModeloVehiculo)
+        : undefined,
+      aseguradoraCarga: state.autotransporte.aseguradoraCarga.trim() || undefined,
+      polizaCarga: state.autotransporte.polizaCarga.trim() || undefined,
+      aseguradoraRespCivil: state.autotransporte.aseguradoraRespCivil.trim() || undefined,
+      polizaRespCivil: state.autotransporte.polizaRespCivil.trim() || undefined,
+      remolques: state.autotransporte.remolques.length > 0 ? state.autotransporte.remolques : undefined,
+    },
+    figurasTransporte: state.figuras.map((f) => ({
+      tipoFigura: f.tipoFigura,
+      nombreFigura: f.nombre,
+      rfc: f.rfc || undefined,
+      numeroLicencia: f.numeroLicencia || undefined,
+    })),
+    internacional: state.internacionalEnabled
+      ? {
+          entradaSalidaMerc: state.entradaSalidaMerc,
+          paisOrigenDestino: state.paisOrigenDestino.trim().toUpperCase(),
+          viaEntradaSalida: state.viaEntradaSalida,
+        }
+      : undefined,
+  };
+}
+
+function validateUbicacion(u: UbicacionFields, label: string): string | null {
+  if (!u.rfc.trim()) return `RFC de ${label} es requerido`;
+  if (!u.fechaHoraSalidaLlegada) return `Fecha/hora de ${label} es requerida`;
+  if (!u.estado.trim() || !u.pais.trim() || !u.codigoPostal.trim()) {
+    return `Domicilio de ${label} requiere estado, país y código postal`;
+  }
+  return null;
+}
+
+export function validateCartaPorteState(state: CartaPorteFormState): string | null {
+  const origenError = validateUbicacion(state.ubicacionOrigen, "origen");
+  if (origenError) return origenError;
+  const destinoError = validateUbicacion(state.ubicacionDestino, "destino");
+  if (destinoError) return destinoError;
+
+  if (state.mercancias.length === 0) return "Agrega al menos una mercancía";
+  for (const m of state.mercancias) {
+    if (!m.bienesTransp.trim() || !m.descripcion.trim() || !m.claveUnidad.trim()) {
+      return "Cada mercancía requiere bienes transportados, descripción y clave de unidad";
+    }
+  }
+
+  if (state.figuras.length === 0) return "Agrega al menos una figura de transporte (ej. el chofer operador)";
+  for (const f of state.figuras) {
+    if (!f.tipoFigura || !f.nombre.trim()) {
+      return "Cada figura de transporte requiere tipo de figura y nombre";
+    }
+  }
+
+  if (state.internacionalEnabled && !state.paisOrigenDestino.trim()) {
+    return "Indica el país de origen/destino para transporte internacional";
+  }
+
+  return null;
+}
+
+function sumPesoEnKg(mercancias: MercanciaRow[]): number {
+  return mercancias.reduce((acc, m) => acc + (Number(m.pesoEnKg) || 0), 0);
+}
+
+interface CartaPorteFieldsProps {
+  value: CartaPorteFormState;
+  onChange: (next: CartaPorteFormState) => void;
+  vehiculos: VehiculoLite[];
+  choferes: ChoferLite[];
+}
+
+function UbicacionSection({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: UbicacionFields;
+  onChange: (next: UbicacionFields) => void;
+}) {
+  function set<K extends keyof UbicacionFields>(key: K, v: UbicacionFields[K]) {
+    onChange({ ...value, [key]: v });
+  }
+
+  return (
+    <div className="rounded-md border border-border p-3">
+      <p className="text-xs font-semibold mb-2">{label}</p>
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">RFC</label>
+          <Input className="h-7 text-xs" value={value.rfc} onChange={(e) => set("rfc", e.target.value.toUpperCase())} />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">Nombre</label>
+          <Input className="h-7 text-xs" value={value.nombre} onChange={(e) => set("nombre", e.target.value)} />
+        </div>
+      </div>
+      <div className="mb-2">
+        <label className="text-[10px] text-muted-foreground">Fecha/hora estimada</label>
+        <Input
+          className="h-7 text-xs"
+          type="datetime-local"
+          value={value.fechaHoraSalidaLlegada}
+          onChange={(e) => set("fechaHoraSalidaLlegada", e.target.value)}
+        />
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Calle</label>
+          <Input className="h-7 text-xs" value={value.calle} onChange={(e) => set("calle", e.target.value)} />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">No. Ext.</label>
+          <Input
+            className="h-7 text-xs"
+            value={value.numeroExterior}
+            onChange={(e) => set("numeroExterior", e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">No. Int.</label>
+          <Input
+            className="h-7 text-xs"
+            value={value.numeroInterior}
+            onChange={(e) => set("numeroInterior", e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Colonia</label>
+          <Input className="h-7 text-xs" value={value.colonia} onChange={(e) => set("colonia", e.target.value)} />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">Municipio</label>
+          <Input className="h-7 text-xs" value={value.municipio} onChange={(e) => set("municipio", e.target.value)} />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">Localidad</label>
+          <Input className="h-7 text-xs" value={value.localidad} onChange={(e) => set("localidad", e.target.value)} />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Estado</label>
+          <Input
+            className="h-7 text-xs"
+            placeholder="ej. BCN"
+            value={value.estado}
+            onChange={(e) => set("estado", e.target.value.toUpperCase())}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">País</label>
+          <Input
+            className="h-7 text-xs"
+            value={value.pais}
+            onChange={(e) => set("pais", e.target.value.toUpperCase())}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">C.P.</label>
+          <Input
+            className="h-7 text-xs"
+            value={value.codigoPostal}
+            onChange={(e) => set("codigoPostal", e.target.value)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function CartaPorteFields({ value, onChange, vehiculos, choferes }: CartaPorteFieldsProps) {
+  const [vehiculoPickerOpen, setVehiculoPickerOpen] = useState(false);
+  const [choferPickerOpen, setChoferPickerOpen] = useState(false);
+
+  function updateMercancia(key: string, patch: Partial<MercanciaRow>) {
+    onChange({
+      ...value,
+      mercancias: value.mercancias.map((m) => (m.key === key ? { ...m, ...patch } : m)),
+    });
+  }
+
+  function removeMercancia(key: string) {
+    onChange({ ...value, mercancias: value.mercancias.filter((m) => m.key !== key) });
+  }
+
+  function selectVehiculo(v: VehiculoLite) {
+    onChange({
+      ...value,
+      vehiculoId: v.id,
+      autotransporte: {
+        ...value.autotransporte,
+        configVehicular: v.configVehicular ?? value.autotransporte.configVehicular,
+        permisoSct: v.permisoSct ?? value.autotransporte.permisoSct,
+        numeroPermisoSct: v.numeroPermiso ?? value.autotransporte.numeroPermisoSct,
+        placa: v.placa,
+        aseguradoraCarga: v.aseguradora ?? value.autotransporte.aseguradoraCarga,
+        polizaCarga: v.poliza ?? value.autotransporte.polizaCarga,
+        remolques: v.remolques,
+      },
+    });
+    setVehiculoPickerOpen(false);
+  }
+
+  function addChofer(c: ChoferLite) {
+    if (value.figuras.some((f) => f.choferId === c.id)) return;
+    onChange({
+      ...value,
+      figuras: [
+        ...value.figuras,
+        {
+          key: crypto.randomUUID(),
+          choferId: c.id,
+          nombre: c.nombre,
+          rfc: c.rfc,
+          numeroLicencia: c.numeroLicencia ?? "",
+          tipoFigura: "01",
+        },
+      ],
+    });
+    setChoferPickerOpen(false);
+  }
+
+  function removeFigura(key: string) {
+    onChange({ ...value, figuras: value.figuras.filter((f) => f.key !== key) });
+  }
+
+  const selectedVehiculo = vehiculos.find((v) => v.id === value.vehiculoId);
+  const pesoSum = sumPesoEnKg(value.mercancias);
+
+  function setAuto<K extends keyof AutotransporteFields>(key: K, v: AutotransporteFields[K]) {
+    onChange({ ...value, autotransporte: { ...value.autotransporte, [key]: v } });
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/20 p-3">
+      <p className="text-xs font-semibold text-muted-foreground">Complemento Carta Porte</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <UbicacionSection
+          label="Origen"
+          value={value.ubicacionOrigen}
+          onChange={(u) => onChange({ ...value, ubicacionOrigen: u })}
+        />
+        <UbicacionSection
+          label="Destino"
+          value={value.ubicacionDestino}
+          onChange={(u) => onChange({ ...value, ubicacionDestino: u })}
+        />
+      </div>
+
+      <div>
+        <label className="flex items-center gap-1.5 text-xs">
+          <input
+            type="checkbox"
+            checked={value.internacionalEnabled}
+            onChange={(e) => onChange({ ...value, internacionalEnabled: e.target.checked })}
+          />
+          Transporte internacional
+        </label>
+        {value.internacionalEnabled && (
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            <div>
+              <label className="text-[10px] text-muted-foreground">Entrada/Salida</label>
+              <select
+                className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
+                value={value.entradaSalidaMerc}
+                onChange={(e) => onChange({ ...value, entradaSalidaMerc: e.target.value as "Entrada" | "Salida" })}
+              >
+                {ENTRADA_SALIDA_OPTIONS.map(([code, label]) => (
+                  <option key={code} value={code}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">País origen/destino</label>
+              <Input
+                className="h-7 text-xs"
+                placeholder="ej. USA"
+                value={value.paisOrigenDestino}
+                onChange={(e) => onChange({ ...value, paisOrigenDestino: e.target.value.toUpperCase() })}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Vía</label>
+              <select
+                className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
+                value={value.viaEntradaSalida}
+                onChange={(e) => onChange({ ...value, viaEntradaSalida: e.target.value })}
+              >
+                {VIA_ENTRADA_SALIDA_OPTIONS.map(([code, label]) => (
+                  <option key={code} value={code}>
+                    {code} – {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Mercancías</label>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-xs"
+            onClick={() => onChange({ ...value, mercancias: [...value.mercancias, newMercanciaRow()] })}
+          >
+            + Agregar mercancía
+          </Button>
+        </div>
+        <div className="overflow-x-auto rounded-md border border-border">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border bg-muted/40">
+                <th className="text-left px-2 py-2 font-semibold w-32">Bienes transp.</th>
+                <th className="text-left px-2 py-2 font-semibold">Descripción</th>
+                <th className="text-right px-2 py-2 font-semibold w-16">Cant.</th>
+                <th className="text-left px-2 py-2 font-semibold w-24">Clave unidad</th>
+                <th className="text-right px-2 py-2 font-semibold w-20">Peso (kg)</th>
+                <th className="text-left px-2 py-2 font-semibold w-24">Mat. peligroso</th>
+                <th className="w-6" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {value.mercancias.map((m) => (
+                <Fragment key={m.key}>
+                  <tr>
+                    <td className="px-2 py-1.5">
+                      <SatComboBox
+                        endpoint="/api/catalogs/products"
+                        value={m.bienesTransp}
+                        description={m.bienesTranspDescription}
+                        hideDescription
+                        mapped={!!m.bienesTransp}
+                        placeholder="ej. 10101504"
+                        onSelect={(key, description) =>
+                          updateMercancia(m.key, { bienesTransp: key, bienesTranspDescription: description })
+                        }
+                      />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Input
+                        className="h-7 text-xs min-w-[160px]"
+                        value={m.descripcion}
+                        onChange={(e) => updateMercancia(m.key, { descripcion: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Input
+                        className="h-7 text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        type="number"
+                        value={m.cantidad}
+                        onChange={(e) => updateMercancia(m.key, { cantidad: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <SatComboBox
+                        endpoint="/api/catalogs/units"
+                        value={m.claveUnidad}
+                        description={m.claveUnidadDescription}
+                        hideDescription
+                        mapped={!!m.claveUnidad}
+                        placeholder="ej. KGM"
+                        onSelect={(key, description) =>
+                          updateMercancia(m.key, { claveUnidad: key, claveUnidadDescription: description })
+                        }
+                      />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Input
+                        className="h-7 text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        type="number"
+                        value={m.pesoEnKg}
+                        onChange={(e) => updateMercancia(m.key, { pesoEnKg: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <label className="flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={m.materialPeligroso}
+                          onChange={(e) => updateMercancia(m.key, { materialPeligroso: e.target.checked })}
+                        />
+                        Sí
+                      </label>
+                    </td>
+                    <td className="px-1 py-1.5">
+                      {value.mercancias.length > 1 && (
+                        <button
+                          className="text-muted-foreground hover:text-red-600"
+                          onClick={() => removeMercancia(m.key)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                  {m.materialPeligroso && (
+                    <tr className="bg-muted/20">
+                      <td />
+                      <td colSpan={6} className="px-2 py-1.5">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            className="h-7 text-xs w-32"
+                            placeholder="Cve. material peligroso"
+                            value={m.cveMaterialPeligroso}
+                            onChange={(e) => updateMercancia(m.key, { cveMaterialPeligroso: e.target.value })}
+                          />
+                          <select
+                            className="rounded-md border border-input px-2 py-1 text-xs h-7"
+                            value={m.embalaje}
+                            onChange={(e) => updateMercancia(m.key, { embalaje: e.target.value })}
+                          >
+                            <option value="">— Embalaje —</option>
+                            {TIPO_EMBALAJE_OPTIONS.map(([code, label]) => (
+                              <option key={code} value={code}>
+                                {code} – {label}
+                              </option>
+                            ))}
+                          </select>
+                          <Input
+                            className="h-7 text-xs flex-1"
+                            placeholder="Descripción del embalaje"
+                            value={m.descripEmbalaje}
+                            onChange={(e) => updateMercancia(m.key, { descripEmbalaje: e.target.value })}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <label className="text-[10px] text-muted-foreground">Peso bruto total</label>
+          <Input
+            className="h-7 w-24 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            type="number"
+            value={value.pesoBrutoTotal}
+            onChange={(e) => onChange({ ...value, pesoBrutoTotal: e.target.value })}
+          />
+          <select
+            className="rounded-md border border-input px-2 py-1 text-xs h-7"
+            value={value.unidadPeso}
+            onChange={(e) => onChange({ ...value, unidadPeso: e.target.value })}
+          >
+            {UNIDAD_PESO_OPTIONS.map(([code, label]) => (
+              <option key={code} value={code}>
+                {code} – {label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="text-[11px] text-muted-foreground border border-dashed border-border rounded px-2 py-0.5"
+            onClick={() => onChange({ ...value, pesoBrutoTotal: String(pesoSum) })}
+          >
+            Usar suma automática ({pesoSum})
+          </button>
+          <span className="text-[10px] text-muted-foreground">
+            {value.mercancias.length} mercancía{value.mercancias.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">Vehículo</label>
+        <Popover open={vehiculoPickerOpen} onOpenChange={setVehiculoPickerOpen}>
+          <PopoverTrigger className="w-full flex items-center justify-between rounded-md border border-input px-3 py-2 text-sm text-left mt-1">
+            <span className={selectedVehiculo ? "" : "text-muted-foreground"}>
+              {selectedVehiculo ? selectedVehiculo.placa : "— Selecciona un vehículo —"}
+            </span>
+            <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Buscar placa…" />
+              <CommandList>
+                <CommandEmpty>Sin vehículos activos.</CommandEmpty>
+                <CommandGroup>
+                  {vehiculos.map((v) => (
+                    <CommandItem key={v.id} value={v.placa} onSelect={() => selectVehiculo(v)}>
+                      <div>
+                        <div className="font-mono text-xs">{v.placa}</div>
+                        {v.configVehicular && (
+                          <div className="text-[10px] text-muted-foreground">{v.configVehicular}</div>
+                        )}
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+          <div>
+            <label className="text-[10px] text-muted-foreground">Permiso SCT</label>
+            <select
+              className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
+              value={value.autotransporte.permisoSct}
+              onChange={(e) => setAuto("permisoSct", e.target.value)}
+            >
+              <option value="">—</option>
+              {PERMISO_SCT_OPTIONS.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {code} – {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">No. Permiso</label>
+            <Input
+              className="h-7 text-xs"
+              value={value.autotransporte.numeroPermisoSct}
+              onChange={(e) => setAuto("numeroPermisoSct", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Config. vehicular</label>
+            <select
+              className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
+              value={value.autotransporte.configVehicular}
+              onChange={(e) => setAuto("configVehicular", e.target.value)}
+            >
+              <option value="">—</option>
+              {CONFIG_VEHICULAR_OPTIONS.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {code} – {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Placa</label>
+            <Input
+              className="h-7 text-xs"
+              value={value.autotransporte.placa}
+              onChange={(e) => setAuto("placa", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Peso bruto vehicular</label>
+            <Input
+              className="h-7 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              type="number"
+              value={value.autotransporte.pesoBrutoVehicular}
+              onChange={(e) => setAuto("pesoBrutoVehicular", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Año modelo</label>
+            <Input
+              className="h-7 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              type="number"
+              value={value.autotransporte.anioModeloVehiculo}
+              onChange={(e) => setAuto("anioModeloVehiculo", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Aseguradora (carga)</label>
+            <Input
+              className="h-7 text-xs"
+              value={value.autotransporte.aseguradoraCarga}
+              onChange={(e) => setAuto("aseguradoraCarga", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Póliza (carga)</label>
+            <Input
+              className="h-7 text-xs"
+              value={value.autotransporte.polizaCarga}
+              onChange={(e) => setAuto("polizaCarga", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Aseguradora (resp. civil)</label>
+            <Input
+              className="h-7 text-xs"
+              value={value.autotransporte.aseguradoraRespCivil}
+              onChange={(e) => setAuto("aseguradoraRespCivil", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Póliza (resp. civil)</label>
+            <Input
+              className="h-7 text-xs"
+              value={value.autotransporte.polizaRespCivil}
+              onChange={(e) => setAuto("polizaRespCivil", e.target.value)}
+            />
+          </div>
+        </div>
+        {value.autotransporte.remolques.length > 0 && (
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Remolques: {value.autotransporte.remolques.map((r) => r.placa).join(", ")}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Figuras de transporte</label>
+          <Popover open={choferPickerOpen} onOpenChange={setChoferPickerOpen}>
+            <PopoverTrigger className="h-6 px-2 text-xs rounded-md border border-input">
+              + Agregar chofer
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-0" align="end">
+              <Command>
+                <CommandInput placeholder="Buscar chofer…" />
+                <CommandList>
+                  <CommandEmpty>Sin choferes activos.</CommandEmpty>
+                  <CommandGroup>
+                    {choferes.map((c) => (
+                      <CommandItem key={c.id} value={c.nombre} onSelect={() => addChofer(c)}>
+                        <div>
+                          <div className="text-xs">{c.nombre}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono">{c.rfc}</div>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
+        {value.figuras.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground">Sin figuras agregadas.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-md border border-border">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border bg-muted/40">
+                  <th className="text-left px-2 py-2 font-semibold">Nombre</th>
+                  <th className="text-left px-2 py-2 font-semibold w-32">RFC</th>
+                  <th className="text-left px-2 py-2 font-semibold w-32">Licencia</th>
+                  <th className="text-left px-2 py-2 font-semibold w-40">Tipo de figura</th>
+                  <th className="w-6" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {value.figuras.map((f) => (
+                  <tr key={f.key}>
+                    <td className="px-2 py-1.5">{f.nombre}</td>
+                    <td className="px-2 py-1.5 font-mono">{f.rfc}</td>
+                    <td className="px-2 py-1.5 font-mono">{f.numeroLicencia || "—"}</td>
+                    <td className="px-2 py-1.5">
+                      <select
+                        className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
+                        value={f.tipoFigura}
+                        onChange={(e) =>
+                          onChange({
+                            ...value,
+                            figuras: value.figuras.map((row) =>
+                              row.key === f.key ? { ...row, tipoFigura: e.target.value } : row
+                            ),
+                          })
+                        }
+                      >
+                        {FIGURA_TRANSPORTE_OPTIONS.map(([code, label]) => (
+                          <option key={code} value={code}>
+                            {code} – {label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-1 py-1.5">
+                      <button className="text-muted-foreground hover:text-red-600" onClick={() => removeFigura(f.key)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

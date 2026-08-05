@@ -6,6 +6,9 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { cn } from "@/lib/utils";
 
 interface SatComboBoxProps {
+  // "/api/catalogs/products" (SAT's c_ClaveProdServ catalog) also doubles as
+  // the c_BienesTransp lookup for Carta Porte mercancías — SAT reuses the
+  // same catalog for both, so no separate endpoint/table is needed.
   endpoint: "/api/catalogs/products" | "/api/catalogs/units";
   value: string;
   description?: string | null;
