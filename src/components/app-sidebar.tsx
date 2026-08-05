@@ -7,6 +7,8 @@ import {
   Users,
   Receipt,
   Package,
+  Truck,
+  IdCard,
   Settings,
 } from "lucide-react";
 import {
@@ -27,6 +29,8 @@ const navItems = [
   { title: "Clientes", href: "/clientes", icon: Users },
   { title: "Facturas", href: "/facturas", icon: Receipt },
   { title: "Productos", href: "/productos", icon: Package },
+  { title: "Vehículos", href: "/vehiculos", icon: Truck },
+  { title: "Choferes", href: "/choferes", icon: IdCard },
   { title: "Configuración", href: "/configuracion", icon: Settings },
 ];
 

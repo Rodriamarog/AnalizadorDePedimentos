@@ -2,6 +2,7 @@ import {
   boolean,
   doublePrecision,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -92,6 +93,44 @@ export const productos = pgTable(
   },
   (t) => [unique("productos_org_fraccion_unique").on(t.orgId, t.fraccion)]
 );
+
+// A remolque saved on a vehiculo: SAT's ClaveSubTipoRemolque catalog key
+// plus the trailer's own plate. Stored inline as jsonb (0-2 entries per
+// vehiculo, no independent identity/query needs) rather than a child table.
+export type Remolque = { subTipoRemolque: string; placa: string };
+
+// The business's own fleet, org-scoped like productos. Feeds Complemento
+// Carta Porte's Autotransporte/Seguros/Remolques blocks (see issue #3) —
+// not a FacturAPI concept, purely local data.
+export const vehiculos = pgTable("vehiculos", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orgId: text("org_id").notNull().references(() => organizations.id),
+  placa: text("placa").notNull(),
+  configVehicular: text("config_vehicular"),
+  permisoSct: text("permiso_sct"),
+  numeroPermiso: text("numero_permiso"),
+  aseguradora: text("aseguradora"),
+  poliza: text("poliza"),
+  remolques: jsonb("remolques").$type<Remolque[]>().notNull().default([]),
+  // Edits mark a vehiculo inactive instead of deleting it, so a
+  // since-retired truck stays intact on historical Carta Porte invoices
+  // that already reference it, while new pickers only offer active ones.
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// The business's own drivers/operadores, org-scoped like productos. Feeds
+// Complemento Carta Porte's FiguraTransporte block (see issue #3). Same
+// deactivate-don't-delete reasoning as vehiculos.
+export const choferes = pgTable("choferes", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orgId: text("org_id").notNull().references(() => organizations.id),
+  nombre: text("nombre").notNull(),
+  rfc: text("rfc").notNull(),
+  numeroLicencia: text("numero_licencia"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const facturas = pgTable("facturas", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
