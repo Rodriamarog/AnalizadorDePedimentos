@@ -40,8 +40,12 @@ export async function POST(req: NextRequest) {
         configVehicular: body.config_vehicular ?? null,
         permisoSct: body.permiso_sct ?? null,
         numeroPermiso: body.numero_permiso ?? null,
-        aseguradora: body.aseguradora ?? null,
-        poliza: body.poliza ?? null,
+        aseguradoraCarga: body.aseguradora_carga ?? null,
+        polizaCarga: body.poliza_carga ?? null,
+        aseguradoraRespCivil: body.aseguradora_resp_civil ?? null,
+        polizaRespCivil: body.poliza_resp_civil ?? null,
+        pesoBrutoVehicular: body.peso_bruto_vehicular ?? null,
+        anioModeloVehiculo: body.anio_modelo_vehiculo ?? null,
         remolques: body.remolques ?? [],
       })
       .returning();

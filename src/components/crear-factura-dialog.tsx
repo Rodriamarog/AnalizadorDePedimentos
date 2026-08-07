@@ -17,6 +17,7 @@ import {
   type CartaPorteFormState,
   type ChoferLite,
   type VehiculoLite,
+  type DireccionLite,
 } from "@/components/carta-porte-fields";
 import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
 import { umcToUnitKey } from "@/lib/umc";
@@ -377,6 +378,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
   const [cartaPorte, setCartaPorte] = useState<CartaPorteFormState>(defaultCartaPorteState());
   const [vehiculosList, setVehiculosList] = useState<VehiculoLite[]>([]);
   const [choferesList, setChoferesList] = useState<ChoferLite[]>([]);
+  const [direccionesList, setDireccionesList] = useState<DireccionLite[]>([]);
   const [saving, setSaving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [previewing, setPreviewing] = useState(false);
@@ -405,6 +407,9 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
     fetch("/api/choferes?active=true")
       .then((res) => (res.ok ? res.json() : []))
       .then(setChoferesList);
+    fetch("/api/direcciones?active=true")
+      .then((res) => (res.ok ? res.json() : []))
+      .then(setDireccionesList);
 
     if (draft) {
       setUse(draft.use ?? "G03");
@@ -549,17 +554,25 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
   // the regular items table.
   useEffect(() => {
     if (!isCartaPorte || !pedimentoLink) return;
-    fetch(`/api/pedimentos/${pedimentoLink.id}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: PedimentoForCartaPorte | null) => {
-        if (!data) return;
-        const { mercancias, paisOrigenDestino } = mapPedimentoToMercancias(data);
-        setCartaPorte((prev) => ({
-          ...prev,
-          mercancias: mercancias.map(mercanciaRowFromPrefill),
-          paisOrigenDestino: paisOrigenDestino ?? prev.paisOrigenDestino,
-        }));
-      });
+    Promise.all([
+      fetch(`/api/pedimentos/${pedimentoLink.id}`).then((res) => (res.ok ? res.json() : null)),
+      // BienesTransp uses the same c_ClaveProdServ catalog as a factura's
+      // Concepto.ClaveProdServ, so the existing fracción->claveProdServ
+      // productos registry (mapPedimentoToItems' lookup) doubles as the
+      // fracción->BienesTransp lookup here.
+      fetch("/api/productos").then((res) => (res.ok ? res.json() : [])),
+    ]).then(([data, productos]: [PedimentoForCartaPorte | null, ProductoLookup[]]) => {
+      if (!data) return;
+      const bienesTransp = productos
+        .filter((p) => p.claveProdServ)
+        .map((p) => ({ fraccion: p.fraccion, bienesTransp: p.claveProdServ as string }));
+      const { mercancias, paisOrigenDestino } = mapPedimentoToMercancias(data, bienesTransp);
+      setCartaPorte((prev) => ({
+        ...prev,
+        mercancias: mercancias.map(mercanciaRowFromPrefill),
+        paisOrigenDestino: paisOrigenDestino ?? prev.paisOrigenDestino,
+      }));
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCartaPorte, pedimentoLink?.id]);
 
@@ -763,7 +776,12 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        setError("Vista previa no disponible (puede no estar disponible en sandbox)");
+        const data = await res.json().catch(() => null);
+        setError(
+          data?.error
+            ? `Vista previa no disponible: ${data.error}`
+            : "Vista previa no disponible (puede no estar disponible en sandbox)"
+        );
         return;
       }
       const blob = await res.blob();
@@ -850,7 +868,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{draft ? "Editar borrador" : "Crear factura"}</DialogTitle>
         </DialogHeader>
@@ -1330,8 +1348,10 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
               onChange={setCartaPorte}
               vehiculos={vehiculosList}
               choferes={choferesList}
+              direcciones={direccionesList}
               onVehiculoCreated={(v) => setVehiculosList((prev) => [...prev, v])}
               onChoferCreated={(c) => setChoferesList((prev) => [...prev, c])}
+              onDireccionCreated={(d) => setDireccionesList((prev) => [...prev, d])}
             />
           )}
 

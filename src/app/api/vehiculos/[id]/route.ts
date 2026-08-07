@@ -33,8 +33,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         configVehicular: "config_vehicular" in body ? body.config_vehicular : existing.configVehicular,
         permisoSct: "permiso_sct" in body ? body.permiso_sct : existing.permisoSct,
         numeroPermiso: "numero_permiso" in body ? body.numero_permiso : existing.numeroPermiso,
-        aseguradora: "aseguradora" in body ? body.aseguradora : existing.aseguradora,
-        poliza: "poliza" in body ? body.poliza : existing.poliza,
+        aseguradoraCarga: "aseguradora_carga" in body ? body.aseguradora_carga : existing.aseguradoraCarga,
+        polizaCarga: "poliza_carga" in body ? body.poliza_carga : existing.polizaCarga,
+        aseguradoraRespCivil:
+          "aseguradora_resp_civil" in body ? body.aseguradora_resp_civil : existing.aseguradoraRespCivil,
+        polizaRespCivil: "poliza_resp_civil" in body ? body.poliza_resp_civil : existing.polizaRespCivil,
+        pesoBrutoVehicular:
+          "peso_bruto_vehicular" in body ? body.peso_bruto_vehicular : existing.pesoBrutoVehicular,
+        anioModeloVehiculo:
+          "anio_modelo_vehiculo" in body ? body.anio_modelo_vehiculo : existing.anioModeloVehiculo,
         remolques: body.remolques ?? existing.remolques,
       })
       .where(eq(vehiculos.id, existing.id))

@@ -109,12 +109,47 @@ export const vehiculos = pgTable("vehiculos", {
   configVehicular: text("config_vehicular"),
   permisoSct: text("permiso_sct"),
   numeroPermiso: text("numero_permiso"),
-  aseguradora: text("aseguradora"),
-  poliza: text("poliza"),
+  aseguradoraCarga: text("aseguradora_carga"),
+  polizaCarga: text("poliza_carga"),
+  aseguradoraRespCivil: text("aseguradora_resp_civil"),
+  polizaRespCivil: text("poliza_resp_civil"),
+  // Text, not numeric/integer — mirrors how Carta Porte's Autotransporte
+  // fields are captured elsewhere (e.g. AnioModeloVM is a string in
+  // FacturAPI's schema, see buildCartaPorte.ts) and keeps every registry
+  // field the same "raw string, parsed at submit time" shape.
+  pesoBrutoVehicular: text("peso_bruto_vehicular"),
+  anioModeloVehiculo: text("anio_modelo_vehiculo"),
   remolques: jsonb("remolques").$type<Remolque[]>().notNull().default([]),
   // Edits mark a vehiculo inactive instead of deleting it, so a
   // since-retired truck stays intact on historical Carta Porte invoices
   // that already reference it, while new pickers only offer active ones.
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Frequently-used Origen/Destino addresses, org-scoped like vehiculos. Feeds
+// Complemento Carta Porte's Ubicaciones block. Deliberately excludes
+// FechaHoraSalidaLlegada — that's specific to a single shipment, not the
+// address itself, so it's always typed fresh even when the rest of the
+// ubicación is picked from here. Any saved address can be used as either
+// Origen or Destino — no type/direction tagging.
+export const direcciones = pgTable("direcciones", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orgId: text("org_id").notNull().references(() => organizations.id),
+  // Short human label for the picker list (e.g. "Bodega CDMX") — RFC/nombre
+  // alone aren't memorable enough to scan in a dropdown.
+  etiqueta: text("etiqueta").notNull(),
+  rfc: text("rfc").notNull(),
+  nombre: text("nombre"),
+  calle: text("calle"),
+  numeroExterior: text("numero_exterior"),
+  numeroInterior: text("numero_interior"),
+  colonia: text("colonia"),
+  municipio: text("municipio"),
+  localidad: text("localidad"),
+  estado: text("estado"),
+  pais: text("pais"),
+  codigoPostal: text("codigo_postal"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

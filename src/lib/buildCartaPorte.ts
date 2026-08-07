@@ -37,7 +37,9 @@ export interface CartaPorteIdentificacionVehicular {
   ConfigVehicular?: string;
   PesoBrutoVehicular?: number;
   PlacaVM?: string;
-  AnioModeloVM?: number;
+  // FacturAPI's schema types AnioModeloVM as a string (see
+  // docs/facturapi/api-es.yaml), unlike every other numeric field here.
+  AnioModeloVM?: string;
 }
 
 export interface CartaPorteSeguros {
@@ -110,12 +112,12 @@ export interface CartaPorteComplement {
   data: CartaPorteDataInput;
 }
 
-// SAT's required IdCCP format: the literal prefix "CCC" followed by 34
-// alphanumeric characters (37 chars total). Two UUIDs give more than enough
-// hex characters to slice from after stripping dashes.
+// SAT's required IdCCP format: the literal prefix "CCC" replacing the first
+// 3 hex characters of a UUID, keeping the UUID's dash grouping — i.e.
+// CCC + 5-4-4-4-12 hex groups, 36 chars total (matches
+// [C]{3}[a-f0-9A-F]{5}-[a-f0-9A-F]{4}-[a-f0-9A-F]{4}-[a-f0-9A-F]{4}-[a-f0-9A-F]{12}).
 export function generateIdCCP(): string {
-  const raw = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "").toUpperCase();
-  return `CCC${raw.slice(0, 34)}`;
+  return `CCC${crypto.randomUUID().slice(3)}`;
 }
 
 export interface UbicacionInput {
@@ -148,7 +150,7 @@ export interface AutotransporteInput {
   configVehicular?: string;
   pesoBrutoVehicular?: number;
   placa?: string;
-  anioModeloVehiculo?: number;
+  anioModeloVehiculo?: string;
   aseguradoraCarga?: string;
   polizaCarga?: string;
   aseguradoraRespCivil?: string;

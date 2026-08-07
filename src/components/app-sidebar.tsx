@@ -9,6 +9,7 @@ import {
   Package,
   Truck,
   IdCard,
+  MapPin,
   Settings,
 } from "lucide-react";
 import {
@@ -31,6 +32,7 @@ const navItems = [
   { title: "Productos", href: "/productos", icon: Package },
   { title: "Vehículos", href: "/vehiculos", icon: Truck },
   { title: "Choferes", href: "/choferes", icon: IdCard },
+  { title: "Direcciones", href: "/direcciones", icon: MapPin },
   { title: "Configuración", href: "/configuracion", icon: Settings },
 ];
 

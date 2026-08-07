@@ -24,8 +24,12 @@ export interface VehiculoLite {
   configVehicular: string | null;
   permisoSct: string | null;
   numeroPermiso: string | null;
-  aseguradora: string | null;
-  poliza: string | null;
+  aseguradoraCarga: string | null;
+  polizaCarga: string | null;
+  aseguradoraRespCivil: string | null;
+  polizaRespCivil: string | null;
+  pesoBrutoVehicular: string | null;
+  anioModeloVehiculo: string | null;
   remolques: { subTipoRemolque: string; placa: string }[];
 }
 
@@ -34,6 +38,24 @@ export interface ChoferLite {
   nombre: string;
   rfc: string;
   numeroLicencia: string | null;
+}
+
+// Any saved dirección can be used as either Origen or Destino — no
+// type/direction tagging.
+export interface DireccionLite {
+  id: string;
+  etiqueta: string;
+  rfc: string;
+  nombre: string | null;
+  calle: string | null;
+  numeroExterior: string | null;
+  numeroInterior: string | null;
+  colonia: string | null;
+  municipio: string | null;
+  localidad: string | null;
+  estado: string | null;
+  pais: string | null;
+  codigoPostal: string | null;
 }
 
 interface UbicacionFields {
@@ -235,9 +257,7 @@ export function cartaPorteStateToInput(state: CartaPorteFormState): CartaPorteCo
       pesoBrutoVehicular: state.autotransporte.pesoBrutoVehicular
         ? Number(state.autotransporte.pesoBrutoVehicular)
         : undefined,
-      anioModeloVehiculo: state.autotransporte.anioModeloVehiculo
-        ? Number(state.autotransporte.anioModeloVehiculo)
-        : undefined,
+      anioModeloVehiculo: state.autotransporte.anioModeloVehiculo.trim() || undefined,
       aseguradoraCarga: state.autotransporte.aseguradoraCarga.trim() || undefined,
       polizaCarga: state.autotransporte.polizaCarga.trim() || undefined,
       aseguradoraRespCivil: state.autotransporte.aseguradoraRespCivil.trim() || undefined,
@@ -284,6 +304,20 @@ export function validateCartaPorteState(state: CartaPorteFormState): string | nu
 
   if (!state.autotransporte.placa.trim()) return "Selecciona o captura un vehículo (placa)";
 
+  const anioModelo = state.autotransporte.anioModeloVehiculo.trim();
+  if (anioModelo) {
+    const anioNum = Number(anioModelo);
+    const maxYear = new Date().getFullYear() + 2;
+    if (!/^\d{4}$/.test(anioModelo) || anioNum < 1900 || anioNum > maxYear) {
+      return `El año modelo del vehículo debe ser un año de 4 dígitos entre 1900 y ${maxYear}`;
+    }
+  }
+
+  const pesoBruto = state.autotransporte.pesoBrutoVehicular.trim();
+  if (pesoBruto && (!Number.isFinite(Number(pesoBruto)) || Number(pesoBruto) <= 0)) {
+    return "El peso bruto vehicular debe ser un número mayor a 0";
+  }
+
   if (state.figuras.length === 0) return "Agrega al menos una figura de transporte (ej. el chofer operador)";
   for (const f of state.figuras) {
     if (!f.tipoFigura || !f.nombre.trim()) {
@@ -307,11 +341,14 @@ interface CartaPorteFieldsProps {
   onChange: (next: CartaPorteFormState) => void;
   vehiculos: VehiculoLite[];
   choferes: ChoferLite[];
+  direcciones: DireccionLite[];
   // Called after a successful inline registry create so the parent can grow
-  // its vehiculos/choferes lists — this component doesn't own that state,
-  // it's fetched once by the invoice dialog and shared with the picker.
+  // its vehiculos/choferes/direcciones lists — this component doesn't own
+  // that state, it's fetched once by the invoice dialog and shared with the
+  // picker.
   onVehiculoCreated?: (v: VehiculoLite) => void;
   onChoferCreated?: (c: ChoferLite) => void;
+  onDireccionCreated?: (d: DireccionLite) => void;
 }
 
 interface InlineVehiculoFormState {
@@ -319,6 +356,12 @@ interface InlineVehiculoFormState {
   configVehicular: string;
   permisoSct: string;
   numeroPermiso: string;
+  aseguradoraCarga: string;
+  polizaCarga: string;
+  aseguradoraRespCivil: string;
+  polizaRespCivil: string;
+  pesoBrutoVehicular: string;
+  anioModeloVehiculo: string;
 }
 
 function InlineVehiculoForm({
@@ -333,6 +376,12 @@ function InlineVehiculoForm({
     configVehicular: "",
     permisoSct: "",
     numeroPermiso: "",
+    aseguradoraCarga: "",
+    polizaCarga: "",
+    aseguradoraRespCivil: "",
+    polizaRespCivil: "",
+    pesoBrutoVehicular: "",
+    anioModeloVehiculo: "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -353,6 +402,12 @@ function InlineVehiculoForm({
           config_vehicular: form.configVehicular || null,
           permiso_sct: form.permisoSct || null,
           numero_permiso: form.numeroPermiso.trim() || null,
+          aseguradora_carga: form.aseguradoraCarga.trim() || null,
+          poliza_carga: form.polizaCarga.trim() || null,
+          aseguradora_resp_civil: form.aseguradoraRespCivil.trim() || null,
+          poliza_resp_civil: form.polizaRespCivil.trim() || null,
+          peso_bruto_vehicular: form.pesoBrutoVehicular.trim() || null,
+          anio_modelo_vehiculo: form.anioModeloVehiculo.trim() || null,
         }),
       });
       const data = await res.json();
@@ -369,29 +424,31 @@ function InlineVehiculoForm({
   return (
     <div className="p-3 flex flex-col gap-2">
       <p className="text-xs font-semibold">Nuevo vehículo</p>
-      <div>
-        <label className="text-[10px] text-muted-foreground">Placa</label>
-        <Input
-          className="h-7 text-xs"
-          value={form.placa}
-          onChange={(e) => setForm((f) => ({ ...f, placa: e.target.value.toUpperCase() }))}
-          autoFocus
-        />
-      </div>
-      <div>
-        <label className="text-[10px] text-muted-foreground">Config. vehicular</label>
-        <select
-          className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
-          value={form.configVehicular}
-          onChange={(e) => setForm((f) => ({ ...f, configVehicular: e.target.value }))}
-        >
-          <option value="">—</option>
-          {CONFIG_VEHICULAR_OPTIONS.map(([code, label]) => (
-            <option key={code} value={code}>
-              {code} – {label}
-            </option>
-          ))}
-        </select>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Placa</label>
+          <Input
+            className="h-7 text-xs"
+            value={form.placa}
+            onChange={(e) => setForm((f) => ({ ...f, placa: e.target.value.toUpperCase() }))}
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">Config. vehicular</label>
+          <select
+            className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
+            value={form.configVehicular}
+            onChange={(e) => setForm((f) => ({ ...f, configVehicular: e.target.value }))}
+          >
+            <option value="">—</option>
+            {CONFIG_VEHICULAR_OPTIONS.map(([code, label]) => (
+              <option key={code} value={code}>
+                {code} – {label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
@@ -415,6 +472,62 @@ function InlineVehiculoForm({
             className="h-7 text-xs"
             value={form.numeroPermiso}
             onChange={(e) => setForm((f) => ({ ...f, numeroPermiso: e.target.value }))}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Peso bruto vehicular</label>
+          <Input
+            className="h-7 text-xs"
+            type="number"
+            value={form.pesoBrutoVehicular}
+            onChange={(e) => setForm((f) => ({ ...f, pesoBrutoVehicular: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">Año modelo</label>
+          <Input
+            className="h-7 text-xs"
+            type="number"
+            value={form.anioModeloVehiculo}
+            onChange={(e) => setForm((f) => ({ ...f, anioModeloVehiculo: e.target.value }))}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Aseguradora (carga)</label>
+          <Input
+            className="h-7 text-xs"
+            value={form.aseguradoraCarga}
+            onChange={(e) => setForm((f) => ({ ...f, aseguradoraCarga: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">Póliza (carga)</label>
+          <Input
+            className="h-7 text-xs"
+            value={form.polizaCarga}
+            onChange={(e) => setForm((f) => ({ ...f, polizaCarga: e.target.value }))}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Aseguradora (resp. civil)</label>
+          <Input
+            className="h-7 text-xs"
+            value={form.aseguradoraRespCivil}
+            onChange={(e) => setForm((f) => ({ ...f, aseguradoraRespCivil: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">Póliza (resp. civil)</label>
+          <Input
+            className="h-7 text-xs"
+            value={form.polizaRespCivil}
+            onChange={(e) => setForm((f) => ({ ...f, polizaRespCivil: e.target.value }))}
           />
         </div>
       </div>
@@ -612,22 +725,275 @@ function OneOffFiguraForm({
   );
 }
 
+interface InlineDireccionFormState {
+  etiqueta: string;
+  rfc: string;
+  nombre: string;
+  calle: string;
+  numeroExterior: string;
+  numeroInterior: string;
+  colonia: string;
+  municipio: string;
+  localidad: string;
+  estado: string;
+  pais: string;
+  codigoPostal: string;
+}
+
+function InlineDireccionForm({
+  onCancel,
+  onCreated,
+}: {
+  onCancel: () => void;
+  onCreated: (d: DireccionLite) => void;
+}) {
+  const [form, setForm] = useState<InlineDireccionFormState>({
+    etiqueta: "",
+    rfc: "",
+    nombre: "",
+    calle: "",
+    numeroExterior: "",
+    numeroInterior: "",
+    colonia: "",
+    municipio: "",
+    localidad: "",
+    estado: "",
+    pais: "MEX",
+    codigoPostal: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function set<K extends keyof InlineDireccionFormState>(key: K, v: InlineDireccionFormState[K]) {
+    setForm((f) => ({ ...f, [key]: v }));
+  }
+
+  async function handleSave() {
+    if (!form.etiqueta.trim() || !form.rfc.trim()) {
+      setError("Etiqueta y RFC son requeridos");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/direcciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          etiqueta: form.etiqueta.trim(),
+          rfc: form.rfc.trim().toUpperCase(),
+          nombre: form.nombre.trim() || null,
+          calle: form.calle.trim() || null,
+          numero_exterior: form.numeroExterior.trim() || null,
+          numero_interior: form.numeroInterior.trim() || null,
+          colonia: form.colonia.trim() || null,
+          municipio: form.municipio.trim() || null,
+          localidad: form.localidad.trim() || null,
+          estado: form.estado.trim() || null,
+          pais: form.pais.trim() || null,
+          codigo_postal: form.codigoPostal.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Error al guardar");
+        return;
+      }
+      onCreated(data as DireccionLite);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="p-3 flex flex-col gap-2">
+      <p className="text-xs font-semibold">Nueva dirección</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Etiqueta</label>
+          <Input
+            className="h-7 text-xs"
+            value={form.etiqueta}
+            onChange={(e) => set("etiqueta", e.target.value)}
+            placeholder="ej. Bodega CDMX"
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">RFC</label>
+          <Input className="h-7 text-xs" value={form.rfc} onChange={(e) => set("rfc", e.target.value.toUpperCase())} />
+        </div>
+      </div>
+      <div>
+        <label className="text-[10px] text-muted-foreground">Nombre</label>
+        <Input className="h-7 text-xs" value={form.nombre} onChange={(e) => set("nombre", e.target.value)} />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Calle</label>
+          <Input className="h-7 text-xs" value={form.calle} onChange={(e) => set("calle", e.target.value)} />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">No. Ext.</label>
+          <Input
+            className="h-7 text-xs"
+            value={form.numeroExterior}
+            onChange={(e) => set("numeroExterior", e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">No. Int.</label>
+          <Input
+            className="h-7 text-xs"
+            value={form.numeroInterior}
+            onChange={(e) => set("numeroInterior", e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Colonia</label>
+          <Input className="h-7 text-xs" value={form.colonia} onChange={(e) => set("colonia", e.target.value)} />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">Municipio</label>
+          <Input className="h-7 text-xs" value={form.municipio} onChange={(e) => set("municipio", e.target.value)} />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">Localidad</label>
+          <Input className="h-7 text-xs" value={form.localidad} onChange={(e) => set("localidad", e.target.value)} />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">Estado</label>
+          <Input
+            className="h-7 text-xs"
+            placeholder="ej. BCN"
+            value={form.estado}
+            onChange={(e) => set("estado", e.target.value.toUpperCase())}
+          />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">País</label>
+          <Input className="h-7 text-xs" value={form.pais} onChange={(e) => set("pais", e.target.value.toUpperCase())} />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">C.P.</label>
+          <Input
+            className="h-7 text-xs"
+            value={form.codigoPostal}
+            onChange={(e) => set("codigoPostal", e.target.value)}
+          />
+        </div>
+      </div>
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      <div className="flex items-center justify-end gap-1.5 mt-1">
+        <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={onCancel} disabled={saving}>
+          Cancelar
+        </Button>
+        <Button size="sm" className="h-6 px-2 text-xs" onClick={handleSave} disabled={saving}>
+          {saving && <Loader2 className="w-3 h-3 animate-spin mr-1" />}
+          Guardar y usar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function UbicacionSection({
   label,
   value,
   onChange,
+  direcciones,
+  onDireccionCreated,
 }: {
   label: string;
   value: UbicacionFields;
   onChange: (next: UbicacionFields) => void;
+  direcciones: DireccionLite[];
+  onDireccionCreated?: (d: DireccionLite) => void;
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+
   function set<K extends keyof UbicacionFields>(key: K, v: UbicacionFields[K]) {
     onChange({ ...value, [key]: v });
   }
 
+  function selectDireccion(d: DireccionLite) {
+    onChange({
+      ...value,
+      rfc: d.rfc,
+      nombre: d.nombre ?? value.nombre,
+      calle: d.calle ?? value.calle,
+      numeroExterior: d.numeroExterior ?? value.numeroExterior,
+      numeroInterior: d.numeroInterior ?? value.numeroInterior,
+      colonia: d.colonia ?? value.colonia,
+      municipio: d.municipio ?? value.municipio,
+      localidad: d.localidad ?? value.localidad,
+      estado: d.estado ?? value.estado,
+      pais: d.pais ?? value.pais,
+      codigoPostal: d.codigoPostal ?? value.codigoPostal,
+    });
+    setPickerOpen(false);
+  }
+
+  function handleDireccionCreated(d: DireccionLite) {
+    onDireccionCreated?.(d);
+    selectDireccion(d);
+    setAdding(false);
+  }
+
   return (
     <div className="rounded-md border border-border p-3">
-      <p className="text-xs font-semibold mb-2">{label}</p>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold">{label}</p>
+        <Popover
+          open={pickerOpen}
+          onOpenChange={(open) => {
+            setPickerOpen(open);
+            if (!open) setAdding(false);
+          }}
+        >
+          <PopoverTrigger className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+            Usar dirección guardada
+            <ChevronsUpDown className="w-3 h-3" />
+          </PopoverTrigger>
+          <PopoverContent className={adding ? "w-[420px] p-0" : "w-72 p-0"} align="end">
+            {adding ? (
+              <InlineDireccionForm onCancel={() => setAdding(false)} onCreated={handleDireccionCreated} />
+            ) : (
+              <Command>
+                <CommandInput placeholder="Buscar dirección…" />
+                <CommandList>
+                  <CommandEmpty>Sin direcciones guardadas.</CommandEmpty>
+                  <CommandGroup>
+                    {direcciones.map((d) => (
+                      <CommandItem key={d.id} value={`${d.etiqueta} ${d.rfc}`} onSelect={() => selectDireccion(d)}>
+                        <div>
+                          <div className="text-xs">{d.etiqueta}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono">{d.rfc}</div>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+                <div className="border-t border-border p-1">
+                  <button
+                    type="button"
+                    className="w-full flex items-center gap-1.5 rounded px-2 py-1.5 text-xs hover:bg-muted"
+                    onClick={() => setAdding(true)}
+                  >
+                    <Plus className="w-3 h-3" />
+                    Nueva dirección
+                  </button>
+                </div>
+              </Command>
+            )}
+          </PopoverContent>
+        </Popover>
+      </div>
       <div className="grid grid-cols-2 gap-2 mb-2">
         <div>
           <label className="text-[10px] text-muted-foreground">RFC</label>
@@ -719,8 +1085,10 @@ export function CartaPorteFields({
   onChange,
   vehiculos,
   choferes,
+  direcciones,
   onVehiculoCreated,
   onChoferCreated,
+  onDireccionCreated,
 }: CartaPorteFieldsProps) {
   const [vehiculoPickerOpen, setVehiculoPickerOpen] = useState(false);
   const [choferPickerOpen, setChoferPickerOpen] = useState(false);
@@ -749,8 +1117,12 @@ export function CartaPorteFields({
         permisoSct: v.permisoSct ?? value.autotransporte.permisoSct,
         numeroPermisoSct: v.numeroPermiso ?? value.autotransporte.numeroPermisoSct,
         placa: v.placa,
-        aseguradoraCarga: v.aseguradora ?? value.autotransporte.aseguradoraCarga,
-        polizaCarga: v.poliza ?? value.autotransporte.polizaCarga,
+        aseguradoraCarga: v.aseguradoraCarga ?? value.autotransporte.aseguradoraCarga,
+        polizaCarga: v.polizaCarga ?? value.autotransporte.polizaCarga,
+        aseguradoraRespCivil: v.aseguradoraRespCivil ?? value.autotransporte.aseguradoraRespCivil,
+        polizaRespCivil: v.polizaRespCivil ?? value.autotransporte.polizaRespCivil,
+        pesoBrutoVehicular: v.pesoBrutoVehicular ?? value.autotransporte.pesoBrutoVehicular,
+        anioModeloVehiculo: v.anioModeloVehiculo ?? value.autotransporte.anioModeloVehiculo,
         remolques: v.remolques,
       },
     });
@@ -826,11 +1198,15 @@ export function CartaPorteFields({
           label="Origen"
           value={value.ubicacionOrigen}
           onChange={(u) => onChange({ ...value, ubicacionOrigen: u })}
+          direcciones={direcciones}
+          onDireccionCreated={onDireccionCreated}
         />
         <UbicacionSection
           label="Destino"
           value={value.ubicacionDestino}
           onChange={(u) => onChange({ ...value, ubicacionDestino: u })}
+          direcciones={direcciones}
+          onDireccionCreated={onDireccionCreated}
         />
       </div>
 
@@ -1070,7 +1446,7 @@ export function CartaPorteFields({
             </span>
             <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           </PopoverTrigger>
-          <PopoverContent className="w-80 p-0" align="start">
+          <PopoverContent className={addingVehiculo ? "w-[440px] p-0" : "w-80 p-0"} align="start">
             {addingVehiculo ? (
               <InlineVehiculoForm onCancel={() => setAddingVehiculo(false)} onCreated={handleVehiculoCreated} />
             ) : (

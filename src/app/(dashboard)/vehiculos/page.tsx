@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { GridSearchInput } from "@/components/grid-search-input";
 import { confirmDelete } from "@/lib/alerts";
 import type { Remolque } from "@/lib/db/schema";
+import { CONFIG_VEHICULAR_OPTIONS, PERMISO_SCT_OPTIONS } from "@/lib/cartaPorteOptions";
 
 interface Vehiculo {
   id: string;
@@ -18,8 +19,12 @@ interface Vehiculo {
   configVehicular: string | null;
   permisoSct: string | null;
   numeroPermiso: string | null;
-  aseguradora: string | null;
-  poliza: string | null;
+  aseguradoraCarga: string | null;
+  polizaCarga: string | null;
+  aseguradoraRespCivil: string | null;
+  polizaRespCivil: string | null;
+  pesoBrutoVehicular: string | null;
+  anioModeloVehiculo: string | null;
   remolques: Remolque[];
   active: boolean;
 }
@@ -29,8 +34,12 @@ interface FormState {
   configVehicular: string;
   permisoSct: string;
   numeroPermiso: string;
-  aseguradora: string;
-  poliza: string;
+  aseguradoraCarga: string;
+  polizaCarga: string;
+  aseguradoraRespCivil: string;
+  polizaRespCivil: string;
+  pesoBrutoVehicular: string;
+  anioModeloVehiculo: string;
   remolques: Remolque[];
 }
 
@@ -39,8 +48,12 @@ const emptyForm: FormState = {
   configVehicular: "",
   permisoSct: "",
   numeroPermiso: "",
-  aseguradora: "",
-  poliza: "",
+  aseguradoraCarga: "",
+  polizaCarga: "",
+  aseguradoraRespCivil: "",
+  polizaRespCivil: "",
+  pesoBrutoVehicular: "",
+  anioModeloVehiculo: "",
   remolques: [],
 };
 
@@ -90,8 +103,12 @@ export default function VehiculosPage() {
       configVehicular: v.configVehicular ?? "",
       permisoSct: v.permisoSct ?? "",
       numeroPermiso: v.numeroPermiso ?? "",
-      aseguradora: v.aseguradora ?? "",
-      poliza: v.poliza ?? "",
+      aseguradoraCarga: v.aseguradoraCarga ?? "",
+      polizaCarga: v.polizaCarga ?? "",
+      aseguradoraRespCivil: v.aseguradoraRespCivil ?? "",
+      polizaRespCivil: v.polizaRespCivil ?? "",
+      pesoBrutoVehicular: v.pesoBrutoVehicular ?? "",
+      anioModeloVehiculo: v.anioModeloVehiculo ?? "",
       remolques: v.remolques,
     });
     setError(null);
@@ -132,8 +149,12 @@ export default function VehiculosPage() {
           config_vehicular: form.configVehicular || null,
           permiso_sct: form.permisoSct || null,
           numero_permiso: form.numeroPermiso || null,
-          aseguradora: form.aseguradora || null,
-          poliza: form.poliza || null,
+          aseguradora_carga: form.aseguradoraCarga || null,
+          poliza_carga: form.polizaCarga || null,
+          aseguradora_resp_civil: form.aseguradoraRespCivil || null,
+          poliza_resp_civil: form.polizaRespCivil || null,
+          peso_bruto_vehicular: form.pesoBrutoVehicular || null,
+          anio_modelo_vehiculo: form.anioModeloVehiculo || null,
           remolques: form.remolques.filter((r) => r.subTipoRemolque || r.placa),
         }),
       });
@@ -271,24 +292,36 @@ export default function VehiculosPage() {
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Config. vehicular</label>
-                <Input
-                  className="mt-1"
+                <select
+                  className="mt-1 w-full h-9 rounded-md border border-input px-3 text-sm bg-transparent"
                   value={form.configVehicular}
                   onChange={(e) => setForm((f) => ({ ...f, configVehicular: e.target.value }))}
-                  placeholder="Clave SAT"
-                />
+                >
+                  <option value="">—</option>
+                  {CONFIG_VEHICULAR_OPTIONS.map(([code, label]) => (
+                    <option key={code} value={code}>
+                      {code} – {label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Permiso SCT</label>
-                <Input
-                  className="mt-1"
+                <select
+                  className="mt-1 w-full h-9 rounded-md border border-input px-3 text-sm bg-transparent"
                   value={form.permisoSct}
                   onChange={(e) => setForm((f) => ({ ...f, permisoSct: e.target.value }))}
-                  placeholder="Clave SAT"
-                />
+                >
+                  <option value="">—</option>
+                  {PERMISO_SCT_OPTIONS.map(([code, label]) => (
+                    <option key={code} value={code}>
+                      {code} – {label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Número de permiso</label>
@@ -302,19 +335,59 @@ export default function VehiculosPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Aseguradora</label>
+                <label className="text-xs font-medium text-muted-foreground">Peso bruto vehicular</label>
                 <Input
                   className="mt-1"
-                  value={form.aseguradora}
-                  onChange={(e) => setForm((f) => ({ ...f, aseguradora: e.target.value }))}
+                  type="number"
+                  value={form.pesoBrutoVehicular}
+                  onChange={(e) => setForm((f) => ({ ...f, pesoBrutoVehicular: e.target.value }))}
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Póliza</label>
+                <label className="text-xs font-medium text-muted-foreground">Año modelo</label>
                 <Input
                   className="mt-1"
-                  value={form.poliza}
-                  onChange={(e) => setForm((f) => ({ ...f, poliza: e.target.value }))}
+                  type="number"
+                  value={form.anioModeloVehiculo}
+                  onChange={(e) => setForm((f) => ({ ...f, anioModeloVehiculo: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Aseguradora (carga)</label>
+                <Input
+                  className="mt-1"
+                  value={form.aseguradoraCarga}
+                  onChange={(e) => setForm((f) => ({ ...f, aseguradoraCarga: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Póliza (carga)</label>
+                <Input
+                  className="mt-1"
+                  value={form.polizaCarga}
+                  onChange={(e) => setForm((f) => ({ ...f, polizaCarga: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Aseguradora (resp. civil)</label>
+                <Input
+                  className="mt-1"
+                  value={form.aseguradoraRespCivil}
+                  onChange={(e) => setForm((f) => ({ ...f, aseguradoraRespCivil: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Póliza (resp. civil)</label>
+                <Input
+                  className="mt-1"
+                  value={form.polizaRespCivil}
+                  onChange={(e) => setForm((f) => ({ ...f, polizaRespCivil: e.target.value }))}
                 />
               </div>
             </div>
