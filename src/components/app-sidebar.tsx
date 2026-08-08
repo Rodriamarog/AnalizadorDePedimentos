@@ -8,8 +8,6 @@ import {
   Receipt,
   Package,
   Truck,
-  IdCard,
-  MapPin,
   Settings,
 } from "lucide-react";
 import {
@@ -30,9 +28,7 @@ const navItems = [
   { title: "Clientes", href: "/clientes", icon: Users },
   { title: "Facturas", href: "/facturas", icon: Receipt },
   { title: "Productos", href: "/productos", icon: Package },
-  { title: "Vehículos", href: "/vehiculos", icon: Truck },
-  { title: "Choferes", href: "/choferes", icon: IdCard },
-  { title: "Direcciones", href: "/direcciones", icon: MapPin },
+  { title: "Transportistas", href: "/transportistas/vehiculos", match: "/transportistas", icon: Truck },
   { title: "Configuración", href: "/configuracion", icon: Settings },
 ];
 
@@ -65,10 +61,11 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
               {navItems.map((item) => {
+                const matchPrefix = item.match ?? item.href;
                 const isActive =
                   item.href === "/"
                     ? pathname === "/"
-                    : pathname.startsWith(item.href);
+                    : pathname.startsWith(matchPrefix);
                 return (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton

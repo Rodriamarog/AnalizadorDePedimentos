@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { IdCard, Plus, Loader2, Check, X } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { GridSearchInput } from "@/components/grid-search-input";
 import { confirmDelete } from "@/lib/alerts";
+import { useRegistryList } from "@/hooks/use-registry-list";
 
 interface Chofer {
   id: string;
@@ -28,38 +29,17 @@ const emptyForm: FormState = { nombre: "", rfc: "", numeroLicencia: "" };
 const NEW_ROW_ID = "__new__";
 
 export default function ChoferesPage() {
-  const [rows, setRows] = useState<Chofer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { rows, filteredRows, loading, q, setQ, load, deactivate, deactivateMany } = useRegistryList<Chofer>({
+    endpoint: "/api/choferes",
+    searchFields: (r) => [r.nombre, r.rfc, r.numeroLicencia],
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deletingSelected, setDeletingSelected] = useState(false);
-  const [q, setQ] = useState("");
   const selectAllRef = useRef<HTMLInputElement>(null);
-
-  const filteredRows = rows.filter((r) => {
-    const query = q.trim().toLowerCase();
-    if (!query) return true;
-    return (
-      r.nombre.toLowerCase().includes(query) ||
-      r.rfc.toLowerCase().includes(query) ||
-      (r.numeroLicencia ?? "").toLowerCase().includes(query)
-    );
-  });
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch("/api/choferes");
-    if (res.ok) setRows(await res.json());
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
 
   useEffect(() => {
     if (!selectAllRef.current) return;
@@ -91,9 +71,8 @@ export default function ChoferesPage() {
     if (!confirmed) return;
     setDeletingSelected(true);
     try {
-      await Promise.all([...selected].map((id) => fetch(`/api/choferes/${id}`, { method: "DELETE" })));
+      await deactivateMany([...selected]);
       setSelected(new Set());
-      await load();
     } finally {
       setDeletingSelected(false);
     }
@@ -155,8 +134,7 @@ export default function ChoferesPage() {
       "Desactivar"
     );
     if (!confirmed) return;
-    const res = await fetch(`/api/choferes/${c.id}`, { method: "DELETE" });
-    if (res.ok) await load();
+    await deactivate(c.id);
   }
 
   const isAdding = editingId === NEW_ROW_ID;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Truck, Plus, Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GridSearchInput } from "@/components/grid-search-input";
 import { confirmDelete } from "@/lib/alerts";
+import { useRegistryList } from "@/hooks/use-registry-list";
 import type { Remolque } from "@/lib/db/schema";
 import { CONFIG_VEHICULAR_OPTIONS, PERMISO_SCT_OPTIONS } from "@/lib/cartaPorteOptions";
 
@@ -58,36 +59,15 @@ const emptyForm: FormState = {
 };
 
 export default function VehiculosPage() {
-  const [rows, setRows] = useState<Vehiculo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { rows, filteredRows, loading, q, setQ, load, deactivate } = useRegistryList<Vehiculo>({
+    endpoint: "/api/vehiculos",
+    searchFields: (r) => [r.placa, r.configVehicular, r.numeroPermiso],
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [q, setQ] = useState("");
-
-  const filteredRows = rows.filter((r) => {
-    const query = q.trim().toLowerCase();
-    if (!query) return true;
-    return (
-      r.placa.toLowerCase().includes(query) ||
-      (r.configVehicular ?? "").toLowerCase().includes(query) ||
-      (r.numeroPermiso ?? "").toLowerCase().includes(query)
-    );
-  });
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch("/api/vehiculos");
-    if (res.ok) setRows(await res.json());
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
 
   function startAdd() {
     setEditingId(null);
@@ -177,8 +157,7 @@ export default function VehiculosPage() {
       "Desactivar"
     );
     if (!confirmed) return;
-    const res = await fetch(`/api/vehiculos/${v.id}`, { method: "DELETE" });
-    if (res.ok) await load();
+    await deactivate(v.id);
   }
 
   return (

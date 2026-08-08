@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { MapPin, Plus, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GridSearchInput } from "@/components/grid-search-input";
 import { confirmDelete } from "@/lib/alerts";
+import { useRegistryList } from "@/hooks/use-registry-list";
 
 interface Direccion {
   id: string;
@@ -59,36 +60,15 @@ const emptyForm: FormState = {
 };
 
 export default function DireccionesPage() {
-  const [rows, setRows] = useState<Direccion[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { rows, filteredRows, loading, q, setQ, load, deactivate } = useRegistryList<Direccion>({
+    endpoint: "/api/direcciones",
+    searchFields: (r) => [r.etiqueta, r.rfc, r.municipio],
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [q, setQ] = useState("");
-
-  const filteredRows = rows.filter((r) => {
-    const query = q.trim().toLowerCase();
-    if (!query) return true;
-    return (
-      r.etiqueta.toLowerCase().includes(query) ||
-      r.rfc.toLowerCase().includes(query) ||
-      (r.municipio ?? "").toLowerCase().includes(query)
-    );
-  });
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch("/api/direcciones");
-    if (res.ok) setRows(await res.json());
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
 
   function startAdd() {
     setEditingId(null);
@@ -169,8 +149,7 @@ export default function DireccionesPage() {
       "Desactivar"
     );
     if (!confirmed) return;
-    const res = await fetch(`/api/direcciones/${d.id}`, { method: "DELETE" });
-    if (res.ok) await load();
+    await deactivate(d.id);
   }
 
   return (
