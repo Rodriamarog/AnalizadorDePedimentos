@@ -1,5 +1,6 @@
 import type { ParsedPedimento, Partida } from "@/lib/parser";
 import { regimenCodeFromText } from "@/lib/regimen";
+import { umcToUnitKey } from "@/lib/umc";
 
 // Parses the pipe-delimited "archivo M" export (record types 500-999) that
 // some customs-broker software (e.g. Vantec DARWIN) produces alongside the
@@ -43,6 +44,7 @@ interface PartidaAccum {
   nomClave: string | null;
   marcaFromIdentificador: string | null;
   marcaFromRde: string | null;
+  pesoKg: number | null;
 }
 
 export function parseArchivoM(text: string): ParsedPedimento {
@@ -61,6 +63,7 @@ export function parseArchivoM(text: string): ParsedPedimento {
   let dta: number | null = null;
   let igi: number | null = null;
   let prv: number | null = null;
+  let pesoBruto: number | null = null;
 
   const observacionesBySeq = new Map<number, string>();
 
@@ -85,6 +88,11 @@ export function parseArchivoM(text: string): ParsedPedimento {
         // 4 letters + 6-digit date + 3-char homoclave).
         rfc = f[8] || null;
         tipoCambio = parseFloat(f[10]) || 0;
+        // f[16] is the shipment's total PESO BRUTO — same value the printed
+        // pedimento's header prints, cross-checked against a sample export
+        // (matched the sum of all its partidas' derived pesoKg exactly).
+        const pesoBrutoVal = Number(f[16]);
+        if (!Number.isNaN(pesoBrutoVal)) pesoBruto = pesoBrutoVal;
         importador = (f[21] ?? "").trim();
         const domicilioParts = [f[22], f[23], f[24], f[25], f[26], f[27], f[28]]
           .map((p) => (p ?? "").trim())
@@ -130,6 +138,14 @@ export function parseArchivoM(text: string): ParsedPedimento {
         const cantidad = Number(f[10]);
         const umc = f[11] || null;
         const paisOrigen = f[20] || null;
+        // f[12]/f[13] are the UMT (unidad de tarifa) cantidad/clave — the
+        // same columns parser.ts reads off the printed pedimento's partida
+        // header row, just reordered (cantidad before clave here). Only
+        // trust this as a weight when the UMT clave maps to kilograms.
+        const cantidadUmt = Number(f[12]);
+        const umtClave = f[13] || null;
+        const pesoKg =
+          umtClave && umcToUnitKey(umtClave) === "KGM" && !Number.isNaN(cantidadUmt) ? cantidadUmt : null;
         if (Number.isNaN(valAduana) || Number.isNaN(valComercial) || Number.isNaN(cantidad)) break;
         partidaOrder.push(sec);
         partidaBySec.set(sec, {
@@ -145,6 +161,7 @@ export function parseArchivoM(text: string): ParsedPedimento {
           nomClave: null,
           marcaFromIdentificador: null,
           marcaFromRde: null,
+          pesoKg,
         });
         break;
       }
@@ -197,6 +214,7 @@ export function parseArchivoM(text: string): ParsedPedimento {
       precioUnitario,
       tieneIncrementables: p.valAduana !== p.valComercial,
       umc: p.umc,
+      pesoKg: p.pesoKg,
     };
   });
 
@@ -224,6 +242,7 @@ export function parseArchivoM(text: string): ParsedPedimento {
     dta,
     igi,
     prv,
+    pesoBruto,
     rfc,
     domicilioFiscal,
     regimen,

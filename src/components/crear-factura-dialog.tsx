@@ -566,11 +566,12 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
       const bienesTransp = productos
         .filter((p) => p.claveProdServ)
         .map((p) => ({ fraccion: p.fraccion, bienesTransp: p.claveProdServ as string }));
-      const { mercancias, paisOrigenDestino } = mapPedimentoToMercancias(data, bienesTransp);
+      const { mercancias, paisOrigenDestino, pesoBrutoTotal } = mapPedimentoToMercancias(data, bienesTransp);
       setCartaPorte((prev) => ({
         ...prev,
         mercancias: mercancias.map(mercanciaRowFromPrefill),
         paisOrigenDestino: paisOrigenDestino ?? prev.paisOrigenDestino,
+        pesoBrutoTotal: pesoBrutoTotal !== undefined ? String(pesoBrutoTotal) : prev.pesoBrutoTotal,
       }));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
             dta: existing.dta ?? result.dta,
             igi: existing.igi ?? result.igi,
             prv: existing.prv ?? result.prv,
+            pesoBruto: existing.pesoBruto ?? result.pesoBruto,
             partidas: existingPartidas,
           });
         }
@@ -110,6 +111,7 @@ export async function POST(req: NextRequest) {
             fechaEntrada: result.fechaEntrada,
             fechaPago: result.fechaPago,
             claveAduana: result.claveAduana,
+            pesoBruto: result.pesoBruto,
           })
           .returning();
 
@@ -131,6 +133,7 @@ export async function POST(req: NextRequest) {
               precioUnitario: p.precioUnitario,
               tieneIncrementables: p.tieneIncrementables,
               umc: p.umc,
+              pesoKg: p.pesoKg,
             }))
           );
 

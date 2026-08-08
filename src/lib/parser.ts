@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { umcToUnitKey } from "./umc";
 
 const execFileAsync = promisify(execFile);
 
@@ -17,6 +18,13 @@ export interface Partida {
   precioUnitario: number;
   tieneIncrementables: boolean;
   umc: string | null;
+  // Weight in kg for this partida, read from the pedimento's "unidad de
+  // tarifa" (UMT) columns — printed right before the P.V/C/P.O/D country
+  // codes on the partida header row. UMT shares the same unit catalog as UMC
+  // (see umc.ts), so this is only a real weight when the UMT clave maps to
+  // kilograms; otherwise the tariff unit is something else (piece, liter,
+  // etc.) and there's no per-partida weight to derive.
+  pesoKg: number | null;
 }
 
 export interface ParsedPedimento {
@@ -34,6 +42,10 @@ export interface ParsedPedimento {
   fechaEntrada: string | null;
   fechaPago: string | null;
   claveAduana: string | null;
+  // Total shipment weight in kg, from the pedimento header's "PESO BRUTO"
+  // field — a single aggregate for the whole pedimento, unlike Partida.pesoKg
+  // which is derived per partida from the UMT columns.
+  pesoBruto: number | null;
   partidas: Partida[];
 }
 
@@ -123,6 +135,7 @@ function extractHeaderInfo(fullText: string): {
   fechaEntrada: string | null;
   fechaPago: string | null;
   claveAduana: string | null;
+  pesoBruto: number | null;
 } {
   let pedimentoNum = "";
   let importador = "";
@@ -173,6 +186,10 @@ function extractHeaderInfo(fullText: string): {
   m = fullText.match(/ADUANA E\/S:\s*(\d+)/);
   if (m) claveAduana = m[1].trim();
 
+  let pesoBruto: number | null = null;
+  m = fullText.match(/PESO BRUTO:\s*([\d.,]+)/);
+  if (m) pesoBruto = parseFloat(m[1].replace(/,/g, ""));
+
   return {
     pedimentoNum,
     importador,
@@ -182,6 +199,7 @@ function extractHeaderInfo(fullText: string): {
     regimen,
     facturaNumero,
     fechaPedimento,
+    pesoBruto,
     fechaEntrada,
     fechaPago,
     claveAduana,
@@ -195,6 +213,7 @@ interface PartidaHeader {
   cantidad: number;
   umc: string | null;
   paisOrigen: string | null;
+  pesoKg: number | null;
 }
 
 function isPartidaHeader(line: string): PartidaHeader | null {
@@ -215,7 +234,15 @@ function isPartidaHeader(line: string): PartidaHeader | null {
   // Tokens 9/10 are the P.V/C and P.O/D country codes (e.g. "USA CHN"); not
   // every pedimento line has both populated, so guard the index.
   const paisOrigen = tokens.length > 10 ? tokens[10] : null;
-  return { sec, fraccion, subd, cantidad, umc, paisOrigen };
+  // Tokens 7/8 are the UMT (unidad de tarifa) clave and its cantidad, printed
+  // right before the P.V/C/P.O/D columns. Only trust this as a weight when
+  // the UMT clave maps to kilograms — for fracciones tariffed by piece,
+  // liter, etc. this cantidad isn't a weight at all.
+  const umtClave = tokens.length > 7 ? tokens[7] : null;
+  const cantidadUmt = tokens.length > 8 ? Number(tokens[8]) : NaN;
+  const pesoKg =
+    umtClave && umcToUnitKey(umtClave) === "KGM" && !Number.isNaN(cantidadUmt) ? cantidadUmt : null;
+  return { sec, fraccion, subd, cantidad, umc, paisOrigen, pesoKg };
 }
 
 function isValuesLine(line: string): [number, number] | null {
@@ -355,6 +382,7 @@ export async function parsePedimento(pdfPath: string): Promise<ParsedPedimento> 
         precioUnitario,
         tieneIncrementables: valAduana !== valComercial,
         umc: header.umc,
+        pesoKg: header.pesoKg,
       });
     }
   }

@@ -46,6 +46,9 @@ export const pedimentos = pgTable("pedimentos", {
   // facturas linked to this pedimento, alongside the pedimento number.
   fechaPago: date("fecha_pago"),
   claveAduana: text("clave_aduana"),
+  // Total shipment weight in kg, from the header's "PESO BRUTO" — prefills
+  // Carta Porte's PesoBrutoTotal (see mapPedimentoToMercancias).
+  pesoBruto: doublePrecision("peso_bruto"),
 });
 
 export const partidas = pgTable("partidas", {
@@ -65,6 +68,10 @@ export const partidas = pgTable("partidas", {
   // paid on different dates (each with its own real exchange rate). Null
   // means "use the pedimento's tipoCambio" (the common case).
   tipoCambio: doublePrecision("tipo_cambio"),
+  // Weight in kg, derived from the pedimento's UMT (unidad de tarifa)
+  // columns — null when that fracción's tariff unit isn't kilograms. Used to
+  // prefill Carta Porte mercancía PesoEnKg (see buildCartaPorte.ts).
+  pesoKg: doublePrecision("peso_kg"),
   // Fields below are only needed to auto-fill the "Solicitud de Servicios de
   // Inspección" (NOM) docx per partida — not used anywhere else in the app.
   subd: text("subd"),

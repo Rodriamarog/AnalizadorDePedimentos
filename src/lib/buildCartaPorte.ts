@@ -292,10 +292,12 @@ export interface PedimentoPartidaForCartaPorte {
   cantidad: number;
   umc: string | null;
   paisOrigen: string | null;
+  pesoKg: number | null;
 }
 
 export interface PedimentoForCartaPorte {
   partidas: PedimentoPartidaForCartaPorte[];
+  pesoBruto: number | null;
 }
 
 export interface BienesTranspLookup {
@@ -310,6 +312,10 @@ export interface PedimentoMercanciasResult {
   // alpha-3 codes (see paisOrigen.ts), so no further mapping is needed. Only
   // meaningful when the caller is building an international-transport haul.
   paisOrigenDestino?: string;
+  // The pedimento header's total PESO BRUTO, passed through as-is to prefill
+  // PesoBrutoTotal — this is the actual shipment total, more reliable than
+  // summing the (sometimes-null, per-fracción) per-mercancía pesoEnKg.
+  pesoBrutoTotal?: number;
 }
 
 // Pure transformation (no fetch), mirroring mapPedimentoToItems: exercisable
@@ -318,8 +324,9 @@ export interface PedimentoMercanciasResult {
 // fracción -> ClaveProdServ `productos` registry (issue #3's "reusing the
 // existing product lookup where applicable") — callers without a populated
 // lookup get an empty BienesTransp that the user fills in manually. `PesoEnKg`
-// isn't derivable from a pedimento partida at all, so it's left at 0 for the
-// user to fill in, same as any other prefilled-but-editable field.
+// prefills from the partida's UMT-derived weight when the pedimento's tariff
+// unit is kilograms (see Partida.pesoKg); otherwise it's left at 0, same as
+// any other prefilled-but-editable field.
 export function mapPedimentoToMercancias(
   pedimento: PedimentoForCartaPorte,
   bienesTransp: BienesTranspLookup[] = []
@@ -331,10 +338,10 @@ export function mapPedimentoToMercancias(
     descripcion: p.descripcion,
     cantidad: p.cantidad,
     claveUnidad: umcToUnitKey(p.umc),
-    pesoEnKg: 0,
+    pesoEnKg: p.pesoKg ?? 0,
   }));
 
   const paisOrigenDestino = pedimento.partidas.find((p) => p.paisOrigen)?.paisOrigen?.toUpperCase();
 
-  return { mercancias, paisOrigenDestino };
+  return { mercancias, paisOrigenDestino, pesoBrutoTotal: pedimento.pesoBruto ?? undefined };
 }

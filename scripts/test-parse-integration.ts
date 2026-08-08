@@ -37,6 +37,7 @@ async function main() {
         dta: result.dta,
         igi: result.igi,
         prv: result.prv,
+        pesoBruto: result.pesoBruto,
       })
       .returning();
     await tx.insert(partidas).values(
@@ -52,6 +53,7 @@ async function main() {
         precioUnitario: pt.precioUnitario,
         tieneIncrementables: pt.tieneIncrementables,
         umc: pt.umc,
+        pesoKg: pt.pesoKg,
       }))
     );
     return p;
