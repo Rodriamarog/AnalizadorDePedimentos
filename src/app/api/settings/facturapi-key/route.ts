@@ -10,7 +10,12 @@ export async function GET() {
   if (orgId instanceof NextResponse) return orgId;
 
   const [org] = await db.select().from(organizations).where(eq(organizations.id, orgId)).limit(1);
-  return NextResponse.json({ configured: !!org?.facturapiKeyEncrypted });
+  return NextResponse.json({
+    configured: !!org?.facturapiKeyEncrypted,
+    manualFacturapiKey: org?.manualFacturapiKey ?? false,
+    facturapiOrgId: org?.facturapiOrgId ?? null,
+    csdUploadedAt: org?.csdUploadedAt ?? null,
+  });
 }
 
 export async function PUT(req: NextRequest) {

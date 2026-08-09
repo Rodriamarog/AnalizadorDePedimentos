@@ -27,7 +27,12 @@ export function createFacturapiClient(apiKey: string) {
   async function request<T>(
     method: "GET" | "POST" | "PUT" | "DELETE",
     path: string,
-    opts: { json?: unknown; params?: Record<string, string | number | undefined>; raw?: boolean } = {}
+    opts: {
+      json?: unknown;
+      form?: FormData;
+      params?: Record<string, string | number | undefined>;
+      raw?: boolean;
+    } = {}
   ): Promise<T> {
     const url = new URL(path, BASE);
     for (const [k, v] of Object.entries(opts.params ?? {})) {
@@ -49,9 +54,11 @@ export function createFacturapiClient(apiKey: string) {
           method,
           headers: {
             Authorization: `Bearer ${apiKey}`,
+            // No Content-Type for FormData — fetch sets the multipart
+            // boundary itself.
             ...(opts.json !== undefined ? { "Content-Type": "application/json" } : {}),
           },
-          body: opts.json !== undefined ? JSON.stringify(opts.json) : undefined,
+          body: opts.form ?? (opts.json !== undefined ? JSON.stringify(opts.json) : undefined),
           signal: controller.signal,
         });
         if (!res.ok) {
@@ -90,6 +97,7 @@ export function createFacturapiClient(apiKey: string) {
       request<T>("GET", path, { params }),
     post: <T>(path: string, json?: unknown) => request<T>("POST", path, { json }),
     put: <T>(path: string, json?: unknown) => request<T>("PUT", path, { json }),
+    putForm: <T>(path: string, form: FormData) => request<T>("PUT", path, { form }),
     delete: <T>(path: string, params?: Record<string, string | number | undefined>) =>
       request<T>("DELETE", path, { params }),
     raw: (method: "GET" | "POST", path: string, opts: { json?: unknown } = {}) =>

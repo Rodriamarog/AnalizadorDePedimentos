@@ -18,6 +18,15 @@ export const organizations = pgTable("organizations", {
   facturapiKeyEncrypted: text("facturapi_key_encrypted"),
   plan: text("plan").notNull().default("free"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // FacturAPI's own org id — needed to call cert-upload and other org-scoped
+  // management endpoints with the org's own key.
+  facturapiOrgId: text("facturapi_org_id"),
+  // Orgs that manage their own FacturAPI account/key manually (paste-a-key
+  // flow) are exempt from auto-provisioning and never get the CSD upload UI.
+  manualFacturapiKey: boolean("manual_facturapi_key").notNull().default(false),
+  // Status marker only — no expiry tracking; FacturAPI itself rejects
+  // invoicing once a cert lapses. The cert/key/password are never persisted.
+  csdUploadedAt: timestamp("csd_uploaded_at", { withTimezone: true }),
 });
 
 // ── Tenant-scoped tables (RLS-protected, see drizzle/0001_rls.sql) ─────────
