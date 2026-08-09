@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -202,6 +202,8 @@ function CsdUploadCard({
   const [password, setPassword] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const cerInputRef = useRef<HTMLInputElement>(null);
+  const keyInputRef = useRef<HTMLInputElement>(null);
 
   async function handleUpload() {
     setError(null);
@@ -247,24 +249,42 @@ function CsdUploadCard({
           directamente a FacturAPI y no se guardan en esta aplicación.
         </p>
         <div className="flex flex-col gap-2">
-          <label className="text-xs text-muted-foreground">
+          <div className="text-xs text-muted-foreground flex flex-col gap-1">
             Archivo .cer
-            <Input
+            <input
+              ref={cerInputRef}
               type="file"
               accept=".cer"
+              className="hidden"
               onChange={(e) => setCer(e.target.files?.[0] ?? null)}
-              className="mt-1"
             />
-          </label>
-          <label className="text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => cerInputRef.current?.click()}>
+                Seleccionar archivo
+              </Button>
+              <span className="text-xs text-foreground truncate">
+                {cer ? cer.name : "Ningún archivo seleccionado"}
+              </span>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground flex flex-col gap-1">
             Archivo .key
-            <Input
+            <input
+              ref={keyInputRef}
               type="file"
               accept=".key"
+              className="hidden"
               onChange={(e) => setKey(e.target.files?.[0] ?? null)}
-              className="mt-1"
             />
-          </label>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => keyInputRef.current?.click()}>
+                Seleccionar archivo
+              </Button>
+              <span className="text-xs text-foreground truncate">
+                {key ? key.name : "Ningún archivo seleccionado"}
+              </span>
+            </div>
+          </div>
           <label className="text-xs text-muted-foreground">
             Contraseña
             <Input
