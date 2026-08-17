@@ -174,7 +174,8 @@ async function runLoop(
   nItems: number,
   trace: string,
   usage: AutomapUsage,
-  seenKeys: Set<string>
+  seenKeys: Set<string>,
+  idField: "fraccion" | "id" = "fraccion"
 ): Promise<RawItem[] | null> {
   const config: GenerateContentConfig = {
     systemInstruction: system,
@@ -291,7 +292,7 @@ async function runLoop(
           {
             text:
               "Tu respuesta no contiene JSON válido. Necesito exactamente un array JSON con " +
-              `${nItems} objetos, claves: "fraccion", "key", "unit_key", "description", "confidence". ` +
+              `${nItems} objetos, claves: "${idField}", "key", "description", "confidence". ` +
               "Sin texto adicional ni bloques de código. Inténtalo de nuevo.",
           },
         ],
@@ -536,7 +537,8 @@ async function classifyDescripcionBatch(
     toMap.length,
     "descPass1",
     usage,
-    pass1SeenKeys
+    pass1SeenKeys,
+    "id"
   );
   if (!finalJson) {
     throw new Error("Gemini no devolvió un JSON válido con los códigos");
@@ -575,7 +577,8 @@ async function classifyDescripcionBatch(
       nullItems.length,
       "descPass2",
       usage,
-      pass2SeenKeys
+      pass2SeenKeys,
+      "id"
     );
 
     if (rescueJson) {

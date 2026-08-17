@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Loader2, X, Trash2, ChevronsUpDown, TriangleAlert, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -358,6 +358,15 @@ interface CrearFacturaDialogProps {
 export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, draft }: CrearFacturaDialogProps) {
   const { user } = useUser();
   const userEmail = user?.primaryEmailAddress?.emailAddress;
+  // Read via a ref (not a dependency) inside the dialog-open-reset effect
+  // below — that effect intentionally only re-runs on open/pedimento/draft
+  // changes (see its own comment), so listing userEmail there would instead
+  // re-reset the whole form whenever Clerk's user data changes. The ref
+  // still gives that effect the latest known value at the moment it runs.
+  const userEmailRef = useRef<string | undefined>(userEmail);
+  useEffect(() => {
+    userEmailRef.current = userEmail;
+  }, [userEmail]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [use, setUse] = useState("G03");
@@ -483,7 +492,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
       setPedimentoLink(null);
       setPedimentoLinkQuery("");
       setItems(
-        userEmail && HONORARIOS_DEFAULT_ALLOWLIST.includes(userEmail)
+        userEmailRef.current && HONORARIOS_DEFAULT_ALLOWLIST.includes(userEmailRef.current)
           ? [
               honorariosRow("h-aduanal", "GASTOS AGENCIA ADUANAL", "80151605", "aduanal"),
               honorariosRow("h-comercializadora", "HONORARIOS COMERCIALIZADORA", "80151604", "comercializadora"),
@@ -612,7 +621,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
   // untouched. Only used outside the pedimento flow, which has its own
   // automap button on the pedimento detail page instead.
   async function handleAutomap() {
-    const toMap = items.filter((it) => !it.clave.trim());
+    const toMap = items.filter((it) => it.checked && !it.clave.trim());
     if (toMap.length === 0) {
       alertInfo("Autocompletar SAT", "Todos los conceptos ya tienen una clave asignada.");
       return;
