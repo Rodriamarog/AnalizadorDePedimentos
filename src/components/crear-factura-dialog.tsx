@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import { Loader2, X, Trash2, ChevronsUpDown, TriangleAlert, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,6 +101,10 @@ const RELATIONSHIP_CODE_OPTIONS = [
 ] as const;
 
 type RelationshipCode = (typeof RELATIONSHIP_CODE_OPTIONS)[number][0];
+
+// UI convenience only, not an access restriction — every other user can
+// still manually add the same two line items themselves. See #17.
+const HONORARIOS_DEFAULT_ALLOWLIST = ["camaror@gmail.com", "rodriamarog@gmail.com"];
 
 interface RelatedInvoiceCandidate {
   id: string;
@@ -351,6 +356,8 @@ interface CrearFacturaDialogProps {
 }
 
 export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, draft }: CrearFacturaDialogProps) {
+  const { user } = useUser();
+  const userEmail = user?.primaryEmailAddress?.emailAddress;
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [use, setUse] = useState("G03");
@@ -475,10 +482,14 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
       setExchangeRate("");
       setPedimentoLink(null);
       setPedimentoLinkQuery("");
-      setItems([
-        honorariosRow("h-aduanal", "GASTOS AGENCIA ADUANAL", "80151605", "aduanal"),
-        honorariosRow("h-comercializadora", "HONORARIOS COMERCIALIZADORA", "80151604", "comercializadora"),
-      ]);
+      setItems(
+        userEmail && HONORARIOS_DEFAULT_ALLOWLIST.includes(userEmail)
+          ? [
+              honorariosRow("h-aduanal", "GASTOS AGENCIA ADUANAL", "80151605", "aduanal"),
+              honorariosRow("h-comercializadora", "HONORARIOS COMERCIALIZADORA", "80151604", "comercializadora"),
+            ]
+          : []
+      );
       fetch("/api/pedimentos")
         .then((res) => (res.ok ? res.json() : []))
         .then(setPedimentosList);
