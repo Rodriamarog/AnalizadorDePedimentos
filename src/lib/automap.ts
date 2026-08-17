@@ -356,95 +356,124 @@ const SYSTEM_PASS2 =
   "'low' si es el más cercano pero puede no ser correcto. Nunca 'high' en esta ronda.\n" +
   "(6) Solo responde JSON cuando hayas procesado TODOS los productos de esta lista.";
 
-async function classifyBatch(
-  client: GoogleGenAI,
-  toMap: AutomapPartida[],
-  fraccionDescriptions: Map<string, string>,
-  usage: AutomapUsage
-): Promise<AutomapClassification[]> {
-  const userMsg1 =
-    `Clasifica estos ${toMap.length} productos con c_ClaveProdServ SAT para CFDI.\n` +
-    "La fracción arancelaria NO es el código SAT; el capítulo HS es solo contexto de categoría.\n\n" +
-    `Productos:\n${itemsText(toMap, fraccionDescriptions)}\n\n` +
-    "IMPORTANTE: busca cada producto AL MENOS 3 VECES con términos diferentes antes de poner null. " +
-    "Responde ÚNICAMENTE con este JSON (sin markdown):\n" +
-    '[{"fraccion":"...","key":"... o null","description":"... o null","confidence":"high|medium|low"}]';
+// Shared two-pass (classify, then rescue the nulls) classification wiring —
+// item shape, the JSON key the model reports items under, the prompts, and
+// the "Productos:" list formatting all differ per mode (see classifyBatch vs
+// classifyDescripcionBatch), but the search/rescue/hallucination-guard
+// mechanics don't, so that part lives here once.
+interface TwoPassResult {
+  id: string;
+  key: string | null;
+  description: string | null;
+  confidence: "high" | "medium" | "low";
+}
 
-  logTrace("pass1", `classifying ${toMap.length} item(s):`, toMap.map((p) => p.fraccion));
-  const pass1SeenKeys = new Set<string>();
-  const finalJson = await runLoop(
-    client,
-    [{ role: "user", parts: [{ text: userMsg1 }] }],
-    SYSTEM_PASS1,
-    toMap.length,
-    "pass1",
-    usage,
-    pass1SeenKeys
-  );
-  if (!finalJson) {
-    throw new Error("Gemini no devolvió un JSON válido con los códigos");
-  }
+interface TwoPassOptions<T> {
+  idField: "fraccion" | "id";
+  getId: (item: T) => string;
+  itemsText: (items: T[]) => string;
+  systemPass1: string;
+  systemPass2: string;
+  // The paragraph introducing the batch, up to and including the trailing
+  // blank line before "Productos:\n..." — the one part of userMsg1 that
+  // genuinely differs in wording (not just the idField) between modes.
+  userMsg1Intro: (n: number) => string;
+  tracePrefix: string;
+}
 
-  // The model is instructed to always search before answering, but nothing
-  // stops it from ignoring that and answering from memory instead — which
-  // has produced confidently-"high" keys that don't match what they
-  // actually are in the catalog. Any key never seen in an actual search
-  // result this conversation is unverified and gets treated as unclassified
-  // so it goes through the (search-enforcing) rescue pass instead.
-  for (const item of finalJson) {
-    if (item.key && item.key.toLowerCase() !== "null" && !pass1SeenKeys.has(item.key.trim())) {
+function rawId(item: RawItem, idField: "fraccion" | "id"): string | undefined {
+  return idField === "fraccion" ? item.fraccion : item.id;
+}
+
+// The model is instructed to always search before answering, but nothing
+// stops it from ignoring that and answering from memory instead — which has
+// produced confidently-"high" keys that don't match what they actually are
+// in the catalog. Any key never seen in an actual search result this
+// conversation is unverified and gets treated as unclassified so it goes
+// through the (search-enforcing) rescue pass instead.
+function discardUnverifiedKeys(items: RawItem[], seenKeys: Set<string>, idField: "fraccion" | "id", trace: string) {
+  for (const item of items) {
+    if (item.key && item.key.toLowerCase() !== "null" && !seenKeys.has(item.key.trim())) {
       logTrace(
-        "pass1",
-        `WARNING: discarding unverified key="${item.key}" for fraccion=${item.fraccion} ` +
+        trace,
+        `WARNING: discarding unverified key="${item.key}" for ${idField}=${rawId(item, idField)} ` +
           "— model never saw this key in a search result, likely hallucinated"
       );
       item.key = null;
     }
   }
+}
 
-  const nullFracciones = new Set(
-    finalJson.filter((item) => !item.key || item.key.toLowerCase() === "null").map((item) => item.fraccion!)
+async function classifyTwoPass<T>(
+  client: GoogleGenAI,
+  toMap: T[],
+  usage: AutomapUsage,
+  opts: TwoPassOptions<T>
+): Promise<TwoPassResult[]> {
+  const { idField, getId, itemsText: buildItemsText, systemPass1, systemPass2, userMsg1Intro, tracePrefix } = opts;
+  const trace1 = `${tracePrefix}1`;
+  const trace2 = `${tracePrefix}2`;
+
+  const userMsg1 =
+    userMsg1Intro(toMap.length) +
+    `Productos:\n${buildItemsText(toMap)}\n\n` +
+    "IMPORTANTE: busca cada producto AL MENOS 3 VECES con términos diferentes antes de poner null. " +
+    "Responde ÚNICAMENTE con este JSON (sin markdown):\n" +
+    `[{"${idField}":"...","key":"... o null","description":"... o null","confidence":"high|medium|low"}]`;
+
+  logTrace(trace1, `classifying ${toMap.length} item(s):`, toMap.map(getId));
+  const pass1SeenKeys = new Set<string>();
+  const finalJson = await runLoop(
+    client,
+    [{ role: "user", parts: [{ text: userMsg1 }] }],
+    systemPass1,
+    toMap.length,
+    trace1,
+    usage,
+    pass1SeenKeys,
+    idField
   );
-  if (nullFracciones.size > 0) {
-    const nullPartidas = toMap.filter((p) => nullFracciones.has(p.fraccion));
+  if (!finalJson) {
+    throw new Error("Gemini no devolvió un JSON válido con los códigos");
+  }
+
+  discardUnverifiedKeys(finalJson, pass1SeenKeys, idField, trace1);
+
+  const nullIds = new Set(
+    finalJson.filter((item) => !item.key || item.key.toLowerCase() === "null").map((item) => rawId(item, idField)!)
+  );
+  if (nullIds.size > 0) {
+    const nullItems = toMap.filter((p) => nullIds.has(getId(p)));
 
     const userMsg2 =
-      `Estos ${nullPartidas.length} productos quedaron sin clasificar. Intenta más fuerte:\n\n` +
-      `Productos:\n${itemsText(nullPartidas, fraccionDescriptions)}\n\n` +
+      `Estos ${nullItems.length} productos quedaron sin clasificar. Intenta más fuerte:\n\n` +
+      `Productos:\n${buildItemsText(nullItems)}\n\n` +
       "Busca cada uno AL MENOS 4 VECES. Elige el código más cercano si no encuentras el exacto.\n" +
       "Responde ÚNICAMENTE con este JSON (sin markdown):\n" +
-      '[{"fraccion":"...","key":"... o null","description":"... o null","confidence":"medium|low"}]';
+      `[{"${idField}":"...","key":"... o null","description":"... o null","confidence":"medium|low"}]`;
 
-    logTrace("pass2", `rescuing ${nullPartidas.length} item(s):`, nullPartidas.map((p) => p.fraccion));
+    logTrace(trace2, `rescuing ${nullItems.length} item(s):`, nullItems.map(getId));
     const pass2SeenKeys = new Set<string>();
     const rescueJson = await runLoop(
       client,
       [{ role: "user", parts: [{ text: userMsg2 }] }],
-      SYSTEM_PASS2,
-      nullPartidas.length,
-      "pass2",
+      systemPass2,
+      nullItems.length,
+      trace2,
       usage,
-      pass2SeenKeys
+      pass2SeenKeys,
+      idField
     );
 
     if (rescueJson) {
       // Last chance — if the rescue pass also hallucinates a key it never
       // searched for, there's no further pass to fall back on, so discard
-      // it outright (better to leave the partida unclassified than silently
+      // it outright (better to leave the item unclassified than silently
       // save a wrong code).
-      for (const item of rescueJson) {
-        if (item.key && item.key.toLowerCase() !== "null" && !pass2SeenKeys.has(item.key.trim())) {
-          logTrace(
-            "pass2",
-            `WARNING: discarding unverified key="${item.key}" for fraccion=${item.fraccion} ` +
-              "— model never saw this key in a search result, likely hallucinated"
-          );
-          item.key = null;
-        }
-      }
-      const rescueMap = new Map(rescueJson.map((item) => [item.fraccion, item]));
+      discardUnverifiedKeys(rescueJson, pass2SeenKeys, idField, trace2);
+      const rescueMap = new Map(rescueJson.map((item) => [rawId(item, idField), item]));
       for (let i = 0; i < finalJson.length; i++) {
-        const rescued = rescueMap.get(finalJson[i].fraccion);
+        const rescued = rescueMap.get(rawId(finalJson[i], idField));
         if (rescued) {
           if (rescued.confidence === "high") rescued.confidence = "medium";
           finalJson[i] = rescued;
@@ -453,19 +482,42 @@ async function classifyBatch(
     }
   }
 
-  const toMapFracciones = new Set(toMap.map((p) => p.fraccion));
+  const toMapIds = new Set(toMap.map(getId));
   return finalJson
-    .filter((item) => item.fraccion && toMapFracciones.has(item.fraccion))
+    .filter((item) => {
+      const id = rawId(item, idField);
+      return id && toMapIds.has(id);
+    })
     .map((item) => {
       let confidence = item.confidence ?? "high";
       if (confidence !== "high" && confidence !== "medium" && confidence !== "low") confidence = "high";
       return {
-        fraccion: item.fraccion!,
+        id: rawId(item, idField)!,
         key: item.key && item.key.toLowerCase() !== "null" ? item.key.trim() : null,
         description: item.description || null,
         confidence: confidence as "high" | "medium" | "low",
       };
     });
+}
+
+async function classifyBatch(
+  client: GoogleGenAI,
+  toMap: AutomapPartida[],
+  fraccionDescriptions: Map<string, string>,
+  usage: AutomapUsage
+): Promise<AutomapClassification[]> {
+  const results = await classifyTwoPass(client, toMap, usage, {
+    idField: "fraccion",
+    getId: (p) => p.fraccion,
+    itemsText: (items) => itemsText(items, fraccionDescriptions),
+    systemPass1: SYSTEM_PASS1,
+    systemPass2: SYSTEM_PASS2,
+    userMsg1Intro: (n) =>
+      `Clasifica estos ${n} productos con c_ClaveProdServ SAT para CFDI.\n` +
+      "La fracción arancelaria NO es el código SAT; el capítulo HS es solo contexto de categoría.\n\n",
+    tracePrefix: "pass",
+  });
+  return results.map((r) => ({ fraccion: r.id, key: r.key, description: r.description, confidence: r.confidence }));
 }
 
 // Descripcion-only classification, for line items with no fracción arancelaria
@@ -521,101 +573,16 @@ async function classifyDescripcionBatch(
   toMap: DescripcionItem[],
   usage: AutomapUsage
 ): Promise<DescripcionClassification[]> {
-  const userMsg1 =
-    `Clasifica estos ${toMap.length} productos con c_ClaveProdServ SAT para CFDI, usando solo su descripción.\n\n` +
-    `Productos:\n${itemsTextDescripcion(toMap)}\n\n` +
-    "IMPORTANTE: busca cada producto AL MENOS 3 VECES con términos diferentes antes de poner null. " +
-    "Responde ÚNICAMENTE con este JSON (sin markdown):\n" +
-    '[{"id":"...","key":"... o null","description":"... o null","confidence":"high|medium|low"}]';
-
-  logTrace("descPass1", `classifying ${toMap.length} item(s):`, toMap.map((p) => p.id));
-  const pass1SeenKeys = new Set<string>();
-  const finalJson = await runLoop(
-    client,
-    [{ role: "user", parts: [{ text: userMsg1 }] }],
-    SYSTEM_PASS1_DESC,
-    toMap.length,
-    "descPass1",
-    usage,
-    pass1SeenKeys,
-    "id"
-  );
-  if (!finalJson) {
-    throw new Error("Gemini no devolvió un JSON válido con los códigos");
-  }
-
-  for (const item of finalJson) {
-    if (item.key && item.key.toLowerCase() !== "null" && !pass1SeenKeys.has(item.key.trim())) {
-      logTrace(
-        "descPass1",
-        `WARNING: discarding unverified key="${item.key}" for id=${item.id} ` +
-          "— model never saw this key in a search result, likely hallucinated"
-      );
-      item.key = null;
-    }
-  }
-
-  const nullIds = new Set(
-    finalJson.filter((item) => !item.key || item.key.toLowerCase() === "null").map((item) => item.id!)
-  );
-  if (nullIds.size > 0) {
-    const nullItems = toMap.filter((p) => nullIds.has(p.id));
-
-    const userMsg2 =
-      `Estos ${nullItems.length} productos quedaron sin clasificar. Intenta más fuerte:\n\n` +
-      `Productos:\n${itemsTextDescripcion(nullItems)}\n\n` +
-      "Busca cada uno AL MENOS 4 VECES. Elige el código más cercano si no encuentras el exacto.\n" +
-      "Responde ÚNICAMENTE con este JSON (sin markdown):\n" +
-      '[{"id":"...","key":"... o null","description":"... o null","confidence":"medium|low"}]';
-
-    logTrace("descPass2", `rescuing ${nullItems.length} item(s):`, nullItems.map((p) => p.id));
-    const pass2SeenKeys = new Set<string>();
-    const rescueJson = await runLoop(
-      client,
-      [{ role: "user", parts: [{ text: userMsg2 }] }],
-      SYSTEM_PASS2_DESC,
-      nullItems.length,
-      "descPass2",
-      usage,
-      pass2SeenKeys,
-      "id"
-    );
-
-    if (rescueJson) {
-      for (const item of rescueJson) {
-        if (item.key && item.key.toLowerCase() !== "null" && !pass2SeenKeys.has(item.key.trim())) {
-          logTrace(
-            "descPass2",
-            `WARNING: discarding unverified key="${item.key}" for id=${item.id} ` +
-              "— model never saw this key in a search result, likely hallucinated"
-          );
-          item.key = null;
-        }
-      }
-      const rescueMap = new Map(rescueJson.map((item) => [item.id, item]));
-      for (let i = 0; i < finalJson.length; i++) {
-        const rescued = rescueMap.get(finalJson[i].id);
-        if (rescued) {
-          if (rescued.confidence === "high") rescued.confidence = "medium";
-          finalJson[i] = rescued;
-        }
-      }
-    }
-  }
-
-  const toMapIds = new Set(toMap.map((p) => p.id));
-  return finalJson
-    .filter((item) => item.id && toMapIds.has(item.id))
-    .map((item) => {
-      let confidence = item.confidence ?? "high";
-      if (confidence !== "high" && confidence !== "medium" && confidence !== "low") confidence = "high";
-      return {
-        id: item.id!,
-        key: item.key && item.key.toLowerCase() !== "null" ? item.key.trim() : null,
-        description: item.description || null,
-        confidence: confidence as "high" | "medium" | "low",
-      };
-    });
+  return classifyTwoPass(client, toMap, usage, {
+    idField: "id",
+    getId: (p) => p.id,
+    itemsText: itemsTextDescripcion,
+    systemPass1: SYSTEM_PASS1_DESC,
+    systemPass2: SYSTEM_PASS2_DESC,
+    userMsg1Intro: (n) =>
+      `Clasifica estos ${n} productos con c_ClaveProdServ SAT para CFDI, usando solo su descripción.\n\n`,
+    tracePrefix: "descPass",
+  });
 }
 
 export async function runAutomapDescripciones(
