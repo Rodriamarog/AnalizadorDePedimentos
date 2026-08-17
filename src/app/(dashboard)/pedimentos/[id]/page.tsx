@@ -10,32 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SatComboBox } from "@/components/sat-combobox";
 import { CrearFacturaDialog } from "@/components/crear-factura-dialog";
+import { AutomapOverlay } from "@/components/automap-overlay";
+import { useAutomapProgress } from "@/hooks/use-automap-progress";
 import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
 import { alertError, alertInfo, alertSuccess, promptNumber } from "@/lib/alerts";
-
-const AUTOMAP_MESSAGES = [
-  "Iniciando análisis…",
-  "Buscando claves SAT…",
-  "Consultando catálogo…",
-  "La IA está pensando…",
-  "Verificando resultados…",
-  "Refinando búsqueda…",
-  "Casi listo…",
-];
-
-// Stepped progress simulation matching the old app's timing — automap calls
-// a real LLM and can take up to ~2 minutes, so this gives the user a sense of
-// motion without pretending to track real progress.
-const AUTOMAP_STEPS: Array<[number, number]> = [
-  [400, 8],
-  [3000, 22],
-  [8000, 40],
-  [18000, 55],
-  [32000, 67],
-  [50000, 77],
-  [68000, 84],
-  [85000, 88],
-];
 
 interface Partida {
   id: string;
@@ -94,11 +72,7 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
   const [productosMap, setProductosMap] = useState<Record<string, Producto>>({});
   const [unitDescMap, setUnitDescMap] = useState<Record<string, string>>({});
 
-  const [automapRunning, setAutomapRunning] = useState(false);
-  const [automapProgress, setAutomapProgress] = useState(0);
-  const [automapStatusText, setAutomapStatusText] = useState(AUTOMAP_MESSAGES[0]);
-  const [automapDone, setAutomapDone] = useState<"success" | "error" | null>(null);
-  const automapTimers = useRef<Array<ReturnType<typeof setTimeout> | ReturnType<typeof setInterval>>>([]);
+  const automap = useAutomapProgress();
 
   const loadProductos = useCallback(async () => {
     const res = await fetch("/api/productos");
@@ -158,41 +132,6 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
     },
     [productosMap]
   );
-
-  function clearAutomapTimers() {
-    automapTimers.current.forEach((t) => {
-      clearTimeout(t as ReturnType<typeof setTimeout>);
-      clearInterval(t as ReturnType<typeof setInterval>);
-    });
-    automapTimers.current = [];
-  }
-
-  function showAutomapOverlay() {
-    clearAutomapTimers();
-    setAutomapDone(null);
-    setAutomapProgress(0);
-    setAutomapStatusText(AUTOMAP_MESSAGES[0]);
-    setAutomapRunning(true);
-
-    AUTOMAP_STEPS.forEach(([delay, pct]) => {
-      automapTimers.current.push(setTimeout(() => setAutomapProgress(pct), delay));
-    });
-
-    let msgIdx = 0;
-    automapTimers.current.push(
-      setInterval(() => {
-        msgIdx = (msgIdx + 1) % AUTOMAP_MESSAGES.length;
-        setAutomapStatusText(AUTOMAP_MESSAGES[msgIdx]);
-      }, 5000)
-    );
-  }
-
-  function hideAutomapOverlay(success: boolean) {
-    clearAutomapTimers();
-    setAutomapProgress(100);
-    setAutomapDone(success ? "success" : "error");
-    setTimeout(() => setAutomapRunning(false), 700);
-  }
 
   const [exporting, setExporting] = useState(false);
   const [facturarOpen, setFacturarOpen] = useState(false);
@@ -416,13 +355,13 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
   }
 
   async function handleAutomap() {
-    showAutomapOverlay();
+    automap.show();
     try {
       const res = await fetch(`/api/pedimentos/${id}/automap`, { method: "POST" });
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error || "Error al automapear");
 
-      hideAutomapOverlay(true);
+      automap.hide(true);
       await loadProductos();
 
       if (resData.message) {
@@ -438,7 +377,7 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
         alertSuccess("Autocompletar SAT", msg);
       }
     } catch (e) {
-      hideAutomapOverlay(false);
+      automap.hide(false);
       alertError("Error", e instanceof Error ? e.message : "Error al automapear");
     }
   }
@@ -597,9 +536,9 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
                         aria-label="Autocompletar claves SAT con IA"
                         className="h-6 w-6 p-0 bg-gradient-to-br from-orange-500 to-orange-700 text-white hover:brightness-[1.07] shadow-sm normal-case tracking-normal"
                         onClick={handleAutomap}
-                        disabled={automapRunning}
+                        disabled={automap.running}
                       >
-                        {automapRunning ? (
+                        {automap.running ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <Sparkles className="w-3.5 h-3.5" />
@@ -709,26 +648,12 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
         </CardContent>
       </Card>
 
-      {automapRunning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-background border border-border rounded-lg shadow-lg p-8 w-full max-w-sm text-center">
-            <Sparkles className="w-8 h-8 text-primary mx-auto mb-3" />
-            <h3 className="text-base font-semibold mb-2">Autocompletar SAT con IA</h3>
-            <p className="text-sm text-muted-foreground mb-4 min-h-[1.25rem]">
-              {automapDone ? (automapDone === "success" ? "¡Listo!" : "Ocurrió un error.") : automapStatusText}
-            </p>
-            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all duration-[2000ms] ease-out"
-                style={{ width: `${automapProgress}%` }}
-              />
-            </div>
-            {!automapDone && (
-              <p className="text-[11px] text-muted-foreground mt-3">Esto puede tomar hasta 2 minutos</p>
-            )}
-          </div>
-        </div>
-      )}
+      <AutomapOverlay
+        running={automap.running}
+        progress={automap.progress}
+        statusText={automap.statusText}
+        done={automap.done}
+      />
 
       <CrearFacturaDialog
         open={facturarOpen}

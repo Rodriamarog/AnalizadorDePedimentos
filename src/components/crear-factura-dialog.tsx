@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { SatComboBox } from "@/components/sat-combobox";
+import { AutomapOverlay } from "@/components/automap-overlay";
+import { useAutomapProgress } from "@/hooks/use-automap-progress";
 import {
   CartaPorteFields,
   cartaPorteStateToInput,
@@ -402,7 +404,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
   const [savingDraft, setSavingDraft] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [automapRunning, setAutomapRunning] = useState(false);
+  const automap = useAutomapProgress();
 
   useEffect(() => {
     if (!open) return;
@@ -626,7 +628,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
       alertInfo("Autocompletar SAT", "Todos los conceptos ya tienen una clave asignada.");
       return;
     }
-    setAutomapRunning(true);
+    automap.show();
     try {
       const res = await fetch("/api/facturas/automap", {
         method: "POST",
@@ -644,11 +646,11 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
         mapped++;
         updateItem(r.id, { clave: r.key, claveDescription: r.description ?? undefined });
       }
+      automap.hide(true);
       alertSuccess("Autocompletar SAT", `${mapped} de ${toMap.length} concepto(s) clasificados.`);
     } catch (e) {
+      automap.hide(false);
       alertError("Error", e instanceof Error ? e.message : "Error al automapear");
-    } finally {
-      setAutomapRunning(false);
     }
   }
 
@@ -1056,9 +1058,9 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
                             aria-label="Autocompletar claves SAT con IA"
                             className="h-6 w-6 p-0 bg-gradient-to-br from-orange-500 to-orange-700 text-white hover:brightness-[1.07] shadow-sm normal-case tracking-normal"
                             onClick={handleAutomap}
-                            disabled={automapRunning}
+                            disabled={automap.running}
                           >
-                            {automapRunning ? (
+                            {automap.running ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             ) : (
                               <Sparkles className="w-3.5 h-3.5" />
@@ -1247,12 +1249,6 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
             {!pedimento && (
               <p className="text-[10px] text-muted-foreground mt-1">
                 Las retenciones aplican solo al concepto de Honorarios Comercializadora.
-              </p>
-            )}
-            {automapRunning && (
-              <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Autocompletando claves SAT con IA… esto puede tomar hasta 2 minutos.
               </p>
             )}
           </div>
@@ -1480,6 +1476,13 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
             Timbrar factura
           </Button>
         </DialogFooter>
+
+        <AutomapOverlay
+          running={automap.running}
+          progress={automap.progress}
+          statusText={automap.statusText}
+          done={automap.done}
+        />
       </DialogContent>
     </Dialog>
   );
