@@ -80,6 +80,7 @@ export interface AutomapClassification {
 
 interface RawItem {
   fraccion?: string;
+  id?: string;
   key?: string | null;
   description?: string | null;
   confidence?: string | null;
@@ -464,6 +465,171 @@ async function classifyBatch(
         confidence: confidence as "high" | "medium" | "low",
       };
     });
+}
+
+// Descripcion-only classification, for line items with no fracción arancelaria
+// to key off (manual facturas — see #15). Keyed by an arbitrary caller-supplied
+// `id` (a row key) instead of `fraccion`, and with no HS-chapter hint or SAT
+// fracción description to fold into the prompt, since neither exists here.
+export interface DescripcionItem {
+  id: string;
+  descripcion: string;
+}
+
+export interface DescripcionClassification {
+  id: string;
+  key: string | null;
+  description: string | null;
+  confidence: "high" | "medium" | "low";
+}
+
+function itemsTextDescripcion(items: DescripcionItem[]): string {
+  return items.map((it) => `- id=${it.id} | "${it.descripcion}"`).join("\n");
+}
+
+const SYSTEM_PASS1_DESC =
+  "Eres un experto en clasificación SAT para CFDI 4.0 en México. " +
+  "Tienes una herramienta: search_sat_catalog (c_ClaveProdServ).\n" +
+  "REGLAS OBLIGATORIAS:\n" +
+  "(1) SIEMPRE usa search_sat_catalog — nunca inventes un código.\n" +
+  "(2) Para CADA producto busca MÍNIMO 3 VECES con términos distintos antes de considerar null: " +
+  "primero el término específico, luego un sinónimo, luego una categoría genérica relacionada.\n" +
+  "(3) El catálogo usa español formal — traduce coloquialismos a términos formales cuando sea necesario.\n" +
+  "(4) null SOLO si después de 3+ búsquedas no encuentras absolutamente nada relacionado.\n" +
+  "(5) Para cada resultado incluye un campo confidence: " +
+  "'high' si el código es específico y claramente correcto para el producto; " +
+  "'medium' si es razonablemente cercano pero no exacto; " +
+  "'low' si es el más cercano disponible pero puede no ser correcto.\n" +
+  "(6) Solo responde JSON cuando hayas procesado TODOS los productos.";
+
+const SYSTEM_PASS2_DESC =
+  "Eres un experto en clasificación SAT para CFDI 4.0 en México. " +
+  "Tienes una herramienta: search_sat_catalog.\n" +
+  "Estos productos NO fueron clasificados en la primera ronda. " +
+  "AHORA debes ser más agresivo y persistente:\n" +
+  "(1) Busca al menos 4 veces por producto con términos distintos: específico, sinónimo, genérico.\n" +
+  "(2) Si no encuentras el código perfecto, elige el MÁS CERCANO disponible — " +
+  "es preferible un código aproximado de la categoría correcta que null.\n" +
+  "(3) null SOLO si no existe absolutamente ningún código remotamente relacionado en todo el catálogo.\n" +
+  "(4) Incluye confidence: 'medium' si el código es razonablemente cercano, " +
+  "'low' si es el más cercano pero puede no ser correcto. Nunca 'high' en esta ronda.\n" +
+  "(5) Solo responde JSON cuando hayas procesado TODOS los productos de esta lista.";
+
+async function classifyDescripcionBatch(
+  client: GoogleGenAI,
+  toMap: DescripcionItem[],
+  usage: AutomapUsage
+): Promise<DescripcionClassification[]> {
+  const userMsg1 =
+    `Clasifica estos ${toMap.length} productos con c_ClaveProdServ SAT para CFDI, usando solo su descripción.\n\n` +
+    `Productos:\n${itemsTextDescripcion(toMap)}\n\n` +
+    "IMPORTANTE: busca cada producto AL MENOS 3 VECES con términos diferentes antes de poner null. " +
+    "Responde ÚNICAMENTE con este JSON (sin markdown):\n" +
+    '[{"id":"...","key":"... o null","description":"... o null","confidence":"high|medium|low"}]';
+
+  logTrace("descPass1", `classifying ${toMap.length} item(s):`, toMap.map((p) => p.id));
+  const pass1SeenKeys = new Set<string>();
+  const finalJson = await runLoop(
+    client,
+    [{ role: "user", parts: [{ text: userMsg1 }] }],
+    SYSTEM_PASS1_DESC,
+    toMap.length,
+    "descPass1",
+    usage,
+    pass1SeenKeys
+  );
+  if (!finalJson) {
+    throw new Error("Gemini no devolvió un JSON válido con los códigos");
+  }
+
+  for (const item of finalJson) {
+    if (item.key && item.key.toLowerCase() !== "null" && !pass1SeenKeys.has(item.key.trim())) {
+      logTrace(
+        "descPass1",
+        `WARNING: discarding unverified key="${item.key}" for id=${item.id} ` +
+          "— model never saw this key in a search result, likely hallucinated"
+      );
+      item.key = null;
+    }
+  }
+
+  const nullIds = new Set(
+    finalJson.filter((item) => !item.key || item.key.toLowerCase() === "null").map((item) => item.id!)
+  );
+  if (nullIds.size > 0) {
+    const nullItems = toMap.filter((p) => nullIds.has(p.id));
+
+    const userMsg2 =
+      `Estos ${nullItems.length} productos quedaron sin clasificar. Intenta más fuerte:\n\n` +
+      `Productos:\n${itemsTextDescripcion(nullItems)}\n\n` +
+      "Busca cada uno AL MENOS 4 VECES. Elige el código más cercano si no encuentras el exacto.\n" +
+      "Responde ÚNICAMENTE con este JSON (sin markdown):\n" +
+      '[{"id":"...","key":"... o null","description":"... o null","confidence":"medium|low"}]';
+
+    logTrace("descPass2", `rescuing ${nullItems.length} item(s):`, nullItems.map((p) => p.id));
+    const pass2SeenKeys = new Set<string>();
+    const rescueJson = await runLoop(
+      client,
+      [{ role: "user", parts: [{ text: userMsg2 }] }],
+      SYSTEM_PASS2_DESC,
+      nullItems.length,
+      "descPass2",
+      usage,
+      pass2SeenKeys
+    );
+
+    if (rescueJson) {
+      for (const item of rescueJson) {
+        if (item.key && item.key.toLowerCase() !== "null" && !pass2SeenKeys.has(item.key.trim())) {
+          logTrace(
+            "descPass2",
+            `WARNING: discarding unverified key="${item.key}" for id=${item.id} ` +
+              "— model never saw this key in a search result, likely hallucinated"
+          );
+          item.key = null;
+        }
+      }
+      const rescueMap = new Map(rescueJson.map((item) => [item.id, item]));
+      for (let i = 0; i < finalJson.length; i++) {
+        const rescued = rescueMap.get(finalJson[i].id);
+        if (rescued) {
+          if (rescued.confidence === "high") rescued.confidence = "medium";
+          finalJson[i] = rescued;
+        }
+      }
+    }
+  }
+
+  const toMapIds = new Set(toMap.map((p) => p.id));
+  return finalJson
+    .filter((item) => item.id && toMapIds.has(item.id))
+    .map((item) => {
+      let confidence = item.confidence ?? "high";
+      if (confidence !== "high" && confidence !== "medium" && confidence !== "low") confidence = "high";
+      return {
+        id: item.id!,
+        key: item.key && item.key.toLowerCase() !== "null" ? item.key.trim() : null,
+        description: item.description || null,
+        confidence: confidence as "high" | "medium" | "low",
+      };
+    });
+}
+
+export async function runAutomapDescripciones(
+  items: DescripcionItem[]
+): Promise<{ classifications: DescripcionClassification[]; usage: AutomapUsage }> {
+  const usage = newUsage();
+  if (items.length === 0) return { classifications: [], usage };
+
+  const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  const classifications = await classifyDescripcionBatch(client, items, usage);
+  logTrace(
+    "summary",
+    `${usage.calls} Gemini call(s), ${usage.totalTokens} total tokens ` +
+      `(prompt=${usage.promptTokens} candidates=${usage.candidatesTokens} thoughts=${usage.thoughtsTokens} ` +
+      `toolUse=${usage.toolUseTokens}), estimated cost $${usage.estimatedCostUsd.toFixed(4)}`
+  );
+  return { classifications, usage };
 }
 
 function dedupeUnmapped(partidas: AutomapPartida[], alreadyMapped: Set<string>): AutomapPartida[] {

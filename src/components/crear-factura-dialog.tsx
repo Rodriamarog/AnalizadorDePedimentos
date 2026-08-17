@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { Loader2, X, Trash2, ChevronsUpDown, TriangleAlert } from "lucide-react";
+import { Loader2, X, Trash2, ChevronsUpDown, TriangleAlert, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -21,7 +21,7 @@ import {
 } from "@/components/carta-porte-fields";
 import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
 import { umcToUnitKey } from "@/lib/umc";
-import { alertSuccess } from "@/lib/alerts";
+import { alertError, alertInfo, alertSuccess } from "@/lib/alerts";
 import { aduanaName } from "@/lib/aduanas";
 import { buildCartaPorteComplement, mapPedimentoToMercancias, type PedimentoForCartaPorte } from "@/lib/buildCartaPorte";
 
@@ -383,6 +383,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
   const [savingDraft, setSavingDraft] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [automapRunning, setAutomapRunning] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -589,6 +590,43 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
 
   function updateItem(key: string, patch: Partial<ItemRow>) {
     setItems((prev) => prev.map((it) => (it.key === key ? { ...it, ...patch } : it)));
+  }
+
+  // Classifies every row with no clave yet against the SAT product/service
+  // catalog — rows that already have one (manually typed or a previous
+  // autofill run, including the two hardcoded honorarios rows) are left
+  // untouched. Only used outside the pedimento flow, which has its own
+  // automap button on the pedimento detail page instead.
+  async function handleAutomap() {
+    const toMap = items.filter((it) => !it.clave.trim());
+    if (toMap.length === 0) {
+      alertInfo("Autocompletar SAT", "Todos los conceptos ya tienen una clave asignada.");
+      return;
+    }
+    setAutomapRunning(true);
+    try {
+      const res = await fetch("/api/facturas/automap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rows: toMap.map((it) => ({ id: it.key, descripcion: it.descripcion })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al automapear");
+
+      let mapped = 0;
+      for (const r of data.results as { id: string; key: string | null; description: string | null }[]) {
+        if (!r.key) continue;
+        mapped++;
+        updateItem(r.id, { clave: r.key, claveDescription: r.description ?? undefined });
+      }
+      alertSuccess("Autocompletar SAT", `${mapped} de ${toMap.length} concepto(s) clasificados.`);
+    } catch (e) {
+      alertError("Error", e instanceof Error ? e.message : "Error al automapear");
+    } finally {
+      setAutomapRunning(false);
+    }
   }
 
   // Only forma de pago follows método de pago (PPD forces "99 - Por definir",
@@ -978,7 +1016,29 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
                     <th className="text-left px-2 py-2 font-semibold">Descripción</th>
                     <th className="text-right px-2 py-2 font-semibold w-16">Cant.</th>
                     <th className="text-right px-2 py-2 font-semibold w-24">Precio ({currency})</th>
-                    <th className="text-left px-2 py-2 font-semibold w-32">ClaveProdServ</th>
+                    <th className="text-left px-2 py-2 font-semibold w-32">
+                      {pedimento ? (
+                        "ClaveProdServ"
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          ClaveProdServ
+                          <Button
+                            size="sm"
+                            title="Autocompletar claves SAT con IA"
+                            aria-label="Autocompletar claves SAT con IA"
+                            className="h-6 w-6 p-0 bg-gradient-to-br from-orange-500 to-orange-700 text-white hover:brightness-[1.07] shadow-sm normal-case tracking-normal"
+                            onClick={handleAutomap}
+                            disabled={automapRunning}
+                          >
+                            {automapRunning ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-3.5 h-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </th>
                     <th className="text-left px-2 py-2 font-semibold w-20">Unidad</th>
                     <th className="text-left px-2 py-2 font-semibold w-16">IVA</th>
                     <th className="w-6" />
@@ -1149,6 +1209,12 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
             {!pedimento && (
               <p className="text-[10px] text-muted-foreground mt-1">
                 Las retenciones aplican solo al concepto de Honorarios Comercializadora.
+              </p>
+            )}
+            {automapRunning && (
+              <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Autocompletando claves SAT con IA… esto puede tomar hasta 2 minutos.
               </p>
             )}
           </div>
