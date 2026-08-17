@@ -161,6 +161,9 @@ interface ItemRow {
   cantidad: string;
   precio: string;
   clave: string;
+  // Optional fracción arancelaria, feeding the fracción-keyed automap/productos
+  // cache path (see #16) — never required, same as clave itself.
+  fraccion?: string;
   unitKey: string;
   checked: boolean;
   removable: boolean;
@@ -609,7 +612,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rows: toMap.map((it) => ({ id: it.key, descripcion: it.descripcion })),
+          rows: toMap.map((it) => ({ id: it.key, descripcion: it.descripcion, fraccion: it.fraccion || undefined })),
         }),
       });
       const data = await res.json();
@@ -1016,6 +1019,11 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
                     <th className="text-left px-2 py-2 font-semibold">Descripción</th>
                     <th className="text-right px-2 py-2 font-semibold w-16">Cant.</th>
                     <th className="text-right px-2 py-2 font-semibold w-24">Precio ({currency})</th>
+                    {!pedimento && (
+                      <th className="text-left px-2 py-2 font-semibold w-24">
+                        Fracción <span className="font-normal text-muted-foreground">(opc.)</span>
+                      </th>
+                    )}
                     <th className="text-left px-2 py-2 font-semibold w-32">
                       {pedimento ? (
                         "ClaveProdServ"
@@ -1091,6 +1099,16 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
                           onChange={(e) => updateItem(it.key, { precio: e.target.value })}
                         />
                       </td>
+                      {!pedimento && (
+                        <td className="px-2 py-1.5">
+                          <Input
+                            className="h-7 text-xs md:text-xs font-mono min-w-[90px]"
+                            placeholder="8 dígitos"
+                            value={it.fraccion ?? ""}
+                            onChange={(e) => updateItem(it.key, { fraccion: e.target.value })}
+                          />
+                        </td>
+                      )}
                       <td className="px-2 py-1.5">
                         {it.claveReadonly ? (
                           <div className="font-mono text-muted-foreground">{it.clave}</div>

@@ -1,10 +1,22 @@
+import { and, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { requireOrgId } from "@/lib/auth";
-import { runAutomapDescripciones } from "@/lib/automap";
+import { productos, satClaves } from "@/lib/db/schema";
+import { withOrg } from "@/lib/db/withOrg";
+import { runAutomap, runAutomapDescripciones } from "@/lib/automap";
+import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 
 interface RequestRow {
   id: string;
   descripcion: string;
+  fraccion?: string;
+}
+
+interface ResultRow {
+  id: string;
+  key: string | null;
+  description: string | null;
+  confidence: string | null;
 }
 
 export async function POST(req: NextRequest) {
@@ -19,11 +31,86 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ results: [] });
   }
 
-  let automapResult;
+  const fraccionRows = toMap.filter((r) => r.fraccion?.trim());
+  const descRows = toMap.filter((r) => !r.fraccion?.trim());
+
+  const results: ResultRow[] = [];
+
   try {
-    automapResult = await runAutomapDescripciones(
-      toMap.map((r) => ({ id: r.id, descripcion: r.descripcion }))
-    );
+    if (fraccionRows.length > 0) {
+      const fracciones = [...new Set(fraccionRows.map((r) => r.fraccion!.trim()))];
+      const cached = await withOrg(orgId, (tx) =>
+        tx
+          .select({ fraccion: productos.fraccion, claveProdServ: productos.claveProdServ, descripcionSat: productos.descripcionSat, confidence: productos.confidence })
+          .from(productos)
+          .where(and(eq(productos.orgId, orgId), inArray(productos.fraccion, fracciones)))
+      );
+      const cacheMap = new Map(cached.filter((c) => c.claveProdServ).map((c) => [c.fraccion, c]));
+
+      const uncachedFracciones = fracciones.filter((f) => !cacheMap.has(f));
+      if (uncachedFracciones.length > 0) {
+        const facturapiClient = await getOrgFacturapiClient(orgId);
+        if (facturapiClient instanceof NextResponse) return facturapiClient;
+
+        const partidas = uncachedFracciones.map((fraccion) => ({
+          fraccion,
+          descripcion: fraccionRows.find((r) => r.fraccion!.trim() === fraccion)!.descripcion,
+        }));
+        const automapResult = await runAutomap(partidas, new Set(), facturapiClient);
+
+        await withOrg(orgId, async (tx) => {
+          for (const c of automapResult.classifications) {
+            if (!c.key) continue;
+            const orig = partidas.find((p) => p.fraccion === c.fraccion)!;
+
+            const [catalogRow] = await tx
+              .select({ description: satClaves.description })
+              .from(satClaves)
+              .where(eq(satClaves.key, c.key))
+              .limit(1);
+            const confirmedDesc = catalogRow?.description ?? c.description ?? "";
+            let confidence = c.confidence;
+            if (!catalogRow && confidence === "high") confidence = "medium";
+
+            await tx
+              .insert(productos)
+              .values({
+                orgId,
+                fraccion: c.fraccion,
+                descripcion: orig.descripcion,
+                claveProdServ: c.key,
+                descripcionSat: confirmedDesc,
+                confidence,
+              })
+              .onConflictDoUpdate({
+                target: [productos.orgId, productos.fraccion],
+                set: { claveProdServ: c.key, descripcionSat: confirmedDesc, confidence },
+              });
+
+            cacheMap.set(c.fraccion, { fraccion: c.fraccion, claveProdServ: c.key, descripcionSat: confirmedDesc, confidence });
+          }
+        });
+      }
+
+      for (const r of fraccionRows) {
+        const cached2 = cacheMap.get(r.fraccion!.trim());
+        results.push({
+          id: r.id,
+          key: cached2?.claveProdServ ?? null,
+          description: cached2?.descripcionSat ?? null,
+          confidence: cached2?.confidence ?? null,
+        });
+      }
+    }
+
+    if (descRows.length > 0) {
+      const automapResult = await runAutomapDescripciones(
+        descRows.map((r) => ({ id: r.id, descripcion: r.descripcion }))
+      );
+      for (const c of automapResult.classifications) {
+        results.push({ id: c.id, key: c.key, description: c.description, confidence: c.confidence });
+      }
+    }
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Error al automapear" },
@@ -31,12 +118,5 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({
-    results: automapResult.classifications.map((c) => ({
-      id: c.id,
-      key: c.key,
-      description: c.description,
-      confidence: c.confidence,
-    })),
-  });
+  return NextResponse.json({ results });
 }
