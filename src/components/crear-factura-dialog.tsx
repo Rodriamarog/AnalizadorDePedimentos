@@ -231,6 +231,18 @@ function newItemRow(): ItemRow {
   };
 }
 
+// SAT ClaveProdServ 78101800 ("Transporte de carga por carretera") and
+// ClaveUnidad E48 ("Unidad de servicio") are the conventional codes a
+// transportista uses to bill their own freight service — both stay editable
+// in case the actual service is air/maritime freight instead.
+function transporteFeeRow(): ItemRow {
+  return {
+    ...newItemRow(),
+    clave: "78101800",
+    unitKey: "E48",
+  };
+}
+
 export interface ProductoLookup {
   fraccion: string;
   claveProdServ: string | null;
@@ -610,6 +622,15 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
     setDocumentType(next);
     if (next !== "carta_porte" && next !== "carta_porte_ingreso") {
       setCartaPorte(defaultCartaPorteState());
+    }
+    // Carta Porte Ingreso bills the transportista's own service (e.g. flete),
+    // not the merchandise being hauled — the merchandise itself only belongs
+    // in the complement's Mercancías. A linked pedimento prefills "Partidas a
+    // facturar" with each partida at its full value (see buildItemsFromPedimento),
+    // which is correct for a regular Factura but would double-bill the cargo
+    // here, so switching in replaces that with a single blank row for the fee.
+    if (next === "carta_porte_ingreso" && documentType !== "carta_porte_ingreso") {
+      setItems([transporteFeeRow()]);
     }
   }
 
@@ -1014,7 +1035,9 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Partidas a facturar</label>
+              <label className="text-xs font-medium text-muted-foreground">
+                {documentType === "carta_porte_ingreso" ? "Cuota del transportista a facturar" : "Partidas a facturar"}
+              </label>
               <Button
                 size="sm"
                 variant="outline"
@@ -1024,6 +1047,12 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
                 + Agregar concepto
               </Button>
             </div>
+            {documentType === "carta_porte_ingreso" && (
+              <p className="text-[11px] text-muted-foreground mb-1.5">
+                Factura únicamente el servicio de transporte (flete). Las mercancías transportadas se declaran en la sección
+                Carta Porte más abajo, no aquí.
+              </p>
+            )}
             <div className="overflow-x-auto rounded-md border border-border">
               <table className="w-full text-xs">
                 <thead>
