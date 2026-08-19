@@ -1,11 +1,12 @@
 "use client";
 
-import { Fragment, useState } from "react";
-import { BadgeCheck, ChevronsUpDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { BadgeCheck, Check, ChevronsUpDown, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { SatComboBox } from "@/components/sat-combobox";
 import { DireccionForm, emptyDireccionForm, type DireccionFormState } from "@/components/direccion-form";
@@ -386,9 +387,11 @@ interface InlineVehiculoFormState {
 function InlineVehiculoForm({
   onCancel,
   onCreated,
+  showHeading = true,
 }: {
   onCancel: () => void;
   onCreated: (v: VehiculoLite) => void;
+  showHeading?: boolean;
 }) {
   const [form, setForm] = useState<InlineVehiculoFormState>({
     placa: "",
@@ -442,7 +445,7 @@ function InlineVehiculoForm({
 
   return (
     <div className="p-3 flex flex-col gap-2">
-      <p className="text-xs font-semibold">Nuevo vehículo</p>
+      {showHeading && <p className="text-xs font-semibold">Nuevo vehículo</p>}
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-[10px] text-muted-foreground">Placa</label>
@@ -573,9 +576,11 @@ interface InlineChoferFormState {
 function InlineChoferForm({
   onCancel,
   onCreated,
+  showHeading = true,
 }: {
   onCancel: () => void;
   onCreated: (c: ChoferLite) => void;
+  showHeading?: boolean;
 }) {
   const [form, setForm] = useState<InlineChoferFormState>({ nombre: "", rfc: "", numeroLicencia: "" });
   const [saving, setSaving] = useState(false);
@@ -611,7 +616,7 @@ function InlineChoferForm({
 
   return (
     <div className="p-3 flex flex-col gap-2">
-      <p className="text-xs font-semibold">Nuevo chofer</p>
+      {showHeading && <p className="text-xs font-semibold">Nuevo chofer</p>}
       <div>
         <label className="text-[10px] text-muted-foreground">Nombre</label>
         <Input
@@ -653,105 +658,16 @@ function InlineChoferForm({
   );
 }
 
-interface OneOffFiguraFormState {
-  nombre: string;
-  rfc: string;
-  numeroLicencia: string;
-  tipoFigura: string;
-}
-
-// A figura de transporte that isn't backed by a choferes registry entry —
-// e.g. a one-off propietario/arrendatario/notificado for this invoice only.
-// Unlike InlineChoferForm, this never hits the API; it's added straight to
-// the form's figuras array with an empty choferId marking it as non-registry.
-function OneOffFiguraForm({
-  onCancel,
-  onAdd,
-}: {
-  onCancel: () => void;
-  onAdd: (f: OneOffFiguraFormState) => void;
-}) {
-  const [form, setForm] = useState<OneOffFiguraFormState>({
-    nombre: "",
-    rfc: "",
-    numeroLicencia: "",
-    tipoFigura: "02",
-  });
-  const [error, setError] = useState<string | null>(null);
-
-  function handleAdd() {
-    if (!form.nombre.trim()) {
-      setError("El nombre es requerido");
-      return;
-    }
-    onAdd(form);
-  }
-
-  return (
-    <div className="p-3 flex flex-col gap-2">
-      <p className="text-xs font-semibold">Figura sin registro</p>
-      <div>
-        <label className="text-[10px] text-muted-foreground">Nombre</label>
-        <Input
-          className="h-7 text-xs"
-          value={form.nombre}
-          onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-          autoFocus
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] text-muted-foreground">RFC</label>
-          <Input
-            className="h-7 text-xs font-mono"
-            value={form.rfc}
-            onChange={(e) => setForm((f) => ({ ...f, rfc: e.target.value.toUpperCase() }))}
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">Núm. Licencia</label>
-          <Input
-            className="h-7 text-xs"
-            value={form.numeroLicencia}
-            onChange={(e) => setForm((f) => ({ ...f, numeroLicencia: e.target.value }))}
-          />
-        </div>
-      </div>
-      <div>
-        <label className="text-[10px] text-muted-foreground">Tipo de figura</label>
-        <select
-          className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
-          value={form.tipoFigura}
-          onChange={(e) => setForm((f) => ({ ...f, tipoFigura: e.target.value }))}
-        >
-          {FIGURA_TRANSPORTE_OPTIONS.filter(([code]) => code !== "01").map(([code, label]) => (
-            <option key={code} value={code}>
-              {code} – {label}
-            </option>
-          ))}
-        </select>
-      </div>
-      {error && <p className="text-[11px] text-red-600">{error}</p>}
-      <div className="flex items-center justify-end gap-1.5 mt-1">
-        <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={onCancel}>
-          Cancelar
-        </Button>
-        <Button size="sm" className="h-6 px-2 text-xs" onClick={handleAdd}>
-          Agregar
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 function InlineDireccionForm({
   tipo,
   onCancel,
   onCreated,
+  showHeading = true,
 }: {
   tipo: "origen" | "destino";
   onCancel: () => void;
   onCreated: (d: DireccionLite) => void;
+  showHeading?: boolean;
 }) {
   const [form, setForm] = useState<DireccionFormState>(emptyDireccionForm);
   const [saving, setSaving] = useState(false);
@@ -798,7 +714,7 @@ function InlineDireccionForm({
 
   return (
     <div className="p-3 flex flex-col gap-2">
-      <p className="text-xs font-semibold">Nueva dirección</p>
+      {showHeading && <p className="text-xs font-semibold">Nueva dirección</p>}
       <DireccionForm value={form} onChange={setForm} />
       {error && <p className="text-[11px] text-red-600">{error}</p>}
       <div className="flex items-center justify-end gap-1.5 mt-1">
@@ -810,6 +726,45 @@ function InlineDireccionForm({
           Guardar y usar
         </Button>
       </div>
+    </div>
+  );
+}
+
+// "pais" is excluded — defaultUbicacion() prefills it to "MEX", so it's
+// present even on a never-touched ubicación and would otherwise make every
+// section look "filled" from the moment the dialog opens.
+function hasAddressData(u: UbicacionFields): boolean {
+  return !!(u.rfc.trim() || u.nombre.trim() || u.calle.trim() || u.colonia.trim() || u.estado.trim() || u.codigoPostal.trim());
+}
+
+// Sized to content rather than stretched across a grid track (see the
+// flex/justify-center wrappers around each pair) — a solid border + tinted
+// fill + shadow reads as clickable, whereas the dashed-border/no-fill
+// version it replaced looked more like an empty placeholder.
+const cardButtonClass =
+  "flex flex-1 sm:flex-none sm:w-44 flex-col items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30 p-3 text-center shadow-sm transition-all hover:border-primary hover:bg-muted/60 hover:shadow-md active:scale-[0.98]";
+
+function AddressSummaryCard({ value }: { value: UbicacionFields }) {
+  const calleLine = [value.calle, value.numeroExterior].filter(Boolean).join(" ");
+  const restLine = [value.colonia, value.municipio, value.estado, value.codigoPostal].filter(Boolean).join(", ");
+  return (
+    <div className="rounded-md border border-border bg-muted/30 p-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-medium truncate">{value.nombre.trim() || value.rfc.trim() || "—"}</p>
+          {value.rfc.trim() && <p className="text-[10px] text-muted-foreground font-mono">{value.rfc}</p>}
+        </div>
+        {value.googlePlaceId && (
+          <Badge variant="outline" className="gap-1 shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700">
+            <BadgeCheck className="w-3 h-3" />
+            Verificada
+          </Badge>
+        )}
+      </div>
+      <p className="text-[11px] text-muted-foreground mt-1">
+        {calleLine || "Sin calle"}
+        {restLine ? `, ${restLine}` : ""}
+      </p>
     </div>
   );
 }
@@ -831,6 +786,21 @@ function UbicacionSection({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  // "Agregar nueva" from the empty-state card opens this modal — it reuses
+  // InlineDireccionForm so the address is actually persisted to the
+  // direcciones registry (and shows up under "Usar dirección guardada"
+  // afterward), not just filled into this invoice's ephemeral fields.
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  // Three states: "picker" (nothing entered yet — show the two choice
+  // cards), "summary" (an address is resolved — show the compact card),
+  // "manual" (hand-editing every domicilio field). Initialized from
+  // whatever the caller passed in (e.g. reopening a draft) so we don't
+  // regress an already-filled ubicación back to the empty picker.
+  const [mode, setMode] = useState<"picker" | "summary" | "manual">(() => {
+    if (value.googlePlaceId) return "summary";
+    if (hasAddressData(value)) return "manual";
+    return "picker";
+  });
 
   function set<K extends keyof UbicacionFields>(key: K, v: UbicacionFields[K]) {
     onChange({ ...value, [key]: v });
@@ -863,6 +833,7 @@ function UbicacionSection({
       googlePlaceId: d.googlePlaceId,
     });
     setPickerOpen(false);
+    setMode("summary");
   }
 
   function handleDireccionCreated(d: DireccionLite) {
@@ -871,68 +842,82 @@ function UbicacionSection({
     setAdding(false);
   }
 
+  const popoverBody = adding ? (
+    <InlineDireccionForm tipo={tipo} onCancel={() => setAdding(false)} onCreated={handleDireccionCreated} />
+  ) : (
+    <Command>
+      <CommandInput placeholder="Buscar dirección…" />
+      <CommandList>
+        <CommandEmpty>Sin direcciones guardadas.</CommandEmpty>
+        <CommandGroup>
+          {direcciones.map((d) => (
+            <CommandItem key={d.id} value={`${d.etiqueta} ${d.rfc}`} onSelect={() => selectDireccion(d)}>
+              <div className="flex items-center gap-1.5">
+                <div>
+                  <div className="text-xs">{d.etiqueta}</div>
+                  <div className="text-[10px] text-muted-foreground font-mono">{d.rfc}</div>
+                </div>
+                {d.googlePlaceId && <BadgeCheck className="w-3 h-3 text-emerald-600 shrink-0" />}
+              </div>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+      <div className="border-t border-border p-1">
+        <button
+          type="button"
+          className="w-full flex items-center gap-1.5 rounded px-2 py-1.5 text-xs hover:bg-muted"
+          onClick={() => setAdding(true)}
+        >
+          <Plus className="w-3 h-3" />
+          Nueva dirección
+        </button>
+      </div>
+    </Command>
+  );
+
+  function closePicker(open: boolean) {
+    setPickerOpen(open);
+    if (!open) setAdding(false);
+  }
+
   return (
     <div className="rounded-md border border-border p-3">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-semibold">{label}</p>
-        <Popover
-          open={pickerOpen}
-          onOpenChange={(open) => {
-            setPickerOpen(open);
-            if (!open) setAdding(false);
-          }}
-        >
-          <PopoverTrigger className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
-            Usar dirección guardada
-            <ChevronsUpDown className="w-3 h-3" />
-          </PopoverTrigger>
-          <PopoverContent className={adding ? "w-[420px] p-0" : "w-72 p-0"} align="end">
-            {adding ? (
-              <InlineDireccionForm tipo={tipo} onCancel={() => setAdding(false)} onCreated={handleDireccionCreated} />
+        {mode !== "picker" && (
+          <div className="flex items-center gap-2">
+            <Popover open={pickerOpen} onOpenChange={closePicker}>
+              <PopoverTrigger className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+                Cambiar
+                <ChevronsUpDown className="w-3 h-3" />
+              </PopoverTrigger>
+              <PopoverContent className={adding ? "w-[420px] p-0" : "w-72 p-0"} align="end">
+                {popoverBody}
+              </PopoverContent>
+            </Popover>
+            {mode === "summary" ? (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                onClick={() => setMode("manual")}
+              >
+                <Pencil className="w-3 h-3" />
+                Editar
+              </button>
             ) : (
-              <Command>
-                <CommandInput placeholder="Buscar dirección…" />
-                <CommandList>
-                  <CommandEmpty>Sin direcciones guardadas.</CommandEmpty>
-                  <CommandGroup>
-                    {direcciones.map((d) => (
-                      <CommandItem key={d.id} value={`${d.etiqueta} ${d.rfc}`} onSelect={() => selectDireccion(d)}>
-                        <div className="flex items-center gap-1.5">
-                          <div>
-                            <div className="text-xs">{d.etiqueta}</div>
-                            <div className="text-[10px] text-muted-foreground font-mono">{d.rfc}</div>
-                          </div>
-                          {d.googlePlaceId && <BadgeCheck className="w-3 h-3 text-primary shrink-0" />}
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-                <div className="border-t border-border p-1">
-                  <button
-                    type="button"
-                    className="w-full flex items-center gap-1.5 rounded px-2 py-1.5 text-xs hover:bg-muted"
-                    onClick={() => setAdding(true)}
-                  >
-                    <Plus className="w-3 h-3" />
-                    Nueva dirección
-                  </button>
-                </div>
-              </Command>
+              <button
+                type="button"
+                className="text-[11px] text-muted-foreground hover:text-foreground"
+                onClick={() => setMode(hasAddressData(value) ? "summary" : "picker")}
+              >
+                Listo
+              </button>
             )}
-          </PopoverContent>
-        </Popover>
+          </div>
+        )}
       </div>
-      <div className="grid grid-cols-2 gap-2 mb-2">
-        <div>
-          <label className="text-[10px] text-muted-foreground">RFC</label>
-          <Input className="h-7 text-xs" value={value.rfc} onChange={(e) => set("rfc", e.target.value.toUpperCase())} />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">Nombre</label>
-          <Input className="h-7 text-xs" value={value.nombre} onChange={(e) => set("nombre", e.target.value)} />
-        </div>
-      </div>
+
       <div className="mb-2">
         <label className="text-[10px] text-muted-foreground">Fecha/hora estimada</label>
         <Input
@@ -942,91 +927,422 @@ function UbicacionSection({
           onChange={(e) => set("fechaHoraSalidaLlegada", e.target.value)}
         />
       </div>
-      {value.googlePlaceId && (
-        <Badge variant="default" className="w-fit gap-1 mb-2">
-          <BadgeCheck className="w-3 h-3" />
-          Verificada por Google
-        </Badge>
+
+      {mode === "picker" && (
+        <div className="flex gap-2 justify-center">
+          <Popover open={pickerOpen} onOpenChange={closePicker}>
+            <PopoverTrigger className={cardButtonClass}>
+              <Search className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs font-medium">Usar dirección guardada</span>
+            </PopoverTrigger>
+            <PopoverContent className={adding ? "w-[420px] p-0" : "w-72 p-0"} align="start">
+              {popoverBody}
+            </PopoverContent>
+          </Popover>
+          <button type="button" className={cardButtonClass} onClick={() => setAddDialogOpen(true)}>
+            <Plus className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs font-medium">Agregar nueva</span>
+          </button>
+        </div>
       )}
-      <div className="grid grid-cols-3 gap-2 mb-2">
-        <div>
-          <label className="text-[10px] text-muted-foreground">Calle</label>
-          <Input
-            className="h-7 text-xs"
-            value={value.calle}
-            onChange={(e) => setDomicilio("calle", e.target.value)}
+
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nueva dirección de {label.toLowerCase()}</DialogTitle>
+          </DialogHeader>
+          <InlineDireccionForm
+            tipo={tipo}
+            showHeading={false}
+            onCancel={() => setAddDialogOpen(false)}
+            onCreated={(d) => {
+              handleDireccionCreated(d);
+              setAddDialogOpen(false);
+            }}
           />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">No. Ext.</label>
-          <Input
-            className="h-7 text-xs"
-            value={value.numeroExterior}
-            onChange={(e) => setDomicilio("numeroExterior", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">No. Int.</label>
-          <Input
-            className="h-7 text-xs"
-            value={value.numeroInterior}
-            onChange={(e) => set("numeroInterior", e.target.value)}
-          />
-        </div>
+        </DialogContent>
+      </Dialog>
+
+      {mode === "summary" && <AddressSummaryCard value={value} />}
+
+      {mode === "manual" && (
+        <>
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <div>
+              <label className="text-[10px] text-muted-foreground">RFC</label>
+              <Input
+                className="h-7 text-xs"
+                value={value.rfc}
+                onChange={(e) => set("rfc", e.target.value.toUpperCase())}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Nombre</label>
+              <Input className="h-7 text-xs" value={value.nombre} onChange={(e) => set("nombre", e.target.value)} />
+            </div>
+          </div>
+          {value.googlePlaceId && (
+            <Badge variant="outline" className="w-fit gap-1 mb-2 border-emerald-200 bg-emerald-50 text-emerald-700">
+              <BadgeCheck className="w-3 h-3" />
+              Verificada por Google
+            </Badge>
+          )}
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            <div>
+              <label className="text-[10px] text-muted-foreground">Calle</label>
+              <Input
+                className="h-7 text-xs"
+                value={value.calle}
+                onChange={(e) => setDomicilio("calle", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">No. Ext.</label>
+              <Input
+                className="h-7 text-xs"
+                value={value.numeroExterior}
+                onChange={(e) => setDomicilio("numeroExterior", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">No. Int.</label>
+              <Input
+                className="h-7 text-xs"
+                value={value.numeroInterior}
+                onChange={(e) => set("numeroInterior", e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            <div>
+              <label className="text-[10px] text-muted-foreground">Colonia</label>
+              <Input
+                className="h-7 text-xs"
+                value={value.colonia}
+                onChange={(e) => setDomicilio("colonia", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Municipio</label>
+              <Input
+                className="h-7 text-xs"
+                value={value.municipio}
+                onChange={(e) => setDomicilio("municipio", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Localidad</label>
+              <Input
+                className="h-7 text-xs"
+                value={value.localidad}
+                onChange={(e) => set("localidad", e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-[10px] text-muted-foreground">Estado</label>
+              <Input
+                className="h-7 text-xs"
+                placeholder="ej. BCN"
+                value={value.estado}
+                onChange={(e) => setDomicilio("estado", e.target.value.toUpperCase())}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">País</label>
+              <Input
+                className="h-7 text-xs"
+                value={value.pais}
+                onChange={(e) => setDomicilio("pais", e.target.value.toUpperCase())}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">C.P.</label>
+              <Input
+                className="h-7 text-xs"
+                value={value.codigoPostal}
+                onChange={(e) => setDomicilio("codigoPostal", e.target.value)}
+              />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// "configVehicular"/"permisoSct" use SAT codes (truthy strings once set), the
+// rest are free text — any of them present means the user has started
+// filling this in by hand rather than picking a saved vehículo.
+function hasVehiculoData(a: AutotransporteFields): boolean {
+  return !!(
+    a.placa.trim() ||
+    a.configVehicular ||
+    a.permisoSct ||
+    a.numeroPermisoSct.trim() ||
+    a.pesoBrutoVehicular.trim() ||
+    a.anioModeloVehiculo.trim()
+  );
+}
+
+function VehiculoSummaryCard({ placa, configVehicular }: { placa: string; configVehicular: string }) {
+  const configLabel = CONFIG_VEHICULAR_OPTIONS.find(([code]) => code === configVehicular)?.[1];
+  return (
+    <div className="rounded-md border border-border bg-muted/30 p-2.5">
+      <p className="text-xs font-mono font-medium">{placa || "—"}</p>
+      {configLabel && <p className="text-[11px] text-muted-foreground mt-0.5">{configLabel}</p>}
+    </div>
+  );
+}
+
+function VehiculoSection({
+  vehiculoId,
+  autotransporte,
+  vehiculos,
+  onSelect,
+  onAuto,
+  onVehiculoCreated,
+}: {
+  vehiculoId: string;
+  autotransporte: AutotransporteFields;
+  vehiculos: VehiculoLite[];
+  onSelect: (v: VehiculoLite) => void;
+  onAuto: <K extends keyof AutotransporteFields>(key: K, v: AutotransporteFields[K]) => void;
+  onVehiculoCreated?: (v: VehiculoLite) => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  // Same picker/summary/manual pattern as UbicacionSection — see its
+  // comment. "summary" only for a registry-backed pick (vehiculoId set);
+  // hand-typed placas with no matching registry entry go straight to
+  // "manual" since there's nothing to summarize.
+  const [mode, setMode] = useState<"picker" | "summary" | "manual">(() => {
+    if (vehiculoId) return "summary";
+    if (hasVehiculoData(autotransporte)) return "manual";
+    return "picker";
+  });
+
+  function closePicker(open: boolean) {
+    setPickerOpen(open);
+    if (!open) setAdding(false);
+  }
+
+  function handleSelect(v: VehiculoLite) {
+    onSelect(v);
+    setPickerOpen(false);
+    setAddDialogOpen(false);
+    setAdding(false);
+    setMode("summary");
+  }
+
+  function handleCreated(v: VehiculoLite) {
+    onVehiculoCreated?.(v);
+    handleSelect(v);
+  }
+
+  const popoverBody = adding ? (
+    <InlineVehiculoForm onCancel={() => setAdding(false)} onCreated={handleCreated} />
+  ) : (
+    <Command>
+      <CommandInput placeholder="Buscar placa…" />
+      <CommandList>
+        <CommandEmpty>Sin vehículos activos.</CommandEmpty>
+        <CommandGroup>
+          {vehiculos.map((v) => (
+            <CommandItem key={v.id} value={v.placa} onSelect={() => handleSelect(v)}>
+              <div>
+                <div className="font-mono text-xs">{v.placa}</div>
+                {v.configVehicular && <div className="text-[10px] text-muted-foreground">{v.configVehicular}</div>}
+              </div>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+      <div className="border-t border-border p-1">
+        <button
+          type="button"
+          className="w-full flex items-center gap-1.5 rounded px-2 py-1.5 text-xs hover:bg-muted"
+          onClick={() => setAdding(true)}
+        >
+          <Plus className="w-3 h-3" />
+          Nuevo vehículo
+        </button>
       </div>
-      <div className="grid grid-cols-3 gap-2 mb-2">
-        <div>
-          <label className="text-[10px] text-muted-foreground">Colonia</label>
-          <Input
-            className="h-7 text-xs"
-            value={value.colonia}
-            onChange={(e) => setDomicilio("colonia", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">Municipio</label>
-          <Input
-            className="h-7 text-xs"
-            value={value.municipio}
-            onChange={(e) => setDomicilio("municipio", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">Localidad</label>
-          <Input
-            className="h-7 text-xs"
-            value={value.localidad}
-            onChange={(e) => set("localidad", e.target.value)}
-          />
-        </div>
+    </Command>
+  );
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs font-medium text-muted-foreground">Vehículo</label>
+        {mode !== "picker" && (
+          <div className="flex items-center gap-2">
+            <Popover open={pickerOpen} onOpenChange={closePicker}>
+              <PopoverTrigger className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+                Cambiar
+                <ChevronsUpDown className="w-3 h-3" />
+              </PopoverTrigger>
+              <PopoverContent className={adding ? "w-[440px] p-0" : "w-80 p-0"} align="end">
+                {popoverBody}
+              </PopoverContent>
+            </Popover>
+            {mode === "summary" ? (
+              <button
+                type="button"
+                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                onClick={() => setMode("manual")}
+              >
+                <Pencil className="w-3 h-3" />
+                Editar
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="text-[11px] text-muted-foreground hover:text-foreground"
+                onClick={() => setMode(vehiculoId || hasVehiculoData(autotransporte) ? "summary" : "picker")}
+              >
+                Listo
+              </button>
+            )}
+          </div>
+        )}
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <label className="text-[10px] text-muted-foreground">Estado</label>
-          <Input
-            className="h-7 text-xs"
-            placeholder="ej. BCN"
-            value={value.estado}
-            onChange={(e) => setDomicilio("estado", e.target.value.toUpperCase())}
-          />
+
+      {mode === "picker" && (
+        <div className="flex gap-2">
+          <Popover open={pickerOpen} onOpenChange={closePicker}>
+            <PopoverTrigger className={cardButtonClass}>
+              <Search className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs font-medium">Usar vehículo guardado</span>
+            </PopoverTrigger>
+            <PopoverContent className={adding ? "w-[440px] p-0" : "w-80 p-0"} align="start">
+              {popoverBody}
+            </PopoverContent>
+          </Popover>
+          <button type="button" className={cardButtonClass} onClick={() => setAddDialogOpen(true)}>
+            <Plus className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs font-medium">Agregar nuevo</span>
+          </button>
         </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">País</label>
-          <Input
-            className="h-7 text-xs"
-            value={value.pais}
-            onChange={(e) => setDomicilio("pais", e.target.value.toUpperCase())}
-          />
+      )}
+
+      {mode === "summary" && (
+        <VehiculoSummaryCard placa={autotransporte.placa} configVehicular={autotransporte.configVehicular} />
+      )}
+
+      {mode === "manual" && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div>
+            <label className="text-[10px] text-muted-foreground">Permiso SCT</label>
+            <select
+              className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
+              value={autotransporte.permisoSct}
+              onChange={(e) => onAuto("permisoSct", e.target.value)}
+            >
+              <option value="">—</option>
+              {PERMISO_SCT_OPTIONS.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {code} – {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">No. Permiso</label>
+            <Input
+              className="h-7 text-xs"
+              value={autotransporte.numeroPermisoSct}
+              onChange={(e) => onAuto("numeroPermisoSct", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Config. vehicular</label>
+            <select
+              className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
+              value={autotransporte.configVehicular}
+              onChange={(e) => onAuto("configVehicular", e.target.value)}
+            >
+              <option value="">—</option>
+              {CONFIG_VEHICULAR_OPTIONS.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {code} – {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Placa</label>
+            <Input className="h-7 text-xs" value={autotransporte.placa} onChange={(e) => onAuto("placa", e.target.value)} />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Peso bruto vehicular</label>
+            <Input
+              className="h-7 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              type="number"
+              value={autotransporte.pesoBrutoVehicular}
+              onChange={(e) => onAuto("pesoBrutoVehicular", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Año modelo</label>
+            <Input
+              className="h-7 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              type="number"
+              value={autotransporte.anioModeloVehiculo}
+              onChange={(e) => onAuto("anioModeloVehiculo", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Aseguradora (carga)</label>
+            <Input
+              className="h-7 text-xs"
+              value={autotransporte.aseguradoraCarga}
+              onChange={(e) => onAuto("aseguradoraCarga", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Póliza (carga)</label>
+            <Input
+              className="h-7 text-xs"
+              value={autotransporte.polizaCarga}
+              onChange={(e) => onAuto("polizaCarga", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Aseguradora (resp. civil)</label>
+            <Input
+              className="h-7 text-xs"
+              value={autotransporte.aseguradoraRespCivil}
+              onChange={(e) => onAuto("aseguradoraRespCivil", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Póliza (resp. civil)</label>
+            <Input
+              className="h-7 text-xs"
+              value={autotransporte.polizaRespCivil}
+              onChange={(e) => onAuto("polizaRespCivil", e.target.value)}
+            />
+          </div>
         </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">C.P.</label>
-          <Input
-            className="h-7 text-xs"
-            value={value.codigoPostal}
-            onChange={(e) => setDomicilio("codigoPostal", e.target.value)}
-          />
-        </div>
-      </div>
+      )}
+
+      {autotransporte.remolques.length > 0 && (
+        <p className="text-[10px] text-muted-foreground mt-1">
+          Remolques: {autotransporte.remolques.map((r) => r.placa).join(", ")}
+        </p>
+      )}
+
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nuevo vehículo</DialogTitle>
+          </DialogHeader>
+          <InlineVehiculoForm showHeading={false} onCancel={() => setAddDialogOpen(false)} onCreated={handleCreated} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1041,51 +1357,110 @@ export function CartaPorteFields({
   onChoferCreated,
   onDireccionCreated,
 }: CartaPorteFieldsProps) {
-  const [vehiculoPickerOpen, setVehiculoPickerOpen] = useState(false);
   const [choferPickerOpen, setChoferPickerOpen] = useState(false);
-  const [addingVehiculo, setAddingVehiculo] = useState(false);
   const [addingChofer, setAddingChofer] = useState(false);
-  const [oneOffFiguraOpen, setOneOffFiguraOpen] = useState(false);
+  // "Agregar nuevo" from the empty-state card, same pattern as
+  // VehiculoSection's addDialogOpen — opens a modal instead of the inline
+  // popover form.
+  const [addChoferDialogOpen, setAddChoferDialogOpen] = useState(false);
   const [calculatingDistancia, setCalculatingDistancia] = useState(false);
+  // True once the current distanciaRecorridaKm came from the auto-calc
+  // effect below (both ubicaciones Google-verified) — drives the "Calculado
+  // automáticamente" badge. Cleared as soon as the user hand-edits the km
+  // field, since it's no longer necessarily accurate for the addresses shown.
+  const [distanciaAuto, setDistanciaAuto] = useState(false);
+
+  // Kept in sync with `value` on every render (see valueRef effect below) so
+  // the async distance fetch can merge its result into whatever the form's
+  // latest state is when the response arrives, instead of clobbering edits
+  // made elsewhere while the request was in flight.
+  const valueRef = useRef(value);
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  async function fetchDistanciaKm(origen: UbicacionFields, destino: UbicacionFields): Promise<number> {
+    const res = await fetch("/api/carta-porte/distance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        origen: {
+          placeId: origen.googlePlaceId,
+          calle: origen.calle,
+          numeroExterior: origen.numeroExterior,
+          colonia: origen.colonia,
+          municipio: origen.municipio,
+          estado: origen.estado,
+          codigoPostal: origen.codigoPostal,
+          pais: origen.pais,
+        },
+        destino: {
+          placeId: destino.googlePlaceId,
+          calle: destino.calle,
+          numeroExterior: destino.numeroExterior,
+          colonia: destino.colonia,
+          municipio: destino.municipio,
+          estado: destino.estado,
+          codigoPostal: destino.codigoPostal,
+          pais: destino.pais,
+        },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Error al calcular la distancia");
+    return data.distanciaKm;
+  }
 
   async function handleCalcularDistancia() {
     setCalculatingDistancia(true);
     try {
-      const res = await fetch("/api/carta-porte/distance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          origen: {
-            placeId: value.ubicacionOrigen.googlePlaceId,
-            calle: value.ubicacionOrigen.calle,
-            numeroExterior: value.ubicacionOrigen.numeroExterior,
-            colonia: value.ubicacionOrigen.colonia,
-            municipio: value.ubicacionOrigen.municipio,
-            estado: value.ubicacionOrigen.estado,
-            codigoPostal: value.ubicacionOrigen.codigoPostal,
-            pais: value.ubicacionOrigen.pais,
-          },
-          destino: {
-            placeId: value.ubicacionDestino.googlePlaceId,
-            calle: value.ubicacionDestino.calle,
-            numeroExterior: value.ubicacionDestino.numeroExterior,
-            colonia: value.ubicacionDestino.colonia,
-            municipio: value.ubicacionDestino.municipio,
-            estado: value.ubicacionDestino.estado,
-            codigoPostal: value.ubicacionDestino.codigoPostal,
-            pais: value.ubicacionDestino.pais,
-          },
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al calcular la distancia");
-      onChange({ ...value, distanciaRecorridaKm: String(data.distanciaKm) });
+      const km = await fetchDistanciaKm(value.ubicacionOrigen, value.ubicacionDestino);
+      setDistanciaAuto(false);
+      onChange({ ...valueRef.current, distanciaRecorridaKm: String(km) });
     } catch (e) {
       alertError("Distancia recorrida", e instanceof Error ? e.message : "Error al calcular la distancia");
     } finally {
       setCalculatingDistancia(false);
     }
   }
+
+  // Auto-calculates as soon as both ubicaciones are Google-verified —
+  // guarded by lastAutoPairRef so it only re-fetches when the actual
+  // (origen, destino) place pair changes, not on every keystroke elsewhere
+  // in the form. pairKey is re-checked against the ref when the response
+  // arrives so a stale response from a superseded pair never overwrites a
+  // newer one.
+  const lastAutoPairRef = useRef<string | null>(null);
+  useEffect(() => {
+    const origenId = value.ubicacionOrigen.googlePlaceId;
+    const destinoId = value.ubicacionDestino.googlePlaceId;
+    if (!origenId || !destinoId) return;
+    const pairKey = `${origenId}|${destinoId}`;
+    if (lastAutoPairRef.current === pairKey) return;
+    lastAutoPairRef.current = pairKey;
+    setCalculatingDistancia(true);
+    fetchDistanciaKm(value.ubicacionOrigen, value.ubicacionDestino)
+      .then((km) => {
+        if (lastAutoPairRef.current !== pairKey) return;
+        setDistanciaAuto(true);
+        onChange({ ...valueRef.current, distanciaRecorridaKm: String(km) });
+      })
+      .catch((e) => {
+        if (lastAutoPairRef.current !== pairKey) return;
+        alertError("Distancia recorrida", e instanceof Error ? e.message : "Error al calcular la distancia");
+      })
+      .finally(() => {
+        if (lastAutoPairRef.current === pairKey) setCalculatingDistancia(false);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.ubicacionOrigen.googlePlaceId, value.ubicacionDestino.googlePlaceId]);
+
+  // The "Calculado automáticamente" badge only means something while both
+  // addresses are still the verified pair it was computed for, so it's
+  // derived rather than tracked separately — no need to reset distanciaAuto
+  // in an effect just because a place_id was invalidated.
+  const distanciaAutoVisible =
+    distanciaAuto && !!value.ubicacionOrigen.googlePlaceId && !!value.ubicacionDestino.googlePlaceId;
 
   function updateMercancia(key: string, patch: Partial<MercanciaRow>) {
     onChange({
@@ -1117,7 +1492,6 @@ export function CartaPorteFields({
         remolques: v.remolques,
       },
     });
-    setVehiculoPickerOpen(false);
   }
 
   function addChofer(c: ChoferLite) {
@@ -1143,37 +1517,47 @@ export function CartaPorteFields({
     onChange({ ...value, figuras: value.figuras.filter((f) => f.key !== key) });
   }
 
-  function addOneOffFigura(f: OneOffFiguraFormState) {
-    onChange({
-      ...value,
-      figuras: [
-        ...value.figuras,
-        {
-          key: crypto.randomUUID(),
-          choferId: "",
-          nombre: f.nombre.trim(),
-          rfc: f.rfc.trim().toUpperCase(),
-          numeroLicencia: f.numeroLicencia.trim(),
-          tipoFigura: f.tipoFigura,
-        },
-      ],
-    });
-    setOneOffFiguraOpen(false);
-  }
-
-  function handleVehiculoCreated(v: VehiculoLite) {
-    onVehiculoCreated?.(v);
-    selectVehiculo(v);
-    setAddingVehiculo(false);
-  }
-
   function handleChoferCreated(c: ChoferLite) {
     onChoferCreated?.(c);
     addChofer(c);
     setAddingChofer(false);
   }
 
-  const selectedVehiculo = vehiculos.find((v) => v.id === value.vehiculoId);
+  // Shared between the header's "+ Agregar chofer" button (once figuras
+  // exist) and the empty-state "Agregar chofer registrado" card — only one
+  // of those two triggers is ever mounted at a time, so they can safely
+  // share the choferPickerOpen/addingChofer state.
+  const choferPopoverBody = addingChofer ? (
+    <InlineChoferForm onCancel={() => setAddingChofer(false)} onCreated={handleChoferCreated} />
+  ) : (
+    <Command>
+      <CommandInput placeholder="Buscar chofer…" />
+      <CommandList>
+        <CommandEmpty>Sin choferes activos.</CommandEmpty>
+        <CommandGroup>
+          {choferes.map((c) => (
+            <CommandItem key={c.id} value={c.nombre} onSelect={() => addChofer(c)}>
+              <div>
+                <div className="text-xs">{c.nombre}</div>
+                <div className="text-[10px] text-muted-foreground font-mono">{c.rfc}</div>
+              </div>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+      <div className="border-t border-border p-1">
+        <button
+          type="button"
+          className="w-full flex items-center gap-1.5 rounded px-2 py-1.5 text-xs hover:bg-muted"
+          onClick={() => setAddingChofer(true)}
+        >
+          <Plus className="w-3 h-3" />
+          Nuevo chofer
+        </button>
+      </div>
+    </Command>
+  );
+
   const pesoSum = sumPesoEnKg(value.mercancias);
   const origenDirecciones = direcciones.filter((d) => d.tipo === "origen");
   const destinoDirecciones = direcciones.filter((d) => d.tipo === "destino");
@@ -1211,17 +1595,32 @@ export function CartaPorteFields({
           className="h-7 w-24 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           type="number"
           value={value.distanciaRecorridaKm}
-          onChange={(e) => onChange({ ...value, distanciaRecorridaKm: e.target.value })}
+          onChange={(e) => {
+            setDistanciaAuto(false);
+            onChange({ ...value, distanciaRecorridaKm: e.target.value });
+          }}
         />
-        <button
-          type="button"
-          disabled={calculatingDistancia}
-          className="flex items-center gap-1 text-[11px] text-muted-foreground border border-dashed border-border rounded px-2 py-0.5 disabled:opacity-50"
-          onClick={handleCalcularDistancia}
-        >
-          {calculatingDistancia && <Loader2 className="w-3 h-3 animate-spin" />}
-          Calcular automáticamente
-        </button>
+        {calculatingDistancia && (
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Calculando…
+          </span>
+        )}
+        {!calculatingDistancia && distanciaAutoVisible && (
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Check className="w-3 h-3 text-emerald-600" />
+            Calculado automáticamente
+          </span>
+        )}
+        {!calculatingDistancia && !distanciaAutoVisible && (!value.ubicacionOrigen.googlePlaceId || !value.ubicacionDestino.googlePlaceId) && (
+          <button
+            type="button"
+            className="flex items-center gap-1 text-[11px] text-muted-foreground border border-dashed border-border rounded px-2 py-0.5"
+            onClick={handleCalcularDistancia}
+          >
+            Calcular con estas direcciones
+          </button>
+        )}
       </div>
 
       <div>
@@ -1445,174 +1844,19 @@ export function CartaPorteFields({
         </div>
       </div>
 
-      <div>
-        <label className="text-xs font-medium text-muted-foreground">Vehículo</label>
-        <Popover
-          open={vehiculoPickerOpen}
-          onOpenChange={(open) => {
-            setVehiculoPickerOpen(open);
-            if (!open) setAddingVehiculo(false);
-          }}
-        >
-          <PopoverTrigger className="w-full flex items-center justify-between rounded-md border border-input px-3 py-2 text-sm text-left mt-1">
-            <span className={selectedVehiculo ? "" : "text-muted-foreground"}>
-              {selectedVehiculo ? selectedVehiculo.placa : "— Selecciona un vehículo —"}
-            </span>
-            <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          </PopoverTrigger>
-          <PopoverContent className={addingVehiculo ? "w-[440px] p-0" : "w-80 p-0"} align="start">
-            {addingVehiculo ? (
-              <InlineVehiculoForm onCancel={() => setAddingVehiculo(false)} onCreated={handleVehiculoCreated} />
-            ) : (
-              <Command>
-                <CommandInput placeholder="Buscar placa…" />
-                <CommandList>
-                  <CommandEmpty>Sin vehículos activos.</CommandEmpty>
-                  <CommandGroup>
-                    {vehiculos.map((v) => (
-                      <CommandItem key={v.id} value={v.placa} onSelect={() => selectVehiculo(v)}>
-                        <div>
-                          <div className="font-mono text-xs">{v.placa}</div>
-                          {v.configVehicular && (
-                            <div className="text-[10px] text-muted-foreground">{v.configVehicular}</div>
-                          )}
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-                <div className="border-t border-border p-1">
-                  <button
-                    type="button"
-                    className="w-full flex items-center gap-1.5 rounded px-2 py-1.5 text-xs hover:bg-muted"
-                    onClick={() => setAddingVehiculo(true)}
-                  >
-                    <Plus className="w-3 h-3" />
-                    Nuevo vehículo
-                  </button>
-                </div>
-              </Command>
-            )}
-          </PopoverContent>
-        </Popover>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
-          <div>
-            <label className="text-[10px] text-muted-foreground">Permiso SCT</label>
-            <select
-              className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
-              value={value.autotransporte.permisoSct}
-              onChange={(e) => setAuto("permisoSct", e.target.value)}
-            >
-              <option value="">—</option>
-              {PERMISO_SCT_OPTIONS.map(([code, label]) => (
-                <option key={code} value={code}>
-                  {code} – {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground">No. Permiso</label>
-            <Input
-              className="h-7 text-xs"
-              value={value.autotransporte.numeroPermisoSct}
-              onChange={(e) => setAuto("numeroPermisoSct", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground">Config. vehicular</label>
-            <select
-              className="w-full rounded-md border border-input px-2 py-1 text-xs h-7"
-              value={value.autotransporte.configVehicular}
-              onChange={(e) => setAuto("configVehicular", e.target.value)}
-            >
-              <option value="">—</option>
-              {CONFIG_VEHICULAR_OPTIONS.map(([code, label]) => (
-                <option key={code} value={code}>
-                  {code} – {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground">Placa</label>
-            <Input
-              className="h-7 text-xs"
-              value={value.autotransporte.placa}
-              onChange={(e) => setAuto("placa", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground">Peso bruto vehicular</label>
-            <Input
-              className="h-7 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-              type="number"
-              value={value.autotransporte.pesoBrutoVehicular}
-              onChange={(e) => setAuto("pesoBrutoVehicular", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground">Año modelo</label>
-            <Input
-              className="h-7 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-              type="number"
-              value={value.autotransporte.anioModeloVehiculo}
-              onChange={(e) => setAuto("anioModeloVehiculo", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground">Aseguradora (carga)</label>
-            <Input
-              className="h-7 text-xs"
-              value={value.autotransporte.aseguradoraCarga}
-              onChange={(e) => setAuto("aseguradoraCarga", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground">Póliza (carga)</label>
-            <Input
-              className="h-7 text-xs"
-              value={value.autotransporte.polizaCarga}
-              onChange={(e) => setAuto("polizaCarga", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground">Aseguradora (resp. civil)</label>
-            <Input
-              className="h-7 text-xs"
-              value={value.autotransporte.aseguradoraRespCivil}
-              onChange={(e) => setAuto("aseguradoraRespCivil", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground">Póliza (resp. civil)</label>
-            <Input
-              className="h-7 text-xs"
-              value={value.autotransporte.polizaRespCivil}
-              onChange={(e) => setAuto("polizaRespCivil", e.target.value)}
-            />
-          </div>
-        </div>
-        {value.autotransporte.remolques.length > 0 && (
-          <p className="text-[10px] text-muted-foreground mt-1">
-            Remolques: {value.autotransporte.remolques.map((r) => r.placa).join(", ")}
-          </p>
-        )}
-      </div>
+      <VehiculoSection
+        vehiculoId={value.vehiculoId}
+        autotransporte={value.autotransporte}
+        vehiculos={vehiculos}
+        onSelect={selectVehiculo}
+        onAuto={setAuto}
+        onVehiculoCreated={onVehiculoCreated}
+      />
 
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <label className="text-xs font-medium text-muted-foreground">Figuras de transporte</label>
-          <div className="flex items-center gap-1.5">
-            <Popover open={oneOffFiguraOpen} onOpenChange={setOneOffFiguraOpen}>
-              <PopoverTrigger className="h-6 px-2 text-xs rounded-md border border-dashed border-input">
-                + Figura sin registro
-              </PopoverTrigger>
-              <PopoverContent className="w-72 p-0" align="end">
-                <OneOffFiguraForm onCancel={() => setOneOffFiguraOpen(false)} onAdd={addOneOffFigura} />
-              </PopoverContent>
-            </Popover>
+          {value.figuras.length > 0 && (
             <Popover
               open={choferPickerOpen}
               onOpenChange={(open) => {
@@ -1623,43 +1867,34 @@ export function CartaPorteFields({
               <PopoverTrigger className="h-6 px-2 text-xs rounded-md border border-input">
                 + Agregar chofer
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-0" align="end">
-                {addingChofer ? (
-                  <InlineChoferForm onCancel={() => setAddingChofer(false)} onCreated={handleChoferCreated} />
-                ) : (
-                  <Command>
-                    <CommandInput placeholder="Buscar chofer…" />
-                    <CommandList>
-                      <CommandEmpty>Sin choferes activos.</CommandEmpty>
-                      <CommandGroup>
-                        {choferes.map((c) => (
-                          <CommandItem key={c.id} value={c.nombre} onSelect={() => addChofer(c)}>
-                            <div>
-                              <div className="text-xs">{c.nombre}</div>
-                              <div className="text-[10px] text-muted-foreground font-mono">{c.rfc}</div>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                    <div className="border-t border-border p-1">
-                      <button
-                        type="button"
-                        className="w-full flex items-center gap-1.5 rounded px-2 py-1.5 text-xs hover:bg-muted"
-                        onClick={() => setAddingChofer(true)}
-                      >
-                        <Plus className="w-3 h-3" />
-                        Nuevo chofer
-                      </button>
-                    </div>
-                  </Command>
-                )}
+              <PopoverContent className={addingChofer ? "w-[420px] p-0" : "w-80 p-0"} align="end">
+                {choferPopoverBody}
               </PopoverContent>
             </Popover>
-          </div>
+          )}
         </div>
         {value.figuras.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground">Sin figuras agregadas.</p>
+          <div className="flex gap-2">
+            <Popover
+              open={choferPickerOpen}
+              onOpenChange={(open) => {
+                setChoferPickerOpen(open);
+                if (!open) setAddingChofer(false);
+              }}
+            >
+              <PopoverTrigger className={cardButtonClass}>
+                <Search className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs font-medium">Usar chofer guardado</span>
+              </PopoverTrigger>
+              <PopoverContent className={addingChofer ? "w-[420px] p-0" : "w-80 p-0"} align="start">
+                {choferPopoverBody}
+              </PopoverContent>
+            </Popover>
+            <button type="button" className={cardButtonClass} onClick={() => setAddChoferDialogOpen(true)}>
+              <Plus className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs font-medium">Agregar nuevo</span>
+            </button>
+          </div>
         ) : (
           <div className="overflow-x-auto rounded-md border border-border">
             <table className="w-full text-xs">
@@ -1710,6 +1945,22 @@ export function CartaPorteFields({
           </div>
         )}
       </div>
+
+      <Dialog open={addChoferDialogOpen} onOpenChange={setAddChoferDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nuevo chofer</DialogTitle>
+          </DialogHeader>
+          <InlineChoferForm
+            showHeading={false}
+            onCancel={() => setAddChoferDialogOpen(false)}
+            onCreated={(c) => {
+              handleChoferCreated(c);
+              setAddChoferDialogOpen(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -213,7 +213,7 @@ function DireccionGrid({ tipo, title }: { tipo: "origen" | "destino"; title: str
                       <span className="inline-flex items-center gap-1.5">
                         {d.etiqueta}
                         {d.googlePlaceId && (
-                          <BadgeCheck className="w-3.5 h-3.5 text-primary" aria-label="Verificada por Google" />
+                          <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" aria-label="Verificada por Google" />
                         )}
                       </span>
                     </td>

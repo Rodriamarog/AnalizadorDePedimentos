@@ -80,7 +80,7 @@ export function DireccionForm({
       <div>
         <GoogleAddressAutocomplete onResolved={applyResolvedAddress} />
         {value.googlePlaceId && (
-          <Badge variant="default" className="mt-1.5 w-fit gap-1">
+          <Badge variant="outline" className="mt-1.5 w-fit gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
             <BadgeCheck className="w-3 h-3" />
             Verificada por Google
           </Badge>

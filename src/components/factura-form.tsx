@@ -238,6 +238,7 @@ function newItemRow(): ItemRow {
 function transporteFeeRow(): ItemRow {
   return {
     ...newItemRow(),
+    descripcion: "Tarifa del Transportista",
     clave: "78101800",
     unitKey: "E48",
   };
@@ -1009,35 +1010,37 @@ export function FacturaForm({
           </div>
         )}
 
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Cliente</label>
-          <select
-            className="w-full rounded-md border border-input px-3 py-2 text-sm"
-            value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
-          >
-            <option value="">— Selecciona un cliente —</option>
-            {clientes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.legal_name} ({c.tax_id})
-              </option>
-            ))}
-          </select>
-        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Cliente</label>
+            <select
+              className="w-full rounded-md border border-input px-3 py-2 text-sm"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+            >
+              <option value="">— Selecciona un cliente —</option>
+              {clientes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.legal_name} ({c.tax_id})
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Uso del CFDI</label>
-          <select
-            className="w-full rounded-md border border-input px-3 py-2 text-sm"
-            value={use}
-            onChange={(e) => setUse(e.target.value)}
-          >
-            {USO_CFDI_OPTIONS.map(([code, label]) => (
-              <option key={code} value={code}>
-                {code} – {label}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Uso del CFDI</label>
+            <select
+              className="w-full rounded-md border border-input px-3 py-2 text-sm"
+              value={use}
+              onChange={(e) => setUse(e.target.value)}
+            >
+              {USO_CFDI_OPTIONS.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {code} – {label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div>
