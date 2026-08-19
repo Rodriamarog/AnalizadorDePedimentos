@@ -64,7 +64,7 @@ const emptyForm: FormState = {
 };
 
 export default function DireccionesPage() {
-  const { rows, filteredRows, loading, q, setQ, load, deactivate } = useRegistryList<Direccion>({
+  const { rows, filteredRows, loading, q, setQ, load, deactivate, hardDelete } = useRegistryList<Direccion>({
     endpoint: "/api/direcciones",
     searchFields: (r) => [r.etiqueta, r.rfc, r.municipio],
   });
@@ -174,11 +174,25 @@ export default function DireccionesPage() {
   async function handleDeactivate(d: Direccion) {
     const confirmed = await confirmDelete(
       "¿Desactivar dirección?",
-      `${d.etiqueta} dejará de aparecer para nuevas asignaciones, pero se conserva para facturas ya emitidas.`,
+      `${d.etiqueta} dejará de aparecer para nuevas asignaciones, pero se conserva en esta lista.`,
       "Desactivar"
     );
     if (!confirmed) return;
     await deactivate(d.id);
+  }
+
+  // Only offered once a dirección is already inactive — an active row that
+  // was actually used on a Carta Porte keeps its address copied into that
+  // invoice regardless, but hard-deleting is meant for cleaning up entries
+  // that turned out to be unused, not for skipping the deactivate step.
+  async function handleHardDelete(d: Direccion) {
+    const confirmed = await confirmDelete(
+      "¿Eliminar dirección permanentemente?",
+      `${d.etiqueta} se eliminará por completo. Esta acción no se puede deshacer.`,
+      "Eliminar"
+    );
+    if (!confirmed) return;
+    await hardDelete(d.id);
   }
 
   return (
@@ -255,7 +269,7 @@ export default function DireccionesPage() {
                       <Button size="sm" variant="outline" className="h-7 px-3 text-xs" onClick={() => startEdit(d)}>
                         Editar
                       </Button>
-                      {d.active && (
+                      {d.active ? (
                         <Button
                           size="sm"
                           variant="destructive"
@@ -263,6 +277,15 @@ export default function DireccionesPage() {
                           onClick={() => handleDeactivate(d)}
                         >
                           Desactivar
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="h-7 px-3 text-xs ml-2"
+                          onClick={() => handleHardDelete(d)}
+                        >
+                          Eliminar
                         </Button>
                       )}
                     </td>

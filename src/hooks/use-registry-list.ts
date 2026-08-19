@@ -54,5 +54,15 @@ export function useRegistryList<T extends RegistryRow>({
     [endpoint, load]
   );
 
-  return { rows, filteredRows, loading, q, setQ, load, deactivate, deactivateMany };
+  // Permanently removes the row, as opposed to `deactivate`'s soft-delete.
+  const hardDelete = useCallback(
+    async (id: string) => {
+      const res = await fetch(`${endpoint}/${id}?permanent=true`, { method: "DELETE" });
+      if (res.ok) await load();
+      return res.ok;
+    },
+    [endpoint, load]
+  );
+
+  return { rows, filteredRows, loading, q, setQ, load, deactivate, deactivateMany, hardDelete };
 }

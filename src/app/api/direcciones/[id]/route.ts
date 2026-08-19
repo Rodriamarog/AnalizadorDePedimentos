@@ -49,16 +49,27 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   });
 }
 
-// Deactivates rather than deletes: historical Carta Porte invoices keep
-// referencing this dirección even after it's retired.
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+// Deactivates by default: a dirección used on a past Carta Porte has its
+// address fields copied by value into that invoice (no FK back to this
+// table), but keeping the row around lets the org still see it in this list
+// for reference. `?permanent=true` (only meant to be sent for a row that's
+// already inactive — see the page's two-step UI) does a real delete instead,
+// for cleaning up entries that were never actually used.
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const orgId = await requireOrgId();
   if (orgId instanceof NextResponse) return orgId;
   const { id } = await params;
+  const permanent = req.nextUrl.searchParams.get("permanent") === "true";
 
   return withOrg(orgId, async (tx) => {
     const [existing] = await tx.select().from(direcciones).where(eq(direcciones.id, id)).limit(1);
     if (!existing) return NextResponse.json({ error: "Dirección no encontrada" }, { status: 404 });
+
+    if (permanent) {
+      await tx.delete(direcciones).where(eq(direcciones.id, existing.id));
+      return NextResponse.json({ id: existing.id });
+    }
+
     const [updated] = await tx
       .update(direcciones)
       .set({ active: false })
