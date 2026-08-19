@@ -3,7 +3,7 @@
 import { FileText, Landmark, Undo2, Truck, PackageSearch } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { type DocumentType } from "@/components/crear-factura-dialog";
+import { type DocumentType } from "@/components/factura-form";
 
 // Tailwind needs each color's full class names spelled out statically (no
 // `bg-${color}-100` interpolation) for its JIT scanner to pick them up.

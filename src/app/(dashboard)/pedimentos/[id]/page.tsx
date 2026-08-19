@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, use } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, FileText, Sparkles, Loader2, Download, Receipt, GripVertical, MousePointerClick, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SatComboBox } from "@/components/sat-combobox";
-import { CrearFacturaDialog, type DocumentType } from "@/components/crear-factura-dialog";
+import { type DocumentType } from "@/components/factura-form";
 import { FacturaTipoSelectorDialog } from "@/components/factura-tipo-selector-dialog";
 import { AutomapOverlay } from "@/components/automap-overlay";
 import { useAutomapProgress } from "@/hooks/use-automap-progress";
@@ -67,6 +68,7 @@ interface Producto {
 
 export default function PedimentoDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [data, setData] = useState<PedimentoDetail | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
@@ -136,8 +138,6 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
 
   const [exporting, setExporting] = useState(false);
   const [facturaTipoSelectorOpen, setFacturaTipoSelectorOpen] = useState(false);
-  const [facturarOpen, setFacturarOpen] = useState(false);
-  const [facturaDocumentType, setFacturaDocumentType] = useState<DocumentType>("factura");
 
   const [inspeccionOpen, setInspeccionOpen] = useState(false);
   const [inspeccionLoading, setInspeccionLoading] = useState(false);
@@ -661,36 +661,9 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
       <FacturaTipoSelectorDialog
         open={facturaTipoSelectorOpen}
         onOpenChange={setFacturaTipoSelectorOpen}
-        onSelect={(type) => {
-          setFacturaDocumentType(type);
+        onSelect={(type: DocumentType) => {
           setFacturaTipoSelectorOpen(false);
-          setFacturarOpen(true);
-        }}
-      />
-
-      <CrearFacturaDialog
-        open={facturarOpen}
-        onOpenChange={setFacturarOpen}
-        documentType={facturaDocumentType}
-        onDocumentTypeChange={setFacturaDocumentType}
-        pedimento={{
-          id: data.id,
-          pedimentoNum: data.pedimentoNum,
-          importador: data.importador,
-          tipoCambio: data.tipoCambio,
-          fechaPago: data.fechaPago,
-          claveAduana: data.claveAduana,
-          dta: data.dta,
-          igi: data.igi,
-          prv: data.prv,
-          partidas: data.partidas.map((p) => ({
-            fraccion: p.fraccion,
-            descripcion: p.descripcion,
-            cantidad: p.cantidad,
-            precioUnitario: p.precioUnitario,
-            umc: p.umc,
-            tipoCambio: p.tipoCambio,
-          })),
+          router.push(`/facturas/nueva?pedimentoId=${data.id}&tipo=${type}`);
         }}
       />
 

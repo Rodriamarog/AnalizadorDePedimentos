@@ -6,7 +6,7 @@ import { sendFacturaEmail } from "@/lib/resend";
 
 // Sends the factura's PDF + XML via Resend instead of FacturAPI's built-in
 // /email endpoint, since that endpoint gives no way to edit the subject or
-// body — see crear-factura-dialog / facturas page for the compose UI.
+// body — see factura-form.tsx / facturas page for the compose UI.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const orgId = await requireOrgId();
   if (orgId instanceof NextResponse) return orgId;

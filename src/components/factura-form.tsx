@@ -5,7 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import { Loader2, X, Trash2, ChevronsUpDown, TriangleAlert, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { SatComboBox } from "@/components/sat-combobox";
@@ -329,7 +329,7 @@ async function buildItemsFromPedimento(
 }
 
 // Shape of GET /api/facturas/[id] — a raw FacturAPI invoice, used to prefill
-// the dialog when reopening a saved draft for editing.
+// the form when reopening a saved draft for editing.
 export interface FacturaDraftDetail {
   id: string;
   status?: string;
@@ -359,9 +359,9 @@ const CFDI_TO_DOCUMENT_TYPE: Record<string, DocumentType> = {
   T: "carta_porte",
 };
 
-interface CrearFacturaDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+interface FacturaFormProps {
+  // Called when the user cancels out of the form without saving.
+  onCancel: () => void;
   onSaved?: () => void;
   pedimento?: PedimentoForFactura;
   // A previously-saved draft to reopen for editing — mutually exclusive with
@@ -371,22 +371,21 @@ interface CrearFacturaDialogProps {
   onDocumentTypeChange: (next: DocumentType) => void;
 }
 
-export function CrearFacturaDialog({
-  open,
-  onOpenChange,
+export function FacturaForm({
+  onCancel,
   onSaved,
   pedimento,
   draft,
   documentType,
   onDocumentTypeChange,
-}: CrearFacturaDialogProps) {
+}: FacturaFormProps) {
   const { user } = useUser();
   const userEmail = user?.primaryEmailAddress?.emailAddress;
-  // Read via a ref (not a dependency) inside the dialog-open-reset effect
-  // below — that effect intentionally only re-runs on open/pedimento/draft
-  // changes (see its own comment), so listing userEmail there would instead
-  // re-reset the whole form whenever Clerk's user data changes. The ref
-  // still gives that effect the latest known value at the moment it runs.
+  // Read via a ref (not a dependency) inside the mount-reset effect below —
+  // that effect intentionally only re-runs on pedimento/draft changes (see
+  // its own comment), so listing userEmail there would instead re-reset the
+  // whole form whenever Clerk's user data changes. The ref still gives that
+  // effect the latest known value at the moment it runs.
   const userEmailRef = useRef<string | undefined>(userEmail);
   useEffect(() => {
     userEmailRef.current = userEmail;
@@ -428,9 +427,8 @@ export function CrearFacturaDialog({
   const automap = useAutomapProgress();
 
   useEffect(() => {
-    if (!open) return;
-    // Resetting the dialog's form state when it opens (same class of finding
-    // already present, unaddressed, in src/hooks/use-mobile.ts).
+    // Resetting the form's state on mount (same class of finding already
+    // present, unaddressed, in src/hooks/use-mobile.ts).
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setError(null);
     setCustomerId("");
@@ -489,7 +487,7 @@ export function CrearFacturaDialog({
         .then(setPedimentosList);
     } else if (pedimento) {
       // documentType is not reset here — FacturaTipoSelectorDialog sets its
-      // initial value before the dialog even opens (the Tipo de Documento
+      // initial value before this form even mounts (the Tipo de Documento
       // dropdown below can still change it afterward, same as any other flow).
       setUse("G01");
       setIvaRate(16);
@@ -539,7 +537,7 @@ export function CrearFacturaDialog({
       .then((res) => (res.ok ? res.json() : { data: [] }))
       .then((data) => setClientes(data.data ?? []));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, pedimento?.id, draft?.id]);
+  }, [pedimento?.id, draft?.id]);
 
   // Pedimento-sourced rows (partidas in USD, impuestos aduaneros in MXN)
   // carry their price in a fixed "home" currency — recompute `precio` from
@@ -567,7 +565,7 @@ export function CrearFacturaDialog({
   useEffect(() => {
     // Resetting selection state in response to a prop/state change is the
     // same class of finding already present, unaddressed, in
-    // src/hooks/use-mobile.ts and the dialog-open-reset effect above.
+    // src/hooks/use-mobile.ts and the mount-reset effect above.
     if (documentType !== "nota_credito" || !customerId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setRelatedInvoiceCandidates([]);
@@ -927,7 +925,6 @@ export function CrearFacturaDialog({
         setError(data.error ?? "Error al timbrar la factura");
         return;
       }
-      onOpenChange(false);
       onSaved?.();
       const folio = [data.series, data.folio_number].filter(Boolean).join("-");
       alertSuccess("Factura timbrada", folio ? `Folio ${folio} generado correctamente.` : undefined);
@@ -958,7 +955,6 @@ export function CrearFacturaDialog({
         setError(data.error ?? "Error al guardar el borrador");
         return;
       }
-      onOpenChange(false);
       onSaved?.();
       alertSuccess("Borrador guardado", "Podrás retomarlo desde la lista de facturas.");
     } finally {
@@ -969,45 +965,495 @@ export function CrearFacturaDialog({
   const selectableItems = items.filter((it) => !it.isAduaneros);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{draft ? "Editar borrador" : "Crear factura"}</DialogTitle>
-        </DialogHeader>
+    <>
+      <div className="flex flex-col gap-4">
+        {!pedimento && (
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">
+              Vincular a pedimento <span className="font-normal">(opcional)</span>
+            </label>
+            <Popover open={pedimentoLinkOpen} onOpenChange={setPedimentoLinkOpen}>
+              <PopoverTrigger className="w-full flex items-center justify-between rounded-md border border-input px-3 py-2 text-sm text-left">
+                <span className={pedimentoLink ? "" : "text-muted-foreground"}>
+                  {pedimentoLink ? pedimentoLink.pedimentoNum : "— Sin vincular —"}
+                </span>
+                <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="start">
+                <Command>
+                  <CommandInput
+                    value={pedimentoLinkQuery}
+                    onValueChange={setPedimentoLinkQuery}
+                    placeholder="Buscar pedimento…"
+                  />
+                  <CommandList>
+                    <CommandEmpty>Sin resultados.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem value="__none__" onSelect={() => selectPedimentoLink(null)}>
+                        <span className="text-muted-foreground">— Sin vincular —</span>
+                      </CommandItem>
+                      {pedimentosList.map((p) => (
+                        <CommandItem key={p.id} value={p.pedimentoNum} onSelect={() => selectPedimentoLink(p)}>
+                          <div>
+                            <div className="font-mono text-xs">{p.pedimentoNum}</div>
+                            {p.tipoCambio ? (
+                              <div className="text-[10px] text-muted-foreground">TC: {p.tipoCambio}</div>
+                            ) : null}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
 
-        <div className="flex flex-col gap-4">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Cliente</label>
+          <select
+            className="w-full rounded-md border border-input px-3 py-2 text-sm"
+            value={customerId}
+            onChange={(e) => setCustomerId(e.target.value)}
+          >
+            <option value="">— Selecciona un cliente —</option>
+            {clientes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.legal_name} ({c.tax_id})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Uso del CFDI</label>
+          <select
+            className="w-full rounded-md border border-input px-3 py-2 text-sm"
+            value={use}
+            onChange={(e) => setUse(e.target.value)}
+          >
+            {USO_CFDI_OPTIONS.map(([code, label]) => (
+              <option key={code} value={code}>
+                {code} – {label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              {documentType === "carta_porte_ingreso" ? "Cuota del transportista a facturar" : "Partidas a facturar"}
+            </label>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 text-xs"
+              onClick={() => setItems((p) => [...p, newItemRow()])}
+            >
+              + Agregar concepto
+            </Button>
+          </div>
+          {documentType === "carta_porte_ingreso" && (
+            <p className="text-[11px] text-muted-foreground mb-1.5">
+              Factura únicamente el servicio de transporte (flete). Las mercancías transportadas se declaran en la sección
+              Carta Porte más abajo, no aquí.
+            </p>
+          )}
+          <div className="overflow-x-auto rounded-md border border-border">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border bg-muted/40">
+                  <th className="w-8 px-2 py-2">
+                    <input
+                      type="checkbox"
+                      checked={selectableItems.length > 0 && selectableItems.every((it) => it.checked)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setItems((prev) => prev.map((it) => (it.isAduaneros ? it : { ...it, checked })));
+                      }}
+                    />
+                  </th>
+                  <th className="text-left px-2 py-2 font-semibold">Descripción</th>
+                  <th className="text-right px-2 py-2 font-semibold w-16">Cant.</th>
+                  <th className="text-right px-2 py-2 font-semibold w-24">Precio ({currency})</th>
+                  {!pedimento && (
+                    <th className="text-left px-2 py-2 font-semibold w-24">
+                      Fracción <span className="font-normal text-muted-foreground">(opc.)</span>
+                    </th>
+                  )}
+                  <th className="text-left px-2 py-2 font-semibold w-32">
+                    {pedimento ? (
+                      "ClaveProdServ"
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        ClaveProdServ
+                        <Button
+                          size="sm"
+                          title="Autocompletar claves SAT con IA"
+                          aria-label="Autocompletar claves SAT con IA"
+                          className="h-6 w-6 p-0 bg-gradient-to-br from-orange-500 to-orange-700 text-white hover:brightness-[1.07] shadow-sm normal-case tracking-normal"
+                          onClick={handleAutomap}
+                          disabled={automap.running}
+                        >
+                          {automap.running ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3.5 h-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </th>
+                  <th className="text-left px-2 py-2 font-semibold w-20">Unidad</th>
+                  <th className="text-left px-2 py-2 font-semibold w-16">IVA</th>
+                  <th className="w-6" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {itemsLoading && (
+                  <tr>
+                    <td colSpan={8} className="px-2 py-4 text-center text-muted-foreground">
+                      Cargando partidas…
+                    </td>
+                  </tr>
+                )}
+                {items.map((it) => (
+                  <Fragment key={it.key}>
+                    <tr className={it.isAduaneros ? "bg-muted/30" : undefined}>
+                    <td className="px-2 py-1.5 align-middle">
+                      <input
+                        type="checkbox"
+                        checked={it.checked}
+                        onChange={(e) => updateItem(it.key, { checked: e.target.checked })}
+                      />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Input
+                        className="h-7 text-xs md:text-xs min-w-[180px]"
+                        placeholder="Descripción"
+                        value={it.descripcion}
+                        onChange={(e) => updateItem(it.key, { descripcion: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {it.qtyReadonly ? (
+                        <div className="text-right text-muted-foreground pr-1">{it.cantidad}</div>
+                      ) : (
+                        <Input
+                          className="h-7 text-xs md:text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          type="number"
+                          value={it.cantidad}
+                          onChange={(e) => updateItem(it.key, { cantidad: e.target.value })}
+                        />
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <Input
+                        className="h-7 text-xs md:text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        type="number"
+                        placeholder="0.00000"
+                        value={it.precio}
+                        onChange={(e) => updateItem(it.key, { precio: e.target.value })}
+                      />
+                    </td>
+                    {!pedimento && (
+                      <td className="px-2 py-1.5">
+                        <Input
+                          className="h-7 text-xs md:text-xs font-mono min-w-[90px]"
+                          placeholder="8 dígitos"
+                          value={it.fraccion ?? ""}
+                          onChange={(e) => updateItem(it.key, { fraccion: e.target.value })}
+                        />
+                      </td>
+                    )}
+                    <td className="px-2 py-1.5">
+                      {it.claveReadonly ? (
+                        <div className="font-mono text-muted-foreground">{it.clave}</div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <SatComboBox
+                            endpoint="/api/catalogs/products"
+                            value={it.clave}
+                            description={it.claveDescription}
+                            hideDescription
+                            mapped={!!it.clave}
+                            placeholder="ej. 78101803"
+                            onSelect={(key, description) =>
+                              updateItem(it.key, { clave: key, claveDescription: description })
+                            }
+                          />
+                          {it.isPartida && !it.clave && (
+                            <TriangleAlert
+                              className="w-3.5 h-3.5 text-amber-500 shrink-0"
+                              aria-label="Sin mapeo en Productos"
+                            />
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {it.unitReadonly ? (
+                        <div className="text-center text-muted-foreground">{it.unitKey}</div>
+                      ) : (
+                        <SatComboBox
+                          endpoint="/api/catalogs/units"
+                          value={it.unitKey}
+                          description={it.unitDescription}
+                          hideDescription
+                          mapped={!!it.unitKey}
+                          placeholder="H87"
+                          onSelect={(key, description) =>
+                            updateItem(it.key, { unitKey: key, unitDescription: description })
+                          }
+                        />
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <select
+                        className="w-full rounded-md border border-input px-1 py-1 text-xs h-7"
+                        value={it.ivaRate ?? ivaRate}
+                        onChange={(e) => updateItem(it.key, { ivaRate: Number(e.target.value) as 16 | 8 | 0 })}
+                      >
+                        <option value={16}>16%</option>
+                        <option value={8}>8%</option>
+                        <option value={0}>0%</option>
+                      </select>
+                    </td>
+                    <td className="px-1 py-1.5">
+                      {it.removable && (
+                        <button
+                          className="text-muted-foreground hover:text-red-600"
+                          onClick={() => setItems((p) => p.filter((row) => row.key !== it.key))}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </td>
+                    </tr>
+                    {!pedimento && it.honorariosTipo === "comercializadora" && (
+                      <tr className="bg-muted/20">
+                        <td />
+                        <td colSpan={7} className="px-2 py-1.5">
+                          {!retencionesVisible ? (
+                            <button
+                              type="button"
+                              className="text-[11px] text-muted-foreground border border-dashed border-border rounded px-2 py-0.5"
+                              onClick={() => setRetencionesVisible(true)}
+                            >
+                              + Agregar retenciones
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                              <label className="flex items-center gap-1">
+                                ISR
+                                <Input
+                                  className="h-6 w-16 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  type="number"
+                                  value={retIsr}
+                                  onChange={(e) => setRetIsr(e.target.value)}
+                                />
+                                %
+                              </label>
+                              <label className="flex items-center gap-1">
+                                IVA ret.
+                                <Input
+                                  className="h-6 w-16 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                  type="number"
+                                  value={retIva}
+                                  onChange={(e) => setRetIva(e.target.value)}
+                                />
+                                %
+                              </label>
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-0.5 hover:text-foreground"
+                                onClick={() => setRetencionesVisible(false)}
+                              >
+                                <X className="w-3 h-3" /> Quitar
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {!pedimento && (
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Las retenciones aplican solo al concepto de Honorarios Comercializadora.
+            </p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Método de pago</label>
+            <div className="flex gap-1.5 mt-1">
+              <Button
+                size="sm"
+                variant={paymentMethod === "PUE" ? "default" : "outline"}
+                className="h-8 px-3 text-xs flex-1"
+                onClick={() => handlePaymentMethodChange("PUE")}
+              >
+                PUE
+              </Button>
+              <Button
+                size="sm"
+                variant={paymentMethod === "PPD" ? "default" : "outline"}
+                className="h-8 px-3 text-xs flex-1"
+                onClick={() => handlePaymentMethodChange("PPD")}
+              >
+                PPD
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              {paymentMethod === "PUE"
+                ? "Pago en una sola exhibición al momento de la factura."
+                : "Pago en parcialidades o diferido. Se emitirá un complemento de pago después."}
+            </p>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Forma de pago</label>
+            <select
+              className="w-full rounded-md border border-input px-2 py-1.5 text-xs mt-1"
+              value={paymentForm}
+              onChange={(e) => setPaymentForm(e.target.value)}
+            >
+              {PAYMENT_FORM_OPTIONS.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {code} – {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Tipo de Documento</label>
+            <select
+              className="w-full rounded-md border border-input px-2 py-1.5 text-xs mt-1"
+              value={documentType}
+              onChange={(e) => handleDocumentTypeChange(e.target.value as DocumentType)}
+            >
+              {DOCUMENT_TYPE_OPTIONS.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Tasa IVA</label>
+            <div className="flex gap-1.5 mt-1">
+              <Button
+                size="sm"
+                variant={ivaRate === 16 ? "default" : "outline"}
+                className="h-8 px-3 text-xs flex-1"
+                onClick={() => setIvaRate(16)}
+              >
+                16%
+              </Button>
+              <Button
+                size="sm"
+                variant={ivaRate === 8 ? "default" : "outline"}
+                className="h-8 px-3 text-xs flex-1"
+                onClick={() => setIvaRate(8)}
+              >
+                8%
+              </Button>
+              <Button
+                size="sm"
+                variant={ivaRate === 0 ? "default" : "outline"}
+                className="h-8 px-3 text-xs flex-1"
+                onClick={() => setIvaRate(0)}
+              >
+                0%
+              </Button>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Moneda</label>
+            <div className="flex gap-1.5 mt-1">
+              <Button
+                size="sm"
+                variant={currency === "MXN" ? "default" : "outline"}
+                className="h-8 px-3 text-xs flex-1"
+                onClick={() => setCurrency("MXN")}
+              >
+                MXN
+              </Button>
+              <Button
+                size="sm"
+                variant={currency === "USD" ? "default" : "outline"}
+                className="h-8 px-3 text-xs flex-1"
+                onClick={() => setCurrency("USD")}
+              >
+                USD
+              </Button>
+            </div>
+            {currency === "USD" && (
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground">T.C.</span>
+                <Input
+                  className="h-6 w-20 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  type="number"
+                  min="0.01"
+                  step="0.0001"
+                  value={exchangeRate}
+                  disabled={!!pedimentoLink}
+                  onChange={(e) => setExchangeRate(e.target.value)}
+                />
+                {pedimentoLink && (
+                  <span className="text-[10px] text-muted-foreground">(tomado del pedimento)</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {documentType === "nota_credito" && (
+          <div className="grid grid-cols-2 gap-3 rounded-md border border-border bg-muted/20 p-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">
-                Vincular a pedimento <span className="font-normal">(opcional)</span>
-              </label>
-              <Popover open={pedimentoLinkOpen} onOpenChange={setPedimentoLinkOpen}>
-                <PopoverTrigger className="w-full flex items-center justify-between rounded-md border border-input px-3 py-2 text-sm text-left">
-                  <span className={pedimentoLink ? "" : "text-muted-foreground"}>
-                    {pedimentoLink ? pedimentoLink.pedimentoNum : "— Sin vincular —"}
+              <label className="text-xs font-medium text-muted-foreground">Factura relacionada</label>
+              <Popover open={relatedInvoiceOpen} onOpenChange={setRelatedInvoiceOpen}>
+                <PopoverTrigger
+                  disabled={!customerId}
+                  className="w-full flex items-center justify-between rounded-md border border-input px-3 py-2 text-sm text-left mt-1 disabled:opacity-50"
+                >
+                  <span className={relatedInvoice ? "" : "text-muted-foreground"}>
+                    {!customerId
+                      ? "Selecciona un cliente primero"
+                      : relatedInvoice
+                        ? `${relatedInvoice.folio}${relatedInvoice.total != null ? ` — $${relatedInvoice.total}` : ""}`
+                        : "— Selecciona la factura a corregir —"}
                   </span>
                   <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                 </PopoverTrigger>
                 <PopoverContent className="w-80 p-0" align="start">
                   <Command>
-                    <CommandInput
-                      value={pedimentoLinkQuery}
-                      onValueChange={setPedimentoLinkQuery}
-                      placeholder="Buscar pedimento…"
-                    />
+                    <CommandInput placeholder="Buscar folio…" />
                     <CommandList>
-                      <CommandEmpty>Sin resultados.</CommandEmpty>
+                      <CommandEmpty>
+                        {relatedInvoiceLoading ? "Cargando…" : "Sin facturas vigentes para este cliente."}
+                      </CommandEmpty>
                       <CommandGroup>
-                        <CommandItem value="__none__" onSelect={() => selectPedimentoLink(null)}>
-                          <span className="text-muted-foreground">— Sin vincular —</span>
-                        </CommandItem>
-                        {pedimentosList.map((p) => (
-                          <CommandItem key={p.id} value={p.pedimentoNum} onSelect={() => selectPedimentoLink(p)}>
+                        {relatedInvoiceCandidates.map((c) => (
+                          <CommandItem
+                            key={c.id}
+                            value={c.folio}
+                            onSelect={() => {
+                              setRelatedInvoice(c);
+                              setRelatedInvoiceOpen(false);
+                            }}
+                          >
                             <div>
-                              <div className="font-mono text-xs">{p.pedimentoNum}</div>
-                              {p.tipoCambio ? (
-                                <div className="text-[10px] text-muted-foreground">TC: {p.tipoCambio}</div>
-                              ) : null}
+                              <div className="font-mono text-xs">{c.folio}</div>
+                              {c.total != null && (
+                                <div className="text-[10px] text-muted-foreground">${c.total}</div>
+                              )}
                             </div>
                           </CommandItem>
                         ))}
@@ -1017,519 +1463,63 @@ export function CrearFacturaDialog({
                 </PopoverContent>
               </Popover>
             </div>
-          )}
-
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Cliente</label>
-            <select
-              className="w-full rounded-md border border-input px-3 py-2 text-sm"
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-            >
-              <option value="">— Selecciona un cliente —</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.legal_name} ({c.tax_id})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Uso del CFDI</label>
-            <select
-              className="w-full rounded-md border border-input px-3 py-2 text-sm"
-              value={use}
-              onChange={(e) => setUse(e.target.value)}
-            >
-              {USO_CFDI_OPTIONS.map(([code, label]) => (
-                <option key={code} value={code}>
-                  {code} – {label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                {documentType === "carta_porte_ingreso" ? "Cuota del transportista a facturar" : "Partidas a facturar"}
-              </label>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-6 px-2 text-xs"
-                onClick={() => setItems((p) => [...p, newItemRow()])}
-              >
-                + Agregar concepto
-              </Button>
-            </div>
-            {documentType === "carta_porte_ingreso" && (
-              <p className="text-[11px] text-muted-foreground mb-1.5">
-                Factura únicamente el servicio de transporte (flete). Las mercancías transportadas se declaran en la sección
-                Carta Porte más abajo, no aquí.
-              </p>
-            )}
-            <div className="overflow-x-auto rounded-md border border-border">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    <th className="w-8 px-2 py-2">
-                      <input
-                        type="checkbox"
-                        checked={selectableItems.length > 0 && selectableItems.every((it) => it.checked)}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setItems((prev) => prev.map((it) => (it.isAduaneros ? it : { ...it, checked })));
-                        }}
-                      />
-                    </th>
-                    <th className="text-left px-2 py-2 font-semibold">Descripción</th>
-                    <th className="text-right px-2 py-2 font-semibold w-16">Cant.</th>
-                    <th className="text-right px-2 py-2 font-semibold w-24">Precio ({currency})</th>
-                    {!pedimento && (
-                      <th className="text-left px-2 py-2 font-semibold w-24">
-                        Fracción <span className="font-normal text-muted-foreground">(opc.)</span>
-                      </th>
-                    )}
-                    <th className="text-left px-2 py-2 font-semibold w-32">
-                      {pedimento ? (
-                        "ClaveProdServ"
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          ClaveProdServ
-                          <Button
-                            size="sm"
-                            title="Autocompletar claves SAT con IA"
-                            aria-label="Autocompletar claves SAT con IA"
-                            className="h-6 w-6 p-0 bg-gradient-to-br from-orange-500 to-orange-700 text-white hover:brightness-[1.07] shadow-sm normal-case tracking-normal"
-                            onClick={handleAutomap}
-                            disabled={automap.running}
-                          >
-                            {automap.running ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Sparkles className="w-3.5 h-3.5" />
-                            )}
-                          </Button>
-                        </div>
-                      )}
-                    </th>
-                    <th className="text-left px-2 py-2 font-semibold w-20">Unidad</th>
-                    <th className="text-left px-2 py-2 font-semibold w-16">IVA</th>
-                    <th className="w-6" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {itemsLoading && (
-                    <tr>
-                      <td colSpan={8} className="px-2 py-4 text-center text-muted-foreground">
-                        Cargando partidas…
-                      </td>
-                    </tr>
-                  )}
-                  {items.map((it) => (
-                    <Fragment key={it.key}>
-                      <tr className={it.isAduaneros ? "bg-muted/30" : undefined}>
-                      <td className="px-2 py-1.5 align-middle">
-                        <input
-                          type="checkbox"
-                          checked={it.checked}
-                          onChange={(e) => updateItem(it.key, { checked: e.target.checked })}
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <Input
-                          className="h-7 text-xs md:text-xs min-w-[180px]"
-                          placeholder="Descripción"
-                          value={it.descripcion}
-                          onChange={(e) => updateItem(it.key, { descripcion: e.target.value })}
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        {it.qtyReadonly ? (
-                          <div className="text-right text-muted-foreground pr-1">{it.cantidad}</div>
-                        ) : (
-                          <Input
-                            className="h-7 text-xs md:text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            type="number"
-                            value={it.cantidad}
-                            onChange={(e) => updateItem(it.key, { cantidad: e.target.value })}
-                          />
-                        )}
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <Input
-                          className="h-7 text-xs md:text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          type="number"
-                          placeholder="0.00000"
-                          value={it.precio}
-                          onChange={(e) => updateItem(it.key, { precio: e.target.value })}
-                        />
-                      </td>
-                      {!pedimento && (
-                        <td className="px-2 py-1.5">
-                          <Input
-                            className="h-7 text-xs md:text-xs font-mono min-w-[90px]"
-                            placeholder="8 dígitos"
-                            value={it.fraccion ?? ""}
-                            onChange={(e) => updateItem(it.key, { fraccion: e.target.value })}
-                          />
-                        </td>
-                      )}
-                      <td className="px-2 py-1.5">
-                        {it.claveReadonly ? (
-                          <div className="font-mono text-muted-foreground">{it.clave}</div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <SatComboBox
-                              endpoint="/api/catalogs/products"
-                              value={it.clave}
-                              description={it.claveDescription}
-                              hideDescription
-                              mapped={!!it.clave}
-                              placeholder="ej. 78101803"
-                              onSelect={(key, description) =>
-                                updateItem(it.key, { clave: key, claveDescription: description })
-                              }
-                            />
-                            {it.isPartida && !it.clave && (
-                              <TriangleAlert
-                                className="w-3.5 h-3.5 text-amber-500 shrink-0"
-                                aria-label="Sin mapeo en Productos"
-                              />
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-2 py-1.5">
-                        {it.unitReadonly ? (
-                          <div className="text-center text-muted-foreground">{it.unitKey}</div>
-                        ) : (
-                          <SatComboBox
-                            endpoint="/api/catalogs/units"
-                            value={it.unitKey}
-                            description={it.unitDescription}
-                            hideDescription
-                            mapped={!!it.unitKey}
-                            placeholder="H87"
-                            onSelect={(key, description) =>
-                              updateItem(it.key, { unitKey: key, unitDescription: description })
-                            }
-                          />
-                        )}
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <select
-                          className="w-full rounded-md border border-input px-1 py-1 text-xs h-7"
-                          value={it.ivaRate ?? ivaRate}
-                          onChange={(e) => updateItem(it.key, { ivaRate: Number(e.target.value) as 16 | 8 | 0 })}
-                        >
-                          <option value={16}>16%</option>
-                          <option value={8}>8%</option>
-                          <option value={0}>0%</option>
-                        </select>
-                      </td>
-                      <td className="px-1 py-1.5">
-                        {it.removable && (
-                          <button
-                            className="text-muted-foreground hover:text-red-600"
-                            onClick={() => setItems((p) => p.filter((row) => row.key !== it.key))}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </td>
-                      </tr>
-                      {!pedimento && it.honorariosTipo === "comercializadora" && (
-                        <tr className="bg-muted/20">
-                          <td />
-                          <td colSpan={7} className="px-2 py-1.5">
-                            {!retencionesVisible ? (
-                              <button
-                                type="button"
-                                className="text-[11px] text-muted-foreground border border-dashed border-border rounded px-2 py-0.5"
-                                onClick={() => setRetencionesVisible(true)}
-                              >
-                                + Agregar retenciones
-                              </button>
-                            ) : (
-                              <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                                <label className="flex items-center gap-1">
-                                  ISR
-                                  <Input
-                                    className="h-6 w-16 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                    type="number"
-                                    value={retIsr}
-                                    onChange={(e) => setRetIsr(e.target.value)}
-                                  />
-                                  %
-                                </label>
-                                <label className="flex items-center gap-1">
-                                  IVA ret.
-                                  <Input
-                                    className="h-6 w-16 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                    type="number"
-                                    value={retIva}
-                                    onChange={(e) => setRetIva(e.target.value)}
-                                  />
-                                  %
-                                </label>
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center gap-0.5 hover:text-foreground"
-                                  onClick={() => setRetencionesVisible(false)}
-                                >
-                                  <X className="w-3 h-3" /> Quitar
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {!pedimento && (
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Las retenciones aplican solo al concepto de Honorarios Comercializadora.
-              </p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Método de pago</label>
-              <div className="flex gap-1.5 mt-1">
-                <Button
-                  size="sm"
-                  variant={paymentMethod === "PUE" ? "default" : "outline"}
-                  className="h-8 px-3 text-xs flex-1"
-                  onClick={() => handlePaymentMethodChange("PUE")}
-                >
-                  PUE
-                </Button>
-                <Button
-                  size="sm"
-                  variant={paymentMethod === "PPD" ? "default" : "outline"}
-                  className="h-8 px-3 text-xs flex-1"
-                  onClick={() => handlePaymentMethodChange("PPD")}
-                >
-                  PPD
-                </Button>
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-1">
-                {paymentMethod === "PUE"
-                  ? "Pago en una sola exhibición al momento de la factura."
-                  : "Pago en parcialidades o diferido. Se emitirá un complemento de pago después."}
-              </p>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Forma de pago</label>
+              <label className="text-xs font-medium text-muted-foreground">Relación (SAT)</label>
               <select
                 className="w-full rounded-md border border-input px-2 py-1.5 text-xs mt-1"
-                value={paymentForm}
-                onChange={(e) => setPaymentForm(e.target.value)}
+                value={relationshipCode}
+                onChange={(e) => setRelationshipCode(e.target.value as RelationshipCode)}
               >
-                {PAYMENT_FORM_OPTIONS.map(([code, label]) => (
+                {RELATIONSHIP_CODE_OPTIONS.map(([code, label]) => (
                   <option key={code} value={code}>
                     {code} – {label}
                   </option>
                 ))}
               </select>
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Tipo de Documento</label>
-              <select
-                className="w-full rounded-md border border-input px-2 py-1.5 text-xs mt-1"
-                value={documentType}
-                onChange={(e) => handleDocumentTypeChange(e.target.value as DocumentType)}
-              >
-                {DOCUMENT_TYPE_OPTIONS.map(([code, label]) => (
-                  <option key={code} value={code}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Tasa IVA</label>
-              <div className="flex gap-1.5 mt-1">
-                <Button
-                  size="sm"
-                  variant={ivaRate === 16 ? "default" : "outline"}
-                  className="h-8 px-3 text-xs flex-1"
-                  onClick={() => setIvaRate(16)}
-                >
-                  16%
-                </Button>
-                <Button
-                  size="sm"
-                  variant={ivaRate === 8 ? "default" : "outline"}
-                  className="h-8 px-3 text-xs flex-1"
-                  onClick={() => setIvaRate(8)}
-                >
-                  8%
-                </Button>
-                <Button
-                  size="sm"
-                  variant={ivaRate === 0 ? "default" : "outline"}
-                  className="h-8 px-3 text-xs flex-1"
-                  onClick={() => setIvaRate(0)}
-                >
-                  0%
-                </Button>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Moneda</label>
-              <div className="flex gap-1.5 mt-1">
-                <Button
-                  size="sm"
-                  variant={currency === "MXN" ? "default" : "outline"}
-                  className="h-8 px-3 text-xs flex-1"
-                  onClick={() => setCurrency("MXN")}
-                >
-                  MXN
-                </Button>
-                <Button
-                  size="sm"
-                  variant={currency === "USD" ? "default" : "outline"}
-                  className="h-8 px-3 text-xs flex-1"
-                  onClick={() => setCurrency("USD")}
-                >
-                  USD
-                </Button>
-              </div>
-              {currency === "USD" && (
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <span className="text-[10px] text-muted-foreground">T.C.</span>
-                  <Input
-                    className="h-6 w-20 text-xs md:text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    type="number"
-                    min="0.01"
-                    step="0.0001"
-                    value={exchangeRate}
-                    disabled={!!pedimentoLink}
-                    onChange={(e) => setExchangeRate(e.target.value)}
-                  />
-                  {pedimentoLink && (
-                    <span className="text-[10px] text-muted-foreground">(tomado del pedimento)</span>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
+        )}
 
-          {documentType === "nota_credito" && (
-            <div className="grid grid-cols-2 gap-3 rounded-md border border-border bg-muted/20 p-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Factura relacionada</label>
-                <Popover open={relatedInvoiceOpen} onOpenChange={setRelatedInvoiceOpen}>
-                  <PopoverTrigger
-                    disabled={!customerId}
-                    className="w-full flex items-center justify-between rounded-md border border-input px-3 py-2 text-sm text-left mt-1 disabled:opacity-50"
-                  >
-                    <span className={relatedInvoice ? "" : "text-muted-foreground"}>
-                      {!customerId
-                        ? "Selecciona un cliente primero"
-                        : relatedInvoice
-                          ? `${relatedInvoice.folio}${relatedInvoice.total != null ? ` — $${relatedInvoice.total}` : ""}`
-                          : "— Selecciona la factura a corregir —"}
-                    </span>
-                    <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80 p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder="Buscar folio…" />
-                      <CommandList>
-                        <CommandEmpty>
-                          {relatedInvoiceLoading ? "Cargando…" : "Sin facturas vigentes para este cliente."}
-                        </CommandEmpty>
-                        <CommandGroup>
-                          {relatedInvoiceCandidates.map((c) => (
-                            <CommandItem
-                              key={c.id}
-                              value={c.folio}
-                              onSelect={() => {
-                                setRelatedInvoice(c);
-                                setRelatedInvoiceOpen(false);
-                              }}
-                            >
-                              <div>
-                                <div className="font-mono text-xs">{c.folio}</div>
-                                {c.total != null && (
-                                  <div className="text-[10px] text-muted-foreground">${c.total}</div>
-                                )}
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Relación (SAT)</label>
-                <select
-                  className="w-full rounded-md border border-input px-2 py-1.5 text-xs mt-1"
-                  value={relationshipCode}
-                  onChange={(e) => setRelationshipCode(e.target.value as RelationshipCode)}
-                >
-                  {RELATIONSHIP_CODE_OPTIONS.map(([code, label]) => (
-                    <option key={code} value={code}>
-                      {code} – {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
+        {isCartaPorte && (
+          <CartaPorteFields
+            value={cartaPorte}
+            onChange={setCartaPorte}
+            vehiculos={vehiculosList}
+            choferes={choferesList}
+            direcciones={direccionesList}
+            onVehiculoCreated={(v) => setVehiculosList((prev) => [...prev, v])}
+            onChoferCreated={(c) => setChoferesList((prev) => [...prev, c])}
+            onDireccionCreated={(d) => setDireccionesList((prev) => [...prev, d])}
+          />
+        )}
 
-          {isCartaPorte && (
-            <CartaPorteFields
-              value={cartaPorte}
-              onChange={setCartaPorte}
-              vehiculos={vehiculosList}
-              choferes={choferesList}
-              direcciones={direccionesList}
-              onVehiculoCreated={(v) => setVehiculosList((prev) => [...prev, v])}
-              onChoferCreated={(c) => setChoferesList((prev) => [...prev, c])}
-              onDireccionCreated={(d) => setDireccionesList((prev) => [...prev, d])}
-            />
-          )}
+        {error && <p className="text-xs text-red-600">{error}</p>}
+      </div>
 
-          {error && <p className="text-xs text-red-600">{error}</p>}
-        </div>
+      <DialogFooter>
+        <Button variant="outline" size="sm" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button variant="outline" size="sm" onClick={handlePreview} disabled={previewing}>
+          {previewing && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+          Vista previa PDF
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={savingDraft || saving}>
+          {savingDraft && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+          Guardar borrador
+        </Button>
+        <Button size="sm" onClick={handleSave} disabled={saving || savingDraft}>
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+          Timbrar factura
+        </Button>
+      </DialogFooter>
 
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button variant="outline" size="sm" onClick={handlePreview} disabled={previewing}>
-            {previewing && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
-            Vista previa PDF
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={savingDraft || saving}>
-            {savingDraft && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
-            Guardar borrador
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving || savingDraft}>
-            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
-            Timbrar factura
-          </Button>
-        </DialogFooter>
-
-        <AutomapOverlay
-          running={automap.running}
-          progress={automap.progress}
-          statusText={automap.statusText}
-          done={automap.done}
-        />
-      </DialogContent>
-    </Dialog>
+      <AutomapOverlay
+        running={automap.running}
+        progress={automap.progress}
+        statusText={automap.statusText}
+        done={automap.done}
+      />
+    </>
   );
 }

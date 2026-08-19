@@ -16,7 +16,7 @@ export * from "@/components/ui/textarea";
 export * from "@/components/ui/tooltip";
 
 export * from "@/components/clerk-auth-skeleton";
-export * from "@/components/crear-factura-dialog";
+export * from "@/components/factura-form";
 export * from "@/components/grid-search-input";
 export * from "@/components/page-header";
 export * from "@/components/page-title-context";

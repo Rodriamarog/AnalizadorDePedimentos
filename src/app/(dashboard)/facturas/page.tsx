@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Receipt, Plus, Loader2, ChevronDown, ChevronRight, Banknote, Mail, FileText, FileCode, FileBarChart, MoreVertical, Trash2, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
@@ -13,7 +14,8 @@ import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { CrearFacturaDialog, PAYMENT_FORM_OPTIONS, type FacturaDraftDetail, type DocumentType } from "@/components/crear-factura-dialog";
+import { PAYMENT_FORM_OPTIONS } from "@/components/factura-form";
+import { FacturaTipoSelectorDialog } from "@/components/factura-tipo-selector-dialog";
 import { GridSearchInput } from "@/components/grid-search-input";
 import { alertSuccess, confirmDelete } from "@/lib/alerts";
 
@@ -65,6 +67,7 @@ interface Complemento {
 }
 
 export default function FacturasPage() {
+  const router = useRouter();
   const { user } = useUser();
   const userEmail = user?.primaryEmailAddress?.emailAddress;
   const [rows, setRows] = useState<Factura[]>([]);
@@ -72,10 +75,7 @@ export default function FacturasPage() {
   const [paymentMethodFilter, setPaymentMethodFilter] = useState("");
   const [q, setQ] = useState("");
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingDraft, setEditingDraft] = useState<FacturaDraftDetail | null>(null);
-  const [documentType, setDocumentType] = useState<DocumentType>("factura");
-  const [draftLoadingId, setDraftLoadingId] = useState<string | null>(null);
+  const [facturaTipoSelectorOpen, setFacturaTipoSelectorOpen] = useState(false);
 
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
 
@@ -388,17 +388,6 @@ export default function FacturasPage() {
     if (res.ok) await load(paymentMethodFilter);
   }
 
-  async function openEditDraft(id: string) {
-    setDraftLoadingId(id);
-    try {
-      const res = await fetch(`/api/facturas/${id}`);
-      if (!res.ok) return;
-      setEditingDraft(await res.json());
-    } finally {
-      setDraftLoadingId(null);
-    }
-  }
-
   async function handleDeleteDraft(id: string, folio: string) {
     const confirmed = await confirmDelete("¿Eliminar borrador?", `Se eliminará el borrador "${folio}" permanentemente.`);
     if (!confirmed) return;
@@ -452,7 +441,7 @@ export default function FacturasPage() {
                         <FileBarChart className="w-3.5 h-3.5" />
                         Reporte mensual
                       </Button>
-                      <Button size="sm" className="gap-1.5 text-xs" onClick={() => setDialogOpen(true)}>
+                      <Button size="sm" className="gap-1.5 text-xs" onClick={() => setFacturaTipoSelectorOpen(true)}>
                         <Plus className="w-3.5 h-3.5" />
                         Nueva factura
                       </Button>
@@ -569,14 +558,9 @@ export default function FacturasPage() {
                                 size="sm"
                                 variant="outline"
                                 className="h-7 px-2.5 text-xs gap-1"
-                                onClick={() => openEditDraft(f.id)}
-                                disabled={draftLoadingId === f.id}
+                                onClick={() => router.push(`/facturas/${f.id}/editar`)}
                               >
-                                {draftLoadingId === f.id ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <Pencil className="w-3.5 h-3.5" />
-                                )}
+                                <Pencil className="w-3.5 h-3.5" />
                                 Editar
                               </Button>
                             )}
@@ -733,18 +717,13 @@ export default function FacturasPage() {
         </CardContent>
       </Card>
 
-      <CrearFacturaDialog
-        open={dialogOpen || !!editingDraft}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDialogOpen(false);
-            setEditingDraft(null);
-          }
+      <FacturaTipoSelectorDialog
+        open={facturaTipoSelectorOpen}
+        onOpenChange={setFacturaTipoSelectorOpen}
+        onSelect={(type) => {
+          setFacturaTipoSelectorOpen(false);
+          router.push(`/facturas/nueva?tipo=${type}`);
         }}
-        documentType={documentType}
-        onDocumentTypeChange={setDocumentType}
-        draft={editingDraft ?? undefined}
-        onSaved={() => load(paymentMethodFilter)}
       />
 
       <Dialog open={reporteOpen} onOpenChange={(open) => !open && setReporteOpen(false)}>

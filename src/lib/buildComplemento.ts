@@ -161,7 +161,7 @@ export async function buildComplementForInvoice(
 
   // The complement's tax breakdown must mirror the rate actually used on
   // the original invoice (this app lets users pick 16% or 8% frontera per
-  // invoice — see ivaRate in crear-factura-dialog.tsx), not a fixed guess.
+  // invoice — see ivaRate in factura-form.tsx), not a fixed guess.
   const ivaEntry = inv.items
     ?.flatMap((it) => it.product?.taxes ?? [])
     .find((t) => t.type === "IVA" && !t.withholding);

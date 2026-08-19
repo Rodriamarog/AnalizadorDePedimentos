@@ -1,6 +1,6 @@
 // One-off: exercises the Facturar-from-pedimento flow — both the pure
 // partida->invoice-item transformation (mapPedimentoToItems, the exact code
-// the CrearFacturaDialog runs when opened with a pedimento prop) and a real
+// FacturaForm runs when opened with a pedimento prop) and a real
 // FacturAPI sandbox call proving the resulting payload (customs_keys tagging
 // + the aggregated Impuestos Aduaneros line item) actually timbra.
 import { eq } from "drizzle-orm";
@@ -8,7 +8,7 @@ import { db } from "../src/lib/db/client";
 import { organizations } from "../src/lib/db/schema";
 import { encryptSecret } from "../src/lib/crypto";
 import { getOrgFacturapiClient } from "../src/lib/orgFacturapi";
-import { mapPedimentoToItems, type PedimentoForFactura, type ProductoLookup } from "../src/components/crear-factura-dialog";
+import { mapPedimentoToItems, type PedimentoForFactura, type ProductoLookup } from "../src/components/factura-form";
 
 const ORG = "org_facturar_pedimento_test";
 

@@ -1,7 +1,7 @@
 // Small, finite SAT catálogos used by the Carta Porte section of the
 // "Crear factura" dialog — same `[code, label] as const` tuple-array
 // convention as USO_CFDI_OPTIONS/PAYMENT_FORM_OPTIONS in
-// crear-factura-dialog.tsx. Unlike c_ClaveProdServ/c_ClaveUnidad (thousands
+// factura-form.tsx. Unlike c_ClaveProdServ/c_ClaveUnidad (thousands
 // of entries, backed by sat_claves/sat_unidades + full-text search), these
 // catálogos are small enough to hardcode as plain <select> options.
 
