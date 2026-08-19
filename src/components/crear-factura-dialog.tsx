@@ -488,9 +488,9 @@ export function CrearFacturaDialog({
         .then((res) => (res.ok ? res.json() : []))
         .then(setPedimentosList);
     } else if (pedimento) {
-      // documentType is not reset here — for this flow it's chosen upfront by
-      // FacturaTipoSelectorDialog before the dialog even opens, so the caller
-      // already owns the value.
+      // documentType is not reset here — FacturaTipoSelectorDialog sets its
+      // initial value before the dialog even opens (the Tipo de Documento
+      // dropdown below can still change it afterward, same as any other flow).
       setUse("G01");
       setIvaRate(16);
       setCurrency("MXN");
@@ -1342,25 +1342,17 @@ export function CrearFacturaDialog({
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground">Tipo de Documento</label>
-              {pedimento ? (
-                // Chosen upfront via FacturaTipoSelectorDialog and fixed for
-                // the lifetime of this dialog instance — not editable here.
-                <div className="w-full rounded-md border border-input bg-muted/30 px-2 py-1.5 text-xs mt-1 text-muted-foreground">
-                  {DOCUMENT_TYPE_OPTIONS.find(([code]) => code === documentType)?.[1] ?? documentType}
-                </div>
-              ) : (
-                <select
-                  className="w-full rounded-md border border-input px-2 py-1.5 text-xs mt-1"
-                  value={documentType}
-                  onChange={(e) => handleDocumentTypeChange(e.target.value as DocumentType)}
-                >
-                  {DOCUMENT_TYPE_OPTIONS.map(([code, label]) => (
-                    <option key={code} value={code}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <select
+                className="w-full rounded-md border border-input px-2 py-1.5 text-xs mt-1"
+                value={documentType}
+                onChange={(e) => handleDocumentTypeChange(e.target.value as DocumentType)}
+              >
+                {DOCUMENT_TYPE_OPTIONS.map(([code, label]) => (
+                  <option key={code} value={code}>
+                    {label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground">Tasa IVA</label>
