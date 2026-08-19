@@ -5,6 +5,7 @@ import { Loader2, Search, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { alertError } from "@/lib/alerts";
+import { fetchJson } from "@/lib/apiFetch";
 
 export interface ResolvedAddress {
   placeId: string;
@@ -56,19 +57,18 @@ export function GoogleAddressAutocomplete({
       }
       setSearching(true);
       try {
-        const res = await fetch("/api/places/autocomplete", {
+        const data = await fetchJson<{ suggestions?: Suggestion[] }>("/api/places/autocomplete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ input: trimmed, sessionToken: sessionTokenRef.current }),
         });
-        const data = await res.json();
         if (cancelled) return;
-        if (res.ok) {
-          setSuggestions(data.suggestions ?? []);
-          setOpen(true);
-        }
+        setSuggestions(data.suggestions ?? []);
+        setOpen(true);
       } catch {
-        // Silent: a dropped keystroke-driven search shouldn't interrupt typing.
+        // Silent (including a SessionExpiredError): a dropped keystroke-driven
+        // search shouldn't interrupt typing — selectSuggestion below is where
+        // a session-expired failure actually needs to surface.
       } finally {
         if (!cancelled) setSearching(false);
       }
@@ -82,14 +82,12 @@ export function GoogleAddressAutocomplete({
   async function selectSuggestion(s: Suggestion) {
     setResolving(true);
     try {
-      const res = await fetch("/api/places/details", {
+      const data = await fetchJson<ResolvedAddress>("/api/places/details", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ placeId: s.placeId, sessionToken: sessionTokenRef.current }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al resolver la dirección");
-      onResolved(data as ResolvedAddress);
+      onResolved(data);
       setQuery("");
       setSuggestions([]);
       setOpen(false);
