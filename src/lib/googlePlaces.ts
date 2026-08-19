@@ -58,7 +58,11 @@ export interface ResolvedPlace {
 interface AddressComponent {
   longText: string;
   shortText: string;
-  types: string[];
+  // Optional: Google omits this entirely on some components (seen on a
+  // premise/complex-name component preceding the route, e.g. "Blvd. Los
+  // Olivos" ahead of "Parque Industria" — no `types` key in the API
+  // response at all, not just an empty array).
+  types?: string[];
 }
 
 // Google's country component is ISO 3166-1 alpha-2 (e.g. "MX"), but every
@@ -83,7 +87,7 @@ const ALPHA2_TO_SAT_ALPHA3: Record<string, string> = {
 // locality covers most municipios, falling back to administrative_area_level_2
 // for places where Google only assigns the latter.
 function mapAddressComponents(components: AddressComponent[]): Omit<ResolvedPlace, "placeId" | "formattedAddress"> {
-  const find = (type: string) => components.find((c) => c.types.includes(type));
+  const find = (type: string) => components.find((c) => c.types?.includes(type));
 
   const streetNumber = find("street_number")?.longText ?? "";
   const route = find("route")?.longText ?? "";
