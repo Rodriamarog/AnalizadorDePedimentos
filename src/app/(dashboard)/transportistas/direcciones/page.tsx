@@ -102,8 +102,11 @@ export default function DireccionesPage() {
     setDialogOpen(true);
   }
 
-  // Manual edits to a domicilio field invalidate a previously-resolved
-  // place_id (same rule as issue #20's Carta Porte ubicaciones).
+  // Manual edits to a domicilio field Google actually resolves invalidate a
+  // previously-resolved place_id (same rule as issue #20's Carta Porte
+  // ubicaciones). Localidad and Número Interior are excluded — Google never
+  // populates either, so editing them by hand isn't a sign the address
+  // changed (see mapAddressComponents in googlePlaces.ts).
   function setDomicilio<K extends keyof FormState>(key: K, v: FormState[K]) {
     setForm((f) => ({ ...f, [key]: v, googlePlaceId: null }));
   }
@@ -339,7 +342,7 @@ export default function DireccionesPage() {
                 <Input
                   className="mt-1"
                   value={form.numeroInterior}
-                  onChange={(e) => setDomicilio("numeroInterior", e.target.value)}
+                  onChange={(e) => setForm((f) => ({ ...f, numeroInterior: e.target.value }))}
                 />
               </div>
             </div>
@@ -366,7 +369,7 @@ export default function DireccionesPage() {
                 <Input
                   className="mt-1"
                   value={form.localidad}
-                  onChange={(e) => setDomicilio("localidad", e.target.value)}
+                  onChange={(e) => setForm((f) => ({ ...f, localidad: e.target.value }))}
                 />
               </div>
             </div>

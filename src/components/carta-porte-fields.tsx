@@ -788,8 +788,11 @@ function InlineDireccionForm({
     setForm((f) => ({ ...f, [key]: v }));
   }
 
-  // Manual edits to any domicilio field invalidate a previously-resolved
-  // place_id — same rule as issue #20 applies to Carta Porte ubicaciones.
+  // Manual edits to a domicilio field Google actually resolves invalidate a
+  // previously-resolved place_id — same rule as issue #20's Carta Porte
+  // ubicaciones. Localidad and Número Interior are excluded: Google never
+  // populates either (see mapAddressComponents in googlePlaces.ts), so
+  // filling them in by hand doesn't mean the address changed.
   function setDomicilio<K extends keyof InlineDireccionFormState>(key: K, v: InlineDireccionFormState[K]) {
     setForm((f) => ({ ...f, [key]: v, googlePlaceId: null }));
   }
@@ -894,7 +897,7 @@ function InlineDireccionForm({
           <Input
             className="h-7 text-xs"
             value={form.numeroInterior}
-            onChange={(e) => setDomicilio("numeroInterior", e.target.value)}
+            onChange={(e) => set("numeroInterior", e.target.value)}
           />
         </div>
       </div>
@@ -920,7 +923,7 @@ function InlineDireccionForm({
           <Input
             className="h-7 text-xs"
             value={form.localidad}
-            onChange={(e) => setDomicilio("localidad", e.target.value)}
+            onChange={(e) => set("localidad", e.target.value)}
           />
         </div>
       </div>
@@ -985,10 +988,12 @@ function UbicacionSection({
     onChange({ ...value, [key]: v });
   }
 
-  // Any hand-edit to a domicilio field invalidates a place_id that was
-  // carried in from a verified dirección (issue #20) — the edited address
-  // may no longer be the place Google resolved, so keep the text-join
-  // distance-calc fallback instead of silently trusting a stale place_id.
+  // Any hand-edit to a domicilio field Google actually resolves invalidates
+  // a place_id carried in from a verified dirección (issue #20) — the
+  // edited address may no longer be the place Google resolved, so keep the
+  // text-join distance-calc fallback instead of silently trusting a stale
+  // place_id. Localidad and Número Interior are excluded — Google never
+  // fills either, so editing them by hand isn't a sign the address changed.
   function setDomicilio<K extends keyof UbicacionFields>(key: K, v: UbicacionFields[K]) {
     onChange({ ...value, [key]: v, googlePlaceId: null });
   }
@@ -1117,7 +1122,7 @@ function UbicacionSection({
           <Input
             className="h-7 text-xs"
             value={value.numeroInterior}
-            onChange={(e) => setDomicilio("numeroInterior", e.target.value)}
+            onChange={(e) => set("numeroInterior", e.target.value)}
           />
         </div>
       </div>
@@ -1143,7 +1148,7 @@ function UbicacionSection({
           <Input
             className="h-7 text-xs"
             value={value.localidad}
-            onChange={(e) => setDomicilio("localidad", e.target.value)}
+            onChange={(e) => set("localidad", e.target.value)}
           />
         </div>
       </div>
