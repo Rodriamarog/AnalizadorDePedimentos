@@ -41,6 +41,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         estado: "estado" in body ? body.estado : existing.estado,
         pais: "pais" in body ? body.pais : existing.pais,
         codigoPostal: "codigo_postal" in body ? body.codigo_postal : existing.codigoPostal,
+        googlePlaceId: "google_place_id" in body ? body.google_place_id : existing.googlePlaceId,
       })
       .where(eq(direcciones.id, existing.id))
       .returning();

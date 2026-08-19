@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
         estado: body.estado ?? null,
         pais: body.pais ?? null,
         codigoPostal: body.codigo_postal ?? null,
+        googlePlaceId: body.google_place_id ?? null,
       })
       .returning();
     return NextResponse.json(created, { status: 201 });

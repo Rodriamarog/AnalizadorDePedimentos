@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, Plus, Loader2 } from "lucide-react";
+import { MapPin, Plus, Loader2, BadgeCheck } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GridSearchInput } from "@/components/grid-search-input";
+import { GoogleAddressAutocomplete, type ResolvedAddress } from "@/components/google-address-autocomplete";
 import { confirmDelete } from "@/lib/alerts";
 import { useRegistryList } from "@/hooks/use-registry-list";
 
@@ -26,6 +27,7 @@ interface Direccion {
   estado: string | null;
   pais: string | null;
   codigoPostal: string | null;
+  googlePlaceId: string | null;
   active: boolean;
 }
 
@@ -42,6 +44,7 @@ interface FormState {
   estado: string;
   pais: string;
   codigoPostal: string;
+  googlePlaceId: string | null;
 }
 
 const emptyForm: FormState = {
@@ -57,6 +60,7 @@ const emptyForm: FormState = {
   estado: "",
   pais: "MEX",
   codigoPostal: "",
+  googlePlaceId: null,
 };
 
 export default function DireccionesPage() {
@@ -92,9 +96,30 @@ export default function DireccionesPage() {
       estado: d.estado ?? "",
       pais: d.pais ?? "MEX",
       codigoPostal: d.codigoPostal ?? "",
+      googlePlaceId: d.googlePlaceId,
     });
     setError(null);
     setDialogOpen(true);
+  }
+
+  // Manual edits to a domicilio field invalidate a previously-resolved
+  // place_id (same rule as issue #20's Carta Porte ubicaciones).
+  function setDomicilio<K extends keyof FormState>(key: K, v: FormState[K]) {
+    setForm((f) => ({ ...f, [key]: v, googlePlaceId: null }));
+  }
+
+  function applyResolvedAddress(a: ResolvedAddress) {
+    setForm((f) => ({
+      ...f,
+      calle: a.calle || f.calle,
+      numeroExterior: a.numeroExterior || f.numeroExterior,
+      colonia: a.colonia || f.colonia,
+      municipio: a.municipio || f.municipio,
+      estado: a.estado || f.estado,
+      codigoPostal: a.codigoPostal || f.codigoPostal,
+      pais: a.pais || f.pais,
+      googlePlaceId: a.placeId,
+    }));
   }
 
   async function handleSave() {
@@ -128,6 +153,7 @@ export default function DireccionesPage() {
           estado: form.estado.trim().toUpperCase() || null,
           pais: form.pais.trim().toUpperCase() || null,
           codigo_postal: form.codigoPostal.trim() || null,
+          google_place_id: form.googlePlaceId,
         }),
       });
       const data = await res.json();
@@ -205,7 +231,14 @@ export default function DireccionesPage() {
                 )}
                 {filteredRows.map((d) => (
                   <tr key={d.id} className="hover:bg-muted/40 transition-colors">
-                    <td className="px-5 py-2.5 text-xs text-foreground/70">{d.etiqueta}</td>
+                    <td className="px-5 py-2.5 text-xs text-foreground/70">
+                      <span className="inline-flex items-center gap-1.5">
+                        {d.etiqueta}
+                        {d.googlePlaceId && (
+                          <BadgeCheck className="w-3.5 h-3.5 text-primary" aria-label="Verificada por Google" />
+                        )}
+                      </span>
+                    </td>
                     <td className="px-5 py-2.5 font-mono text-muted-foreground text-xs">{d.rfc}</td>
                     <td className="px-5 py-2.5 text-muted-foreground text-xs">
                       {[d.municipio, d.estado].filter(Boolean).join(", ") || "—"}
@@ -245,6 +278,19 @@ export default function DireccionesPage() {
           </DialogHeader>
 
           <div className="flex flex-col gap-4">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Buscar en Google</label>
+              <div className="mt-1">
+                <GoogleAddressAutocomplete onResolved={applyResolvedAddress} />
+              </div>
+              {form.googlePlaceId && (
+                <Badge variant="default" className="mt-1.5 w-fit gap-1">
+                  <BadgeCheck className="w-3 h-3" />
+                  Verificada por Google
+                </Badge>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Etiqueta</label>
@@ -278,18 +324,14 @@ export default function DireccionesPage() {
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Calle</label>
-                <Input
-                  className="mt-1"
-                  value={form.calle}
-                  onChange={(e) => setForm((f) => ({ ...f, calle: e.target.value }))}
-                />
+                <Input className="mt-1" value={form.calle} onChange={(e) => setDomicilio("calle", e.target.value)} />
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground">No. Ext.</label>
                 <Input
                   className="mt-1"
                   value={form.numeroExterior}
-                  onChange={(e) => setForm((f) => ({ ...f, numeroExterior: e.target.value }))}
+                  onChange={(e) => setDomicilio("numeroExterior", e.target.value)}
                 />
               </div>
               <div>
@@ -297,7 +339,7 @@ export default function DireccionesPage() {
                 <Input
                   className="mt-1"
                   value={form.numeroInterior}
-                  onChange={(e) => setForm((f) => ({ ...f, numeroInterior: e.target.value }))}
+                  onChange={(e) => setDomicilio("numeroInterior", e.target.value)}
                 />
               </div>
             </div>
@@ -308,7 +350,7 @@ export default function DireccionesPage() {
                 <Input
                   className="mt-1"
                   value={form.colonia}
-                  onChange={(e) => setForm((f) => ({ ...f, colonia: e.target.value }))}
+                  onChange={(e) => setDomicilio("colonia", e.target.value)}
                 />
               </div>
               <div>
@@ -316,7 +358,7 @@ export default function DireccionesPage() {
                 <Input
                   className="mt-1"
                   value={form.municipio}
-                  onChange={(e) => setForm((f) => ({ ...f, municipio: e.target.value }))}
+                  onChange={(e) => setDomicilio("municipio", e.target.value)}
                 />
               </div>
               <div>
@@ -324,7 +366,7 @@ export default function DireccionesPage() {
                 <Input
                   className="mt-1"
                   value={form.localidad}
-                  onChange={(e) => setForm((f) => ({ ...f, localidad: e.target.value }))}
+                  onChange={(e) => setDomicilio("localidad", e.target.value)}
                 />
               </div>
             </div>
@@ -336,7 +378,7 @@ export default function DireccionesPage() {
                   className="mt-1"
                   placeholder="ej. BCN"
                   value={form.estado}
-                  onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value.toUpperCase() }))}
+                  onChange={(e) => setDomicilio("estado", e.target.value.toUpperCase())}
                 />
               </div>
               <div>
@@ -344,7 +386,7 @@ export default function DireccionesPage() {
                 <Input
                   className="mt-1"
                   value={form.pais}
-                  onChange={(e) => setForm((f) => ({ ...f, pais: e.target.value.toUpperCase() }))}
+                  onChange={(e) => setDomicilio("pais", e.target.value.toUpperCase())}
                 />
               </div>
               <div>
@@ -352,7 +394,7 @@ export default function DireccionesPage() {
                 <Input
                   className="mt-1"
                   value={form.codigoPostal}
-                  onChange={(e) => setForm((f) => ({ ...f, codigoPostal: e.target.value }))}
+                  onChange={(e) => setDomicilio("codigoPostal", e.target.value)}
                 />
               </div>
             </div>

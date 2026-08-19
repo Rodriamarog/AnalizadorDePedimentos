@@ -166,6 +166,11 @@ export const direcciones = pgTable("direcciones", {
   estado: text("estado"),
   pais: text("pais"),
   codigoPostal: text("codigo_postal"),
+  // Set when this dirección was resolved from a Google Places suggestion
+  // (issue #19) — drives the "verified" badge and, per issue #20, lets the
+  // Carta Porte distance calc query Google by place_id instead of a
+  // reassembled address string.
+  googlePlaceId: text("google_place_id"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

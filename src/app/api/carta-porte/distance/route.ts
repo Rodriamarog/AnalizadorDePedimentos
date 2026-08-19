@@ -12,8 +12,18 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const origenQuery = buildAddressQuery((body?.origen ?? {}) as AddressQueryInput);
-  const destinoQuery = buildAddressQuery((body?.destino ?? {}) as AddressQueryInput);
+  // Issue #20: a verified (has a place_id) side queries Google by
+  // `place_id:<id>` — more reliable than hoping a re-assembled address
+  // string geocodes to the same place twice. The other side, if unverified,
+  // still falls back to the text-join method.
+  const origenPlaceId = typeof body?.origen?.placeId === "string" ? body.origen.placeId : null;
+  const destinoPlaceId = typeof body?.destino?.placeId === "string" ? body.destino.placeId : null;
+  const origenQuery = origenPlaceId
+    ? `place_id:${origenPlaceId}`
+    : buildAddressQuery((body?.origen ?? {}) as AddressQueryInput);
+  const destinoQuery = destinoPlaceId
+    ? `place_id:${destinoPlaceId}`
+    : buildAddressQuery((body?.destino ?? {}) as AddressQueryInput);
   if (!origenQuery || !destinoQuery) {
     return NextResponse.json(
       { error: "Completa el domicilio de origen y destino antes de calcular la distancia" },

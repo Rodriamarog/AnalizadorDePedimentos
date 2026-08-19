@@ -1,12 +1,14 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ChevronsUpDown, Loader2, Plus, Trash2 } from "lucide-react";
+import { BadgeCheck, ChevronsUpDown, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { SatComboBox } from "@/components/sat-combobox";
+import { GoogleAddressAutocomplete, type ResolvedAddress } from "@/components/google-address-autocomplete";
 import { alertError } from "@/lib/alerts";
 import {
   CONFIG_VEHICULAR_OPTIONS,
@@ -57,6 +59,7 @@ export interface DireccionLite {
   estado: string | null;
   pais: string | null;
   codigoPostal: string | null;
+  googlePlaceId: string | null;
 }
 
 interface UbicacionFields {
@@ -72,6 +75,11 @@ interface UbicacionFields {
   estado: string;
   pais: string;
   codigoPostal: string;
+  // Set when this ubicación was populated from a verified (has a
+  // google_place_id) saved dirección — issue #20. Cleared as soon as any
+  // domicilio field is hand-edited, since the edited address may no longer
+  // be the place Google resolved.
+  googlePlaceId: string | null;
 }
 
 function defaultUbicacion(): UbicacionFields {
@@ -88,6 +96,7 @@ function defaultUbicacion(): UbicacionFields {
     estado: "",
     pais: "MEX",
     codigoPostal: "",
+    googlePlaceId: null,
   };
 }
 
@@ -747,6 +756,7 @@ interface InlineDireccionFormState {
   estado: string;
   pais: string;
   codigoPostal: string;
+  googlePlaceId: string | null;
 }
 
 function InlineDireccionForm({
@@ -769,12 +779,33 @@ function InlineDireccionForm({
     estado: "",
     pais: "MEX",
     codigoPostal: "",
+    googlePlaceId: null,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function set<K extends keyof InlineDireccionFormState>(key: K, v: InlineDireccionFormState[K]) {
     setForm((f) => ({ ...f, [key]: v }));
+  }
+
+  // Manual edits to any domicilio field invalidate a previously-resolved
+  // place_id — same rule as issue #20 applies to Carta Porte ubicaciones.
+  function setDomicilio<K extends keyof InlineDireccionFormState>(key: K, v: InlineDireccionFormState[K]) {
+    setForm((f) => ({ ...f, [key]: v, googlePlaceId: null }));
+  }
+
+  function applyResolvedAddress(a: ResolvedAddress) {
+    setForm((f) => ({
+      ...f,
+      calle: a.calle || f.calle,
+      numeroExterior: a.numeroExterior || f.numeroExterior,
+      colonia: a.colonia || f.colonia,
+      municipio: a.municipio || f.municipio,
+      estado: a.estado || f.estado,
+      codigoPostal: a.codigoPostal || f.codigoPostal,
+      pais: a.pais || f.pais,
+      googlePlaceId: a.placeId,
+    }));
   }
 
   async function handleSave() {
@@ -801,6 +832,7 @@ function InlineDireccionForm({
           estado: form.estado.trim() || null,
           pais: form.pais.trim() || null,
           codigo_postal: form.codigoPostal.trim() || null,
+          google_place_id: form.googlePlaceId,
         }),
       });
       const data = await res.json();
@@ -817,6 +849,13 @@ function InlineDireccionForm({
   return (
     <div className="p-3 flex flex-col gap-2">
       <p className="text-xs font-semibold">Nueva dirección</p>
+      <GoogleAddressAutocomplete onResolved={applyResolvedAddress} />
+      {form.googlePlaceId && (
+        <Badge variant="default" className="w-fit gap-1">
+          <BadgeCheck className="w-3 h-3" />
+          Verificada por Google
+        </Badge>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-[10px] text-muted-foreground">Etiqueta</label>
@@ -840,14 +879,14 @@ function InlineDireccionForm({
       <div className="grid grid-cols-3 gap-2">
         <div>
           <label className="text-[10px] text-muted-foreground">Calle</label>
-          <Input className="h-7 text-xs" value={form.calle} onChange={(e) => set("calle", e.target.value)} />
+          <Input className="h-7 text-xs" value={form.calle} onChange={(e) => setDomicilio("calle", e.target.value)} />
         </div>
         <div>
           <label className="text-[10px] text-muted-foreground">No. Ext.</label>
           <Input
             className="h-7 text-xs"
             value={form.numeroExterior}
-            onChange={(e) => set("numeroExterior", e.target.value)}
+            onChange={(e) => setDomicilio("numeroExterior", e.target.value)}
           />
         </div>
         <div>
@@ -855,22 +894,34 @@ function InlineDireccionForm({
           <Input
             className="h-7 text-xs"
             value={form.numeroInterior}
-            onChange={(e) => set("numeroInterior", e.target.value)}
+            onChange={(e) => setDomicilio("numeroInterior", e.target.value)}
           />
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2">
         <div>
           <label className="text-[10px] text-muted-foreground">Colonia</label>
-          <Input className="h-7 text-xs" value={form.colonia} onChange={(e) => set("colonia", e.target.value)} />
+          <Input
+            className="h-7 text-xs"
+            value={form.colonia}
+            onChange={(e) => setDomicilio("colonia", e.target.value)}
+          />
         </div>
         <div>
           <label className="text-[10px] text-muted-foreground">Municipio</label>
-          <Input className="h-7 text-xs" value={form.municipio} onChange={(e) => set("municipio", e.target.value)} />
+          <Input
+            className="h-7 text-xs"
+            value={form.municipio}
+            onChange={(e) => setDomicilio("municipio", e.target.value)}
+          />
         </div>
         <div>
           <label className="text-[10px] text-muted-foreground">Localidad</label>
-          <Input className="h-7 text-xs" value={form.localidad} onChange={(e) => set("localidad", e.target.value)} />
+          <Input
+            className="h-7 text-xs"
+            value={form.localidad}
+            onChange={(e) => setDomicilio("localidad", e.target.value)}
+          />
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2">
@@ -880,19 +931,23 @@ function InlineDireccionForm({
             className="h-7 text-xs"
             placeholder="ej. BCN"
             value={form.estado}
-            onChange={(e) => set("estado", e.target.value.toUpperCase())}
+            onChange={(e) => setDomicilio("estado", e.target.value.toUpperCase())}
           />
         </div>
         <div>
           <label className="text-[10px] text-muted-foreground">País</label>
-          <Input className="h-7 text-xs" value={form.pais} onChange={(e) => set("pais", e.target.value.toUpperCase())} />
+          <Input
+            className="h-7 text-xs"
+            value={form.pais}
+            onChange={(e) => setDomicilio("pais", e.target.value.toUpperCase())}
+          />
         </div>
         <div>
           <label className="text-[10px] text-muted-foreground">C.P.</label>
           <Input
             className="h-7 text-xs"
             value={form.codigoPostal}
-            onChange={(e) => set("codigoPostal", e.target.value)}
+            onChange={(e) => setDomicilio("codigoPostal", e.target.value)}
           />
         </div>
       </div>
@@ -930,6 +985,14 @@ function UbicacionSection({
     onChange({ ...value, [key]: v });
   }
 
+  // Any hand-edit to a domicilio field invalidates a place_id that was
+  // carried in from a verified dirección (issue #20) — the edited address
+  // may no longer be the place Google resolved, so keep the text-join
+  // distance-calc fallback instead of silently trusting a stale place_id.
+  function setDomicilio<K extends keyof UbicacionFields>(key: K, v: UbicacionFields[K]) {
+    onChange({ ...value, [key]: v, googlePlaceId: null });
+  }
+
   function selectDireccion(d: DireccionLite) {
     onChange({
       ...value,
@@ -944,6 +1007,7 @@ function UbicacionSection({
       estado: d.estado ?? value.estado,
       pais: d.pais ?? value.pais,
       codigoPostal: d.codigoPostal ?? value.codigoPostal,
+      googlePlaceId: d.googlePlaceId,
     });
     setPickerOpen(false);
   }
@@ -980,9 +1044,12 @@ function UbicacionSection({
                   <CommandGroup>
                     {direcciones.map((d) => (
                       <CommandItem key={d.id} value={`${d.etiqueta} ${d.rfc}`} onSelect={() => selectDireccion(d)}>
-                        <div>
-                          <div className="text-xs">{d.etiqueta}</div>
-                          <div className="text-[10px] text-muted-foreground font-mono">{d.rfc}</div>
+                        <div className="flex items-center gap-1.5">
+                          <div>
+                            <div className="text-xs">{d.etiqueta}</div>
+                            <div className="text-[10px] text-muted-foreground font-mono">{d.rfc}</div>
+                          </div>
+                          {d.googlePlaceId && <BadgeCheck className="w-3 h-3 text-primary shrink-0" />}
                         </div>
                       </CommandItem>
                     ))}
@@ -1022,17 +1089,27 @@ function UbicacionSection({
           onChange={(e) => set("fechaHoraSalidaLlegada", e.target.value)}
         />
       </div>
+      {value.googlePlaceId && (
+        <Badge variant="default" className="w-fit gap-1 mb-2">
+          <BadgeCheck className="w-3 h-3" />
+          Verificada por Google
+        </Badge>
+      )}
       <div className="grid grid-cols-3 gap-2 mb-2">
         <div>
           <label className="text-[10px] text-muted-foreground">Calle</label>
-          <Input className="h-7 text-xs" value={value.calle} onChange={(e) => set("calle", e.target.value)} />
+          <Input
+            className="h-7 text-xs"
+            value={value.calle}
+            onChange={(e) => setDomicilio("calle", e.target.value)}
+          />
         </div>
         <div>
           <label className="text-[10px] text-muted-foreground">No. Ext.</label>
           <Input
             className="h-7 text-xs"
             value={value.numeroExterior}
-            onChange={(e) => set("numeroExterior", e.target.value)}
+            onChange={(e) => setDomicilio("numeroExterior", e.target.value)}
           />
         </div>
         <div>
@@ -1040,22 +1117,34 @@ function UbicacionSection({
           <Input
             className="h-7 text-xs"
             value={value.numeroInterior}
-            onChange={(e) => set("numeroInterior", e.target.value)}
+            onChange={(e) => setDomicilio("numeroInterior", e.target.value)}
           />
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2 mb-2">
         <div>
           <label className="text-[10px] text-muted-foreground">Colonia</label>
-          <Input className="h-7 text-xs" value={value.colonia} onChange={(e) => set("colonia", e.target.value)} />
+          <Input
+            className="h-7 text-xs"
+            value={value.colonia}
+            onChange={(e) => setDomicilio("colonia", e.target.value)}
+          />
         </div>
         <div>
           <label className="text-[10px] text-muted-foreground">Municipio</label>
-          <Input className="h-7 text-xs" value={value.municipio} onChange={(e) => set("municipio", e.target.value)} />
+          <Input
+            className="h-7 text-xs"
+            value={value.municipio}
+            onChange={(e) => setDomicilio("municipio", e.target.value)}
+          />
         </div>
         <div>
           <label className="text-[10px] text-muted-foreground">Localidad</label>
-          <Input className="h-7 text-xs" value={value.localidad} onChange={(e) => set("localidad", e.target.value)} />
+          <Input
+            className="h-7 text-xs"
+            value={value.localidad}
+            onChange={(e) => setDomicilio("localidad", e.target.value)}
+          />
         </div>
       </div>
       <div className="grid grid-cols-3 gap-2">
@@ -1065,7 +1154,7 @@ function UbicacionSection({
             className="h-7 text-xs"
             placeholder="ej. BCN"
             value={value.estado}
-            onChange={(e) => set("estado", e.target.value.toUpperCase())}
+            onChange={(e) => setDomicilio("estado", e.target.value.toUpperCase())}
           />
         </div>
         <div>
@@ -1073,7 +1162,7 @@ function UbicacionSection({
           <Input
             className="h-7 text-xs"
             value={value.pais}
-            onChange={(e) => set("pais", e.target.value.toUpperCase())}
+            onChange={(e) => setDomicilio("pais", e.target.value.toUpperCase())}
           />
         </div>
         <div>
@@ -1081,7 +1170,7 @@ function UbicacionSection({
           <Input
             className="h-7 text-xs"
             value={value.codigoPostal}
-            onChange={(e) => set("codigoPostal", e.target.value)}
+            onChange={(e) => setDomicilio("codigoPostal", e.target.value)}
           />
         </div>
       </div>
@@ -1114,6 +1203,7 @@ export function CartaPorteFields({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           origen: {
+            placeId: value.ubicacionOrigen.googlePlaceId,
             calle: value.ubicacionOrigen.calle,
             numeroExterior: value.ubicacionOrigen.numeroExterior,
             colonia: value.ubicacionOrigen.colonia,
@@ -1123,6 +1213,7 @@ export function CartaPorteFields({
             pais: value.ubicacionOrigen.pais,
           },
           destino: {
+            placeId: value.ubicacionDestino.googlePlaceId,
             calle: value.ubicacionDestino.calle,
             numeroExterior: value.ubicacionDestino.numeroExterior,
             colonia: value.ubicacionDestino.colonia,
