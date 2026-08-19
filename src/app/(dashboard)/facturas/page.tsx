@@ -13,7 +13,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { CrearFacturaDialog, PAYMENT_FORM_OPTIONS, type FacturaDraftDetail } from "@/components/crear-factura-dialog";
+import { CrearFacturaDialog, PAYMENT_FORM_OPTIONS, type FacturaDraftDetail, type DocumentType } from "@/components/crear-factura-dialog";
 import { GridSearchInput } from "@/components/grid-search-input";
 import { alertSuccess, confirmDelete } from "@/lib/alerts";
 
@@ -74,6 +74,7 @@ export default function FacturasPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDraft, setEditingDraft] = useState<FacturaDraftDetail | null>(null);
+  const [documentType, setDocumentType] = useState<DocumentType>("factura");
   const [draftLoadingId, setDraftLoadingId] = useState<string | null>(null);
 
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
@@ -740,6 +741,8 @@ export default function FacturasPage() {
             setEditingDraft(null);
           }
         }}
+        documentType={documentType}
+        onDocumentTypeChange={setDocumentType}
         draft={editingDraft ?? undefined}
         onSaved={() => load(paymentMethodFilter)}
       />

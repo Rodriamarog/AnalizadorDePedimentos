@@ -70,7 +70,7 @@ export const PAYMENT_FORM_OPTIONS = [
 // FacturAPI's CFDI `type` field — two document types ("Recibo de Honorarios"
 // and "Carta Porte Ingreso") both map to CFDI "Ingreso", so they can't share
 // a single field the way a naive code/label pair would suggest.
-const DOCUMENT_TYPE_OPTIONS = [
+export const DOCUMENT_TYPE_OPTIONS = [
   ["factura", "Factura"],
   ["recibo_honorarios", "Recibo de Honorarios"],
   ["nota_credito", "Nota de Crédito"],
@@ -78,7 +78,7 @@ const DOCUMENT_TYPE_OPTIONS = [
   ["carta_porte_ingreso", "Carta Porte Ingreso"],
 ] as const;
 
-type DocumentType = (typeof DOCUMENT_TYPE_OPTIONS)[number][0];
+export type DocumentType = (typeof DOCUMENT_TYPE_OPTIONS)[number][0];
 
 const DOCUMENT_TYPE_TO_CFDI: Record<DocumentType, "I" | "E" | "T"> = {
   factura: "I",
@@ -367,9 +367,19 @@ interface CrearFacturaDialogProps {
   // A previously-saved draft to reopen for editing — mutually exclusive with
   // `pedimento`, which only applies to a brand new invoice.
   draft?: FacturaDraftDetail;
+  documentType: DocumentType;
+  onDocumentTypeChange: (next: DocumentType) => void;
 }
 
-export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, draft }: CrearFacturaDialogProps) {
+export function CrearFacturaDialog({
+  open,
+  onOpenChange,
+  onSaved,
+  pedimento,
+  draft,
+  documentType,
+  onDocumentTypeChange,
+}: CrearFacturaDialogProps) {
   const { user } = useUser();
   const userEmail = user?.primaryEmailAddress?.emailAddress;
   // Read via a ref (not a dependency) inside the dialog-open-reset effect
@@ -384,7 +394,6 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [use, setUse] = useState("G03");
-  const [documentType, setDocumentType] = useState<DocumentType>("factura");
   const [paymentForm, setPaymentForm] = useState("03");
   const [paymentMethod, setPaymentMethod] = useState<"PUE" | "PPD">("PUE");
   const [ivaRate, setIvaRate] = useState<16 | 8 | 0>(8);
@@ -447,7 +456,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
 
     if (draft) {
       setUse(draft.use ?? "G03");
-      setDocumentType(CFDI_TO_DOCUMENT_TYPE[draft.type ?? "I"] ?? "factura");
+      onDocumentTypeChange(CFDI_TO_DOCUMENT_TYPE[draft.type ?? "I"] ?? "factura");
       setPaymentForm(draft.payment_form ?? "03");
       setPaymentMethod(draft.payment_method ?? "PUE");
       setCurrency(draft.currency ?? "MXN");
@@ -480,7 +489,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
         .then(setPedimentosList);
     } else if (pedimento) {
       setUse("G01");
-      setDocumentType("factura");
+      onDocumentTypeChange("factura");
       setIvaRate(16);
       setCurrency("MXN");
       setExchangeRate(pedimento.tipoCambio ? String(pedimento.tipoCambio) : "");
@@ -499,7 +508,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
         .finally(() => setItemsLoading(false));
     } else {
       setUse("G03");
-      setDocumentType("factura");
+      onDocumentTypeChange("factura");
       setIvaRate(8);
       setCurrency("MXN");
       setExchangeRate("");
@@ -619,7 +628,7 @@ export function CrearFacturaDialog({ open, onOpenChange, onSaved, pedimento, dra
   // the Carta Porte-specific form state — those fields are meaningless (and
   // shouldn't linger) once the user picks a different document type.
   function handleDocumentTypeChange(next: DocumentType) {
-    setDocumentType(next);
+    onDocumentTypeChange(next);
     if (next !== "carta_porte" && next !== "carta_porte_ingreso") {
       setCartaPorte(defaultCartaPorteState());
     }

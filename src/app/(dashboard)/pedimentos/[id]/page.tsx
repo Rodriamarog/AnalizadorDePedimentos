@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SatComboBox } from "@/components/sat-combobox";
-import { CrearFacturaDialog } from "@/components/crear-factura-dialog";
+import { CrearFacturaDialog, type DocumentType } from "@/components/crear-factura-dialog";
 import { AutomapOverlay } from "@/components/automap-overlay";
 import { useAutomapProgress } from "@/hooks/use-automap-progress";
 import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
@@ -135,6 +135,7 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
 
   const [exporting, setExporting] = useState(false);
   const [facturarOpen, setFacturarOpen] = useState(false);
+  const [facturaDocumentType, setFacturaDocumentType] = useState<DocumentType>("factura");
 
   const [inspeccionOpen, setInspeccionOpen] = useState(false);
   const [inspeccionLoading, setInspeccionLoading] = useState(false);
@@ -658,6 +659,8 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
       <CrearFacturaDialog
         open={facturarOpen}
         onOpenChange={setFacturarOpen}
+        documentType={facturaDocumentType}
+        onDocumentTypeChange={setFacturaDocumentType}
         pedimento={{
           id: data.id,
           pedimentoNum: data.pedimentoNum,
