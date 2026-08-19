@@ -26,9 +26,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const [existing] = await tx.select().from(direcciones).where(eq(direcciones.id, id)).limit(1);
     if (!existing) return NextResponse.json({ error: "Dirección no encontrada" }, { status: 404 });
 
+    if ("tipo" in body && body.tipo !== "origen" && body.tipo !== "destino") {
+      return NextResponse.json({ error: "tipo debe ser 'origen' o 'destino'" }, { status: 400 });
+    }
+
     const [updated] = await tx
       .update(direcciones)
       .set({
+        tipo: body.tipo ?? existing.tipo,
         etiqueta: body.etiqueta ?? existing.etiqueta,
         rfc: body.rfc ?? existing.rfc,
         nombre: "nombre" in body ? body.nombre : existing.nombre,

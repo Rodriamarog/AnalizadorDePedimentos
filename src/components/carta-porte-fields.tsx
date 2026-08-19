@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { SatComboBox } from "@/components/sat-combobox";
-import { GoogleAddressAutocomplete, type ResolvedAddress } from "@/components/google-address-autocomplete";
+import { DireccionForm, emptyDireccionForm, type DireccionFormState } from "@/components/direccion-form";
 import { alertError } from "@/lib/alerts";
 import {
   CONFIG_VEHICULAR_OPTIONS,
@@ -43,10 +43,11 @@ export interface ChoferLite {
   numeroLicencia: string | null;
 }
 
-// Any saved dirección can be used as either Origen or Destino — no
-// type/direction tagging.
+// Permanently classified as origen/destino (issue #21) — the picker only
+// offers each ubicación section its matching tipo (issue #23).
 export interface DireccionLite {
   id: string;
+  tipo: "origen" | "destino";
   etiqueta: string;
   rfc: string;
   nombre: string | null;
@@ -743,73 +744,18 @@ function OneOffFiguraForm({
   );
 }
 
-interface InlineDireccionFormState {
-  etiqueta: string;
-  rfc: string;
-  nombre: string;
-  calle: string;
-  numeroExterior: string;
-  numeroInterior: string;
-  colonia: string;
-  municipio: string;
-  localidad: string;
-  estado: string;
-  pais: string;
-  codigoPostal: string;
-  googlePlaceId: string | null;
-}
-
 function InlineDireccionForm({
+  tipo,
   onCancel,
   onCreated,
 }: {
+  tipo: "origen" | "destino";
   onCancel: () => void;
   onCreated: (d: DireccionLite) => void;
 }) {
-  const [form, setForm] = useState<InlineDireccionFormState>({
-    etiqueta: "",
-    rfc: "",
-    nombre: "",
-    calle: "",
-    numeroExterior: "",
-    numeroInterior: "",
-    colonia: "",
-    municipio: "",
-    localidad: "",
-    estado: "",
-    pais: "MEX",
-    codigoPostal: "",
-    googlePlaceId: null,
-  });
+  const [form, setForm] = useState<DireccionFormState>(emptyDireccionForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  function set<K extends keyof InlineDireccionFormState>(key: K, v: InlineDireccionFormState[K]) {
-    setForm((f) => ({ ...f, [key]: v }));
-  }
-
-  // Manual edits to a domicilio field Google actually resolves invalidate a
-  // previously-resolved place_id — same rule as issue #20's Carta Porte
-  // ubicaciones. Localidad and Número Interior are excluded: Google never
-  // populates either (see mapAddressComponents in googlePlaces.ts), so
-  // filling them in by hand doesn't mean the address changed.
-  function setDomicilio<K extends keyof InlineDireccionFormState>(key: K, v: InlineDireccionFormState[K]) {
-    setForm((f) => ({ ...f, [key]: v, googlePlaceId: null }));
-  }
-
-  function applyResolvedAddress(a: ResolvedAddress) {
-    setForm((f) => ({
-      ...f,
-      calle: a.calle || f.calle,
-      numeroExterior: a.numeroExterior || f.numeroExterior,
-      colonia: a.colonia || f.colonia,
-      municipio: a.municipio || f.municipio,
-      estado: a.estado || f.estado,
-      codigoPostal: a.codigoPostal || f.codigoPostal,
-      pais: a.pais || f.pais,
-      googlePlaceId: a.placeId,
-    }));
-  }
 
   async function handleSave() {
     if (!form.etiqueta.trim() || !form.rfc.trim()) {
@@ -823,6 +769,7 @@ function InlineDireccionForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          tipo,
           etiqueta: form.etiqueta.trim(),
           rfc: form.rfc.trim().toUpperCase(),
           nombre: form.nombre.trim() || null,
@@ -852,108 +799,7 @@ function InlineDireccionForm({
   return (
     <div className="p-3 flex flex-col gap-2">
       <p className="text-xs font-semibold">Nueva dirección</p>
-      <GoogleAddressAutocomplete onResolved={applyResolvedAddress} />
-      {form.googlePlaceId && (
-        <Badge variant="default" className="w-fit gap-1">
-          <BadgeCheck className="w-3 h-3" />
-          Verificada por Google
-        </Badge>
-      )}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] text-muted-foreground">Etiqueta</label>
-          <Input
-            className="h-7 text-xs"
-            value={form.etiqueta}
-            onChange={(e) => set("etiqueta", e.target.value)}
-            placeholder="ej. Bodega CDMX"
-            autoFocus
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">RFC</label>
-          <Input className="h-7 text-xs" value={form.rfc} onChange={(e) => set("rfc", e.target.value.toUpperCase())} />
-        </div>
-      </div>
-      <div>
-        <label className="text-[10px] text-muted-foreground">Nombre</label>
-        <Input className="h-7 text-xs" value={form.nombre} onChange={(e) => set("nombre", e.target.value)} />
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <label className="text-[10px] text-muted-foreground">Calle</label>
-          <Input className="h-7 text-xs" value={form.calle} onChange={(e) => setDomicilio("calle", e.target.value)} />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">No. Ext.</label>
-          <Input
-            className="h-7 text-xs"
-            value={form.numeroExterior}
-            onChange={(e) => setDomicilio("numeroExterior", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">No. Int.</label>
-          <Input
-            className="h-7 text-xs"
-            value={form.numeroInterior}
-            onChange={(e) => set("numeroInterior", e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <label className="text-[10px] text-muted-foreground">Colonia</label>
-          <Input
-            className="h-7 text-xs"
-            value={form.colonia}
-            onChange={(e) => setDomicilio("colonia", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">Municipio</label>
-          <Input
-            className="h-7 text-xs"
-            value={form.municipio}
-            onChange={(e) => setDomicilio("municipio", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">Localidad</label>
-          <Input
-            className="h-7 text-xs"
-            value={form.localidad}
-            onChange={(e) => set("localidad", e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <label className="text-[10px] text-muted-foreground">Estado</label>
-          <Input
-            className="h-7 text-xs"
-            placeholder="ej. BCN"
-            value={form.estado}
-            onChange={(e) => setDomicilio("estado", e.target.value.toUpperCase())}
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">País</label>
-          <Input
-            className="h-7 text-xs"
-            value={form.pais}
-            onChange={(e) => setDomicilio("pais", e.target.value.toUpperCase())}
-          />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">C.P.</label>
-          <Input
-            className="h-7 text-xs"
-            value={form.codigoPostal}
-            onChange={(e) => setDomicilio("codigoPostal", e.target.value)}
-          />
-        </div>
-      </div>
+      <DireccionForm value={form} onChange={setForm} />
       {error && <p className="text-[11px] text-red-600">{error}</p>}
       <div className="flex items-center justify-end gap-1.5 mt-1">
         <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={onCancel} disabled={saving}>
@@ -970,12 +816,14 @@ function InlineDireccionForm({
 
 function UbicacionSection({
   label,
+  tipo,
   value,
   onChange,
   direcciones,
   onDireccionCreated,
 }: {
   label: string;
+  tipo: "origen" | "destino";
   value: UbicacionFields;
   onChange: (next: UbicacionFields) => void;
   direcciones: DireccionLite[];
@@ -1040,7 +888,7 @@ function UbicacionSection({
           </PopoverTrigger>
           <PopoverContent className={adding ? "w-[420px] p-0" : "w-72 p-0"} align="end">
             {adding ? (
-              <InlineDireccionForm onCancel={() => setAdding(false)} onCreated={handleDireccionCreated} />
+              <InlineDireccionForm tipo={tipo} onCancel={() => setAdding(false)} onCreated={handleDireccionCreated} />
             ) : (
               <Command>
                 <CommandInput placeholder="Buscar dirección…" />
@@ -1327,6 +1175,8 @@ export function CartaPorteFields({
 
   const selectedVehiculo = vehiculos.find((v) => v.id === value.vehiculoId);
   const pesoSum = sumPesoEnKg(value.mercancias);
+  const origenDirecciones = direcciones.filter((d) => d.tipo === "origen");
+  const destinoDirecciones = direcciones.filter((d) => d.tipo === "destino");
 
   function setAuto<K extends keyof AutotransporteFields>(key: K, v: AutotransporteFields[K]) {
     onChange({ ...value, autotransporte: { ...value.autotransporte, [key]: v } });
@@ -1339,16 +1189,18 @@ export function CartaPorteFields({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <UbicacionSection
           label="Origen"
+          tipo="origen"
           value={value.ubicacionOrigen}
           onChange={(u) => onChange({ ...value, ubicacionOrigen: u })}
-          direcciones={direcciones}
+          direcciones={origenDirecciones}
           onDireccionCreated={onDireccionCreated}
         />
         <UbicacionSection
           label="Destino"
+          tipo="destino"
           value={value.ubicacionDestino}
           onChange={(u) => onChange({ ...value, ubicacionDestino: u })}
-          direcciones={direcciones}
+          direcciones={destinoDirecciones}
           onDireccionCreated={onDireccionCreated}
         />
       </div>

@@ -147,11 +147,14 @@ export const vehiculos = pgTable("vehiculos", {
 // Complemento Carta Porte's Ubicaciones block. Deliberately excludes
 // FechaHoraSalidaLlegada — that's specific to a single shipment, not the
 // address itself, so it's always typed fresh even when the rest of the
-// ubicación is picked from here. Any saved address can be used as either
-// Origen or Destino — no type/direction tagging.
+// ubicación is picked from here. Permanently classified as origen/destino
+// (issue #21) — a dirección saved as one can't be reused as the other.
 export const direcciones = pgTable("direcciones", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   orgId: text("org_id").notNull().references(() => organizations.id),
+  // Permanent Origen/Destino classification (issue #21) — drives the
+  // two-grid Direcciones page and the Carta Porte tipo-filtered picker.
+  tipo: text("tipo").notNull(),
   // Short human label for the picker list (e.g. "Bodega CDMX") — RFC/nombre
   // alone aren't memorable enough to scan in a dropdown.
   etiqueta: text("etiqueta").notNull(),

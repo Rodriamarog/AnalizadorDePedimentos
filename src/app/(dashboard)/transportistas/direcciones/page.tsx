@@ -5,16 +5,16 @@ import { MapPin, Plus, Loader2, BadgeCheck } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GridSearchInput } from "@/components/grid-search-input";
-import { GoogleAddressAutocomplete, type ResolvedAddress } from "@/components/google-address-autocomplete";
+import { DireccionForm, emptyDireccionForm, type DireccionFormState } from "@/components/direccion-form";
 import { confirmDelete } from "@/lib/alerts";
 import { useRegistryList } from "@/hooks/use-registry-list";
 
 interface Direccion {
   id: string;
+  tipo: "origen" | "destino";
   etiqueta: string;
   rfc: string;
   nombre: string | null;
@@ -31,52 +31,34 @@ interface Direccion {
   active: boolean;
 }
 
-interface FormState {
-  etiqueta: string;
-  rfc: string;
-  nombre: string;
-  calle: string;
-  numeroExterior: string;
-  numeroInterior: string;
-  colonia: string;
-  municipio: string;
-  localidad: string;
-  estado: string;
-  pais: string;
-  codigoPostal: string;
-  googlePlaceId: string | null;
+export default function DireccionesPage() {
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <PageHeader title="Direcciones" description="Ubicaciones frecuentes de Origen/Destino para Carta Porte" icon={MapPin} />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0">
+        <DireccionGrid tipo="origen" title="Origen" />
+        <DireccionGrid tipo="destino" title="Destino" />
+      </div>
+    </div>
+  );
 }
 
-const emptyForm: FormState = {
-  etiqueta: "",
-  rfc: "",
-  nombre: "",
-  calle: "",
-  numeroExterior: "",
-  numeroInterior: "",
-  colonia: "",
-  municipio: "",
-  localidad: "",
-  estado: "",
-  pais: "MEX",
-  codigoPostal: "",
-  googlePlaceId: null,
-};
-
-export default function DireccionesPage() {
+function DireccionGrid({ tipo, title }: { tipo: "origen" | "destino"; title: string }) {
   const { rows, filteredRows, loading, q, setQ, load, deactivate, hardDelete } = useRegistryList<Direccion>({
     endpoint: "/api/direcciones",
+    listQuery: `tipo=${tipo}`,
     searchFields: (r) => [r.etiqueta, r.rfc, r.municipio],
   });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [form, setForm] = useState<DireccionFormState>(emptyDireccionForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function startAdd() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm(emptyDireccionForm);
     setError(null);
     setDialogOpen(true);
   }
@@ -102,29 +84,6 @@ export default function DireccionesPage() {
     setDialogOpen(true);
   }
 
-  // Manual edits to a domicilio field Google actually resolves invalidate a
-  // previously-resolved place_id (same rule as issue #20's Carta Porte
-  // ubicaciones). Localidad and Número Interior are excluded — Google never
-  // populates either, so editing them by hand isn't a sign the address
-  // changed (see mapAddressComponents in googlePlaces.ts).
-  function setDomicilio<K extends keyof FormState>(key: K, v: FormState[K]) {
-    setForm((f) => ({ ...f, [key]: v, googlePlaceId: null }));
-  }
-
-  function applyResolvedAddress(a: ResolvedAddress) {
-    setForm((f) => ({
-      ...f,
-      calle: a.calle || f.calle,
-      numeroExterior: a.numeroExterior || f.numeroExterior,
-      colonia: a.colonia || f.colonia,
-      municipio: a.municipio || f.municipio,
-      estado: a.estado || f.estado,
-      codigoPostal: a.codigoPostal || f.codigoPostal,
-      pais: a.pais || f.pais,
-      googlePlaceId: a.placeId,
-    }));
-  }
-
   async function handleSave() {
     setError(null);
     if (!form.etiqueta.trim()) {
@@ -144,6 +103,7 @@ export default function DireccionesPage() {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          tipo,
           etiqueta: form.etiqueta.trim(),
           rfc: form.rfc.trim().toUpperCase(),
           nombre: form.nombre.trim() || null,
@@ -196,10 +156,11 @@ export default function DireccionesPage() {
   }
 
   return (
-    <div className="h-full flex flex-col min-h-0">
-      <PageHeader title="Direcciones" description="Ubicaciones frecuentes de Origen/Destino para Carta Porte" icon={MapPin} />
-
+    <>
       <Card className="border-border shadow-none flex-1 min-h-0 flex flex-col">
+        <div className="px-5 py-3 border-b border-border">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
+        </div>
         <CardContent className="p-0 flex-1 min-h-0 flex flex-col">
           <div className="overflow-auto flex-1 min-h-0">
             <table className="w-full text-sm">
@@ -219,7 +180,7 @@ export default function DireccionesPage() {
                   <th className="px-5 py-2.5 text-right sticky top-0 z-10 bg-card">
                     <Button size="sm" className="gap-1.5 text-xs" onClick={startAdd}>
                       <Plus className="w-3.5 h-3.5" />
-                      Nueva dirección
+                      Agregar
                     </Button>
                   </th>
                 </tr>
@@ -300,130 +261,13 @@ export default function DireccionesPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? "Editar dirección" : "Nueva dirección"}</DialogTitle>
+            <DialogTitle>
+              {editingId ? `Editar dirección (${title})` : `Nueva dirección (${title})`}
+            </DialogTitle>
           </DialogHeader>
 
-          <div className="flex flex-col gap-4">
-            <div>
-              <GoogleAddressAutocomplete onResolved={applyResolvedAddress} />
-              {form.googlePlaceId && (
-                <Badge variant="default" className="mt-1.5 w-fit gap-1">
-                  <BadgeCheck className="w-3 h-3" />
-                  Verificada por Google
-                </Badge>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Etiqueta</label>
-                <Input
-                  className="mt-1"
-                  value={form.etiqueta}
-                  onChange={(e) => setForm((f) => ({ ...f, etiqueta: e.target.value }))}
-                  placeholder="ej. Bodega CDMX"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">RFC</label>
-                <Input
-                  className="mt-1"
-                  value={form.rfc}
-                  onChange={(e) => setForm((f) => ({ ...f, rfc: e.target.value.toUpperCase() }))}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Nombre</label>
-              <Input
-                className="mt-1"
-                value={form.nombre}
-                onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Calle</label>
-                <Input className="mt-1" value={form.calle} onChange={(e) => setDomicilio("calle", e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">No. Ext.</label>
-                <Input
-                  className="mt-1"
-                  value={form.numeroExterior}
-                  onChange={(e) => setDomicilio("numeroExterior", e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">No. Int.</label>
-                <Input
-                  className="mt-1"
-                  value={form.numeroInterior}
-                  onChange={(e) => setForm((f) => ({ ...f, numeroInterior: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Colonia</label>
-                <Input
-                  className="mt-1"
-                  value={form.colonia}
-                  onChange={(e) => setDomicilio("colonia", e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Municipio</label>
-                <Input
-                  className="mt-1"
-                  value={form.municipio}
-                  onChange={(e) => setDomicilio("municipio", e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Localidad</label>
-                <Input
-                  className="mt-1"
-                  value={form.localidad}
-                  onChange={(e) => setForm((f) => ({ ...f, localidad: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Estado</label>
-                <Input
-                  className="mt-1"
-                  placeholder="ej. BCN"
-                  value={form.estado}
-                  onChange={(e) => setDomicilio("estado", e.target.value.toUpperCase())}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">País</label>
-                <Input
-                  className="mt-1"
-                  value={form.pais}
-                  onChange={(e) => setDomicilio("pais", e.target.value.toUpperCase())}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">C.P.</label>
-                <Input
-                  className="mt-1"
-                  value={form.codigoPostal}
-                  onChange={(e) => setDomicilio("codigoPostal", e.target.value)}
-                />
-              </div>
-            </div>
-
-            {error && <p className="text-xs text-red-600">{error}</p>}
-          </div>
+          <DireccionForm value={form} onChange={setForm} />
+          {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
@@ -436,6 +280,6 @@ export default function DireccionesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

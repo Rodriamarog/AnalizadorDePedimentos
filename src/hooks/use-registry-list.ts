@@ -8,11 +8,17 @@ interface RegistryRow {
 interface UseRegistryListOptions<T extends RegistryRow> {
   endpoint: string;
   searchFields: (row: T) => (string | null | undefined)[];
+  // Query string (no leading "?") appended to `endpoint` for the list fetch
+  // only — mutation calls (deactivate/hardDelete) still address rows via
+  // `${endpoint}/${id}`. Must be a primitive string, not an object, so it's
+  // stable across renders as a useCallback dependency.
+  listQuery?: string;
 }
 
 export function useRegistryList<T extends RegistryRow>({
   endpoint,
   searchFields,
+  listQuery,
 }: UseRegistryListOptions<T>) {
   const [rows, setRows] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,10 +26,10 @@ export function useRegistryList<T extends RegistryRow>({
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(endpoint);
+    const res = await fetch(listQuery ? `${endpoint}?${listQuery}` : endpoint);
     if (res.ok) setRows(await res.json());
     setLoading(false);
-  }, [endpoint]);
+  }, [endpoint, listQuery]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect

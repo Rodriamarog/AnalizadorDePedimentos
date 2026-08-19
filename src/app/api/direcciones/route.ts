@@ -6,21 +6,20 @@ import { withOrg } from "@/lib/db/withOrg";
 
 // GET ?active=true restricts to active rows only (for pickers elsewhere in
 // the app); omitted, the management page gets everything so retired
-// direcciones stay visible for reference.
+// direcciones stay visible for reference. ?tipo=origen|destino restricts to
+// that classification (issue #21); omitted returns both.
 export async function GET(req: NextRequest) {
   const orgId = await requireOrgId();
   if (orgId instanceof NextResponse) return orgId;
 
   const onlyActive = req.nextUrl.searchParams.get("active") === "true";
+  const tipo = req.nextUrl.searchParams.get("tipo");
 
-  const rows = await withOrg(orgId, (tx) =>
-    tx
-      .select()
-      .from(direcciones)
-      .where(
-        onlyActive ? and(eq(direcciones.orgId, orgId), eq(direcciones.active, true)) : eq(direcciones.orgId, orgId)
-      )
-  );
+  const conditions = [eq(direcciones.orgId, orgId)];
+  if (onlyActive) conditions.push(eq(direcciones.active, true));
+  if (tipo === "origen" || tipo === "destino") conditions.push(eq(direcciones.tipo, tipo));
+
+  const rows = await withOrg(orgId, (tx) => tx.select().from(direcciones).where(and(...conditions)));
   return NextResponse.json(rows);
 }
 
@@ -35,12 +34,16 @@ export async function POST(req: NextRequest) {
   if (!body.rfc) {
     return NextResponse.json({ error: "rfc es requerido" }, { status: 400 });
   }
+  if (body.tipo !== "origen" && body.tipo !== "destino") {
+    return NextResponse.json({ error: "tipo debe ser 'origen' o 'destino'" }, { status: 400 });
+  }
 
   return withOrg(orgId, async (tx) => {
     const [created] = await tx
       .insert(direcciones)
       .values({
         orgId,
+        tipo: body.tipo,
         etiqueta: body.etiqueta,
         rfc: body.rfc,
         nombre: body.nombre ?? null,
