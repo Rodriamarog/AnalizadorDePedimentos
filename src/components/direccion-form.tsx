@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { BadgeCheck } from "lucide-react";
@@ -41,6 +42,12 @@ export const emptyDireccionForm: DireccionFormState = {
   googlePlaceId: null,
 };
 
+// "pais" excluded — emptyDireccionForm prefills it to "MEX", so it's
+// present even on a form nobody has touched yet.
+function hasDomicilioData(v: DireccionFormState): boolean {
+  return !!(v.calle.trim() || v.colonia.trim() || v.municipio.trim() || v.estado.trim() || v.codigoPostal.trim());
+}
+
 export function DireccionForm({
   value,
   onChange,
@@ -48,6 +55,14 @@ export function DireccionForm({
   value: DireccionFormState;
   onChange: (next: DireccionFormState) => void;
 }) {
+  // The domicilio fields stay collapsed behind the Google search box until
+  // either a result is picked (they get filled in and are worth reviewing)
+  // or the user opts into "Ingresar manualmente" — nudges people toward the
+  // verified-address path instead of hand-typing by default. Initialized
+  // from the incoming value so editing an already-filled dirección doesn't
+  // regress it back behind the toggle.
+  const [manualOpen, setManualOpen] = useState(() => !!value.googlePlaceId || hasDomicilioData(value));
+
   function set<K extends keyof DireccionFormState>(key: K, v: DireccionFormState[K]) {
     onChange({ ...value, [key]: v });
   }
@@ -73,17 +88,27 @@ export function DireccionForm({
       pais: a.pais || value.pais,
       googlePlaceId: a.placeId,
     });
+    setManualOpen(true);
   }
 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <GoogleAddressAutocomplete onResolved={applyResolvedAddress} />
+        <GoogleAddressAutocomplete onResolved={applyResolvedAddress} autoFocus />
         {value.googlePlaceId && (
           <Badge variant="outline" className="mt-1.5 w-fit gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
             <BadgeCheck className="w-3 h-3" />
             Verificada por Google
           </Badge>
+        )}
+        {!manualOpen && (
+          <button
+            type="button"
+            className="mt-2 text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            onClick={() => setManualOpen(true)}
+          >
+            Ingresar manualmente
+          </button>
         )}
       </div>
 
@@ -95,7 +120,6 @@ export function DireccionForm({
             value={value.etiqueta}
             onChange={(e) => set("etiqueta", e.target.value)}
             placeholder="ej. Bodega CDMX"
-            autoFocus
           />
         </div>
         <div>
@@ -109,75 +133,83 @@ export function DireccionForm({
         <Input className="mt-1" value={value.nombre} onChange={(e) => set("nombre", e.target.value)} />
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Calle</label>
-          <Input className="mt-1" value={value.calle} onChange={(e) => setDomicilio("calle", e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">No. Ext.</label>
-          <Input
-            className="mt-1"
-            value={value.numeroExterior}
-            onChange={(e) => setDomicilio("numeroExterior", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">No. Int.</label>
-          <Input
-            className="mt-1"
-            value={value.numeroInterior}
-            onChange={(e) => set("numeroInterior", e.target.value)}
-          />
-        </div>
-      </div>
+      {manualOpen && (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Calle</label>
+              <Input className="mt-1" value={value.calle} onChange={(e) => setDomicilio("calle", e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">No. Ext.</label>
+              <Input
+                className="mt-1"
+                value={value.numeroExterior}
+                onChange={(e) => setDomicilio("numeroExterior", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">No. Int.</label>
+              <Input
+                className="mt-1"
+                value={value.numeroInterior}
+                onChange={(e) => set("numeroInterior", e.target.value)}
+              />
+            </div>
+          </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Colonia</label>
-          <Input className="mt-1" value={value.colonia} onChange={(e) => setDomicilio("colonia", e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Municipio</label>
-          <Input
-            className="mt-1"
-            value={value.municipio}
-            onChange={(e) => setDomicilio("municipio", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Localidad</label>
-          <Input className="mt-1" value={value.localidad} onChange={(e) => set("localidad", e.target.value)} />
-        </div>
-      </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Colonia</label>
+              <Input
+                className="mt-1"
+                value={value.colonia}
+                onChange={(e) => setDomicilio("colonia", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Municipio</label>
+              <Input
+                className="mt-1"
+                value={value.municipio}
+                onChange={(e) => setDomicilio("municipio", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Localidad</label>
+              <Input className="mt-1" value={value.localidad} onChange={(e) => set("localidad", e.target.value)} />
+            </div>
+          </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">Estado</label>
-          <Input
-            className="mt-1"
-            placeholder="ej. BCN"
-            value={value.estado}
-            onChange={(e) => setDomicilio("estado", e.target.value.toUpperCase())}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">País</label>
-          <Input
-            className="mt-1"
-            value={value.pais}
-            onChange={(e) => setDomicilio("pais", e.target.value.toUpperCase())}
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">C.P.</label>
-          <Input
-            className="mt-1"
-            value={value.codigoPostal}
-            onChange={(e) => setDomicilio("codigoPostal", e.target.value)}
-          />
-        </div>
-      </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Estado</label>
+              <Input
+                className="mt-1"
+                placeholder="ej. BCN"
+                value={value.estado}
+                onChange={(e) => setDomicilio("estado", e.target.value.toUpperCase())}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">País</label>
+              <Input
+                className="mt-1"
+                value={value.pais}
+                onChange={(e) => setDomicilio("pais", e.target.value.toUpperCase())}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">C.P.</label>
+              <Input
+                className="mt-1"
+                value={value.codigoPostal}
+                onChange={(e) => setDomicilio("codigoPostal", e.target.value)}
+              />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

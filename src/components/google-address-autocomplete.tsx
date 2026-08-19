@@ -29,7 +29,13 @@ interface Suggestion {
 // one resolves structured fields via Place Details and hands them to the
 // caller. Purely additive — it never touches the surrounding form's fields
 // itself, so manual free-text entry alongside it keeps working untouched.
-export function GoogleAddressAutocomplete({ onResolved }: { onResolved: (address: ResolvedAddress) => void }) {
+export function GoogleAddressAutocomplete({
+  onResolved,
+  autoFocus,
+}: {
+  onResolved: (address: ResolvedAddress) => void;
+  autoFocus?: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [searching, setSearching] = useState(false);
@@ -113,6 +119,7 @@ export function GoogleAddressAutocomplete({ onResolved }: { onResolved: (address
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => suggestions.length > 0 && setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
+          autoFocus={autoFocus}
         />
         {(searching || resolving) && (
           <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
