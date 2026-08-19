@@ -26,6 +26,10 @@ export interface CartaPorteUbicacion {
   IDUbicacion?: string;
   NombreRemitenteDestinatario?: string;
   Domicilio?: CartaPorteDomicilio;
+  // Distance, in km, traveled to reach this ubicación from the previous one —
+  // only meaningful on Destino (Origen has no preceding leg). Required by SAT
+  // whenever Autotransporte data is present, which this app always sends.
+  DistanciaRecorrida?: number;
 }
 
 export interface CartaPorteRemolque {
@@ -99,6 +103,9 @@ export interface CartaPorteDataInput {
   EntradaSalidaMerc?: string;
   PaisOrigenDestino?: string;
   ViaEntradaSalida?: string;
+  // Total distance, in km, of the whole haul — required by SAT whenever
+  // Autotransporte data is present, which this app always sends.
+  TotalDistRec?: number;
   FiguraTransporte?: CartaPorteFiguraTransporte[];
 }
 
@@ -184,9 +191,17 @@ export interface CartaPorteComplementInput {
   figurasTransporte: FiguraTransporteInput[];
   numTotalMercancias?: number; // defaults to mercancias.length
   internacional?: InternacionalInput;
+  // Total distance, in km, traveled from ubicacionOrigen to ubicacionDestino —
+  // feeds both the top-level TotalDistRec and Destino's DistanciaRecorrida
+  // (they're the same single-leg haul in this app's Origen/Destino model).
+  distanciaRecorridaKm: number;
 }
 
-function buildUbicacion(tipo: "Origen" | "Destino", u: UbicacionInput): CartaPorteUbicacion {
+function buildUbicacion(
+  tipo: "Origen" | "Destino",
+  u: UbicacionInput,
+  distanciaRecorrida?: number
+): CartaPorteUbicacion {
   return {
     TipoUbicacion: tipo,
     RFCRemitenteDestinatario: u.rfc,
@@ -194,6 +209,7 @@ function buildUbicacion(tipo: "Origen" | "Destino", u: UbicacionInput): CartaPor
     IDUbicacion: u.idUbicacion,
     NombreRemitenteDestinatario: u.nombre,
     Domicilio: u.domicilio,
+    DistanciaRecorrida: distanciaRecorrida,
   };
 }
 
@@ -259,12 +275,17 @@ export function buildCartaPorteComplement(input: CartaPorteComplementInput): Car
     figurasTransporte,
     numTotalMercancias,
     internacional,
+    distanciaRecorridaKm,
   } = input;
 
   const cartaPorte: CartaPorteDataInput = {
     IdCCP: generateIdCCP(),
     TranspInternac: internacional ? "Sí" : "No",
-    Ubicaciones: [buildUbicacion("Origen", ubicacionOrigen), buildUbicacion("Destino", ubicacionDestino)],
+    Ubicaciones: [
+      buildUbicacion("Origen", ubicacionOrigen),
+      buildUbicacion("Destino", ubicacionDestino, distanciaRecorridaKm),
+    ],
+    TotalDistRec: distanciaRecorridaKm,
     Mercancias: {
       PesoBrutoTotal: pesoBrutoTotal,
       UnidadPeso: unidadPeso,

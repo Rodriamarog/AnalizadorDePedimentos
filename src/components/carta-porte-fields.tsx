@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { SatComboBox } from "@/components/sat-combobox";
+import { alertError } from "@/lib/alerts";
 import {
   CONFIG_VEHICULAR_OPTIONS,
   ENTRADA_SALIDA_OPTIONS,
@@ -179,6 +180,7 @@ export interface CartaPorteFormState {
   mercancias: MercanciaRow[];
   pesoBrutoTotal: string;
   unidadPeso: string;
+  distanciaRecorridaKm: string;
   internacionalEnabled: boolean;
   entradaSalidaMerc: "Entrada" | "Salida";
   paisOrigenDestino: string;
@@ -195,6 +197,7 @@ export function defaultCartaPorteState(): CartaPorteFormState {
     mercancias: [newMercanciaRow()],
     pesoBrutoTotal: "0",
     unidadPeso: "KGM",
+    distanciaRecorridaKm: "",
     internacionalEnabled: false,
     entradaSalidaMerc: "Salida",
     paisOrigenDestino: "",
@@ -249,6 +252,7 @@ export function cartaPorteStateToInput(state: CartaPorteFormState): CartaPorteCo
     })),
     pesoBrutoTotal: Number(state.pesoBrutoTotal) || 0,
     unidadPeso: state.unidadPeso,
+    distanciaRecorridaKm: Number(state.distanciaRecorridaKm) || 0,
     autotransporte: {
       permisoSct: state.autotransporte.permisoSct || undefined,
       numeroPermisoSct: state.autotransporte.numeroPermisoSct.trim() || undefined,
@@ -303,6 +307,11 @@ export function validateCartaPorteState(state: CartaPorteFormState): string | nu
   }
 
   if (!state.autotransporte.placa.trim()) return "Selecciona o captura un vehículo (placa)";
+
+  const distancia = state.distanciaRecorridaKm.trim();
+  if (!distancia || !Number.isFinite(Number(distancia)) || Number(distancia) <= 0) {
+    return "La distancia recorrida (km) debe ser mayor a 0";
+  }
 
   const anioModelo = state.autotransporte.anioModeloVehiculo.trim();
   if (anioModelo) {
@@ -1095,6 +1104,44 @@ export function CartaPorteFields({
   const [addingVehiculo, setAddingVehiculo] = useState(false);
   const [addingChofer, setAddingChofer] = useState(false);
   const [oneOffFiguraOpen, setOneOffFiguraOpen] = useState(false);
+  const [calculatingDistancia, setCalculatingDistancia] = useState(false);
+
+  async function handleCalcularDistancia() {
+    setCalculatingDistancia(true);
+    try {
+      const res = await fetch("/api/carta-porte/distance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          origen: {
+            calle: value.ubicacionOrigen.calle,
+            numeroExterior: value.ubicacionOrigen.numeroExterior,
+            colonia: value.ubicacionOrigen.colonia,
+            municipio: value.ubicacionOrigen.municipio,
+            estado: value.ubicacionOrigen.estado,
+            codigoPostal: value.ubicacionOrigen.codigoPostal,
+            pais: value.ubicacionOrigen.pais,
+          },
+          destino: {
+            calle: value.ubicacionDestino.calle,
+            numeroExterior: value.ubicacionDestino.numeroExterior,
+            colonia: value.ubicacionDestino.colonia,
+            municipio: value.ubicacionDestino.municipio,
+            estado: value.ubicacionDestino.estado,
+            codigoPostal: value.ubicacionDestino.codigoPostal,
+            pais: value.ubicacionDestino.pais,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al calcular la distancia");
+      onChange({ ...value, distanciaRecorridaKm: String(data.distanciaKm) });
+    } catch (e) {
+      alertError("Distancia recorrida", e instanceof Error ? e.message : "Error al calcular la distancia");
+    } finally {
+      setCalculatingDistancia(false);
+    }
+  }
 
   function updateMercancia(key: string, patch: Partial<MercanciaRow>) {
     onChange({
@@ -1208,6 +1255,25 @@ export function CartaPorteFields({
           direcciones={direcciones}
           onDireccionCreated={onDireccionCreated}
         />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <label className="text-[10px] text-muted-foreground">Distancia recorrida (km)</label>
+        <Input
+          className="h-7 w-24 text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          type="number"
+          value={value.distanciaRecorridaKm}
+          onChange={(e) => onChange({ ...value, distanciaRecorridaKm: e.target.value })}
+        />
+        <button
+          type="button"
+          disabled={calculatingDistancia}
+          className="flex items-center gap-1 text-[11px] text-muted-foreground border border-dashed border-border rounded px-2 py-0.5 disabled:opacity-50"
+          onClick={handleCalcularDistancia}
+        >
+          {calculatingDistancia && <Loader2 className="w-3 h-3 animate-spin" />}
+          Calcular automáticamente
+        </button>
       </div>
 
       <div>
