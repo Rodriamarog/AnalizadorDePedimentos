@@ -282,10 +282,7 @@ export default function DireccionesPage() {
 
           <div className="flex flex-col gap-4">
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Buscar en Google</label>
-              <div className="mt-1">
-                <GoogleAddressAutocomplete onResolved={applyResolvedAddress} />
-              </div>
+              <GoogleAddressAutocomplete onResolved={applyResolvedAddress} />
               {form.googlePlaceId && (
                 <Badge variant="default" className="mt-1.5 w-fit gap-1">
                   <BadgeCheck className="w-3 h-3" />

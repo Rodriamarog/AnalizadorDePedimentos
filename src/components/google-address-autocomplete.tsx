@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { alertError } from "@/lib/alerts";
 
 export interface ResolvedAddress {
@@ -96,11 +97,18 @@ export function GoogleAddressAutocomplete({ onResolved }: { onResolved: (address
 
   return (
     <div className="relative">
+      <div className="flex items-center gap-1.5 mb-1">
+        <label className="text-[10px] font-medium text-muted-foreground">Buscar dirección en Google</label>
+        <Badge variant="default" className="gap-1 h-4 px-1.5 text-[9px]">
+          <Sparkles className="w-2.5 h-2.5" />
+          Recomendado
+        </Badge>
+      </div>
       <div className="relative">
-        <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary" />
         <Input
-          className="h-7 pl-7 text-xs"
-          placeholder="Buscar dirección en Google…"
+          className="h-8 pl-7 text-xs border-primary/40 bg-primary/5 focus-visible:border-primary"
+          placeholder="Escribe para buscar…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => suggestions.length > 0 && setOpen(true)}
