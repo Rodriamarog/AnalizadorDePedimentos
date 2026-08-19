@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SatComboBox } from "@/components/sat-combobox";
 import { CrearFacturaDialog, type DocumentType } from "@/components/crear-factura-dialog";
+import { FacturaTipoSelectorDialog } from "@/components/factura-tipo-selector-dialog";
 import { AutomapOverlay } from "@/components/automap-overlay";
 import { useAutomapProgress } from "@/hooks/use-automap-progress";
 import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
@@ -134,6 +135,7 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
   );
 
   const [exporting, setExporting] = useState(false);
+  const [facturaTipoSelectorOpen, setFacturaTipoSelectorOpen] = useState(false);
   const [facturarOpen, setFacturarOpen] = useState(false);
   const [facturaDocumentType, setFacturaDocumentType] = useState<DocumentType>("factura");
 
@@ -467,7 +469,7 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
               </Button>
             </>
           )}
-          <Button size="sm" className="gap-1.5 text-xs" onClick={() => setFacturarOpen(true)}>
+          <Button size="sm" className="gap-1.5 text-xs" onClick={() => setFacturaTipoSelectorOpen(true)}>
             <Receipt className="w-3.5 h-3.5" />
             Facturar
           </Button>
@@ -654,6 +656,16 @@ export default function PedimentoDetailPage({ params }: { params: Promise<{ id: 
         progress={automap.progress}
         statusText={automap.statusText}
         done={automap.done}
+      />
+
+      <FacturaTipoSelectorDialog
+        open={facturaTipoSelectorOpen}
+        onOpenChange={setFacturaTipoSelectorOpen}
+        onSelect={(type) => {
+          setFacturaDocumentType(type);
+          setFacturaTipoSelectorOpen(false);
+          setFacturarOpen(true);
+        }}
       />
 
       <CrearFacturaDialog

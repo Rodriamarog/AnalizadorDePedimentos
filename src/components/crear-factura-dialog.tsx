@@ -488,8 +488,10 @@ export function CrearFacturaDialog({
         .then((res) => (res.ok ? res.json() : []))
         .then(setPedimentosList);
     } else if (pedimento) {
+      // documentType is not reset here — for this flow it's chosen upfront by
+      // FacturaTipoSelectorDialog before the dialog even opens, so the caller
+      // already owns the value.
       setUse("G01");
-      onDocumentTypeChange("factura");
       setIvaRate(16);
       setCurrency("MXN");
       setExchangeRate(pedimento.tipoCambio ? String(pedimento.tipoCambio) : "");
@@ -501,11 +503,17 @@ export function CrearFacturaDialog({
         fechaPago: pedimento.fechaPago,
         claveAduana: pedimento.claveAduana,
       });
-      setItems([]);
-      setItemsLoading(true);
-      buildItemsFromPedimento(pedimento, "MXN", pedimento.tipoCambio)
-        .then(setItems)
-        .finally(() => setItemsLoading(false));
+      // Carta Porte Ingreso bills the transportista's own service, not the
+      // merchandise — see the comment on transporteFeeRow.
+      if (documentType === "carta_porte_ingreso") {
+        setItems([transporteFeeRow()]);
+      } else {
+        setItems([]);
+        setItemsLoading(true);
+        buildItemsFromPedimento(pedimento, "MXN", pedimento.tipoCambio)
+          .then(setItems)
+          .finally(() => setItemsLoading(false));
+      }
     } else {
       setUse("G03");
       onDocumentTypeChange("factura");
@@ -1334,17 +1342,25 @@ export function CrearFacturaDialog({
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground">Tipo de Documento</label>
-              <select
-                className="w-full rounded-md border border-input px-2 py-1.5 text-xs mt-1"
-                value={documentType}
-                onChange={(e) => handleDocumentTypeChange(e.target.value as DocumentType)}
-              >
-                {DOCUMENT_TYPE_OPTIONS.map(([code, label]) => (
-                  <option key={code} value={code}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              {pedimento ? (
+                // Chosen upfront via FacturaTipoSelectorDialog and fixed for
+                // the lifetime of this dialog instance — not editable here.
+                <div className="w-full rounded-md border border-input bg-muted/30 px-2 py-1.5 text-xs mt-1 text-muted-foreground">
+                  {DOCUMENT_TYPE_OPTIONS.find(([code]) => code === documentType)?.[1] ?? documentType}
+                </div>
+              ) : (
+                <select
+                  className="w-full rounded-md border border-input px-2 py-1.5 text-xs mt-1"
+                  value={documentType}
+                  onChange={(e) => handleDocumentTypeChange(e.target.value as DocumentType)}
+                >
+                  {DOCUMENT_TYPE_OPTIONS.map(([code, label]) => (
+                    <option key={code} value={code}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground">Tasa IVA</label>
