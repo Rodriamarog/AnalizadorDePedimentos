@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { SatComboBox } from "@/components/sat-combobox";
 import { DireccionForm, emptyDireccionForm, type DireccionFormState } from "@/components/direccion-form";
@@ -382,6 +383,7 @@ interface InlineVehiculoFormState {
   polizaRespCivil: string;
   pesoBrutoVehicular: string;
   anioModeloVehiculo: string;
+  remolques: { subTipoRemolque: string; placa: string }[];
 }
 
 function InlineVehiculoForm({
@@ -404,9 +406,25 @@ function InlineVehiculoForm({
     polizaRespCivil: "",
     pesoBrutoVehicular: "",
     anioModeloVehiculo: "",
+    remolques: [],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function addRemolque() {
+    setForm((f) => ({ ...f, remolques: [...f.remolques, { subTipoRemolque: "", placa: "" }] }));
+  }
+
+  function updateRemolque(index: number, patch: Partial<{ subTipoRemolque: string; placa: string }>) {
+    setForm((f) => ({
+      ...f,
+      remolques: f.remolques.map((r, i) => (i === index ? { ...r, ...patch } : r)),
+    }));
+  }
+
+  function removeRemolque(index: number) {
+    setForm((f) => ({ ...f, remolques: f.remolques.filter((_, i) => i !== index) }));
+  }
 
   async function handleSave() {
     if (!form.placa.trim()) {
@@ -430,6 +448,7 @@ function InlineVehiculoForm({
           poliza_resp_civil: form.polizaRespCivil.trim() || null,
           peso_bruto_vehicular: form.pesoBrutoVehicular.trim() || null,
           anio_modelo_vehiculo: form.anioModeloVehiculo.trim() || null,
+          remolques: form.remolques.filter((r) => r.subTipoRemolque || r.placa),
         }),
       });
       const data = await res.json();
@@ -552,6 +571,46 @@ function InlineVehiculoForm({
             onChange={(e) => setForm((f) => ({ ...f, polizaRespCivil: e.target.value }))}
           />
         </div>
+      </div>
+      <div>
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] text-muted-foreground">Remolques</label>
+          <button
+            type="button"
+            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+            onClick={addRemolque}
+          >
+            <Plus className="w-3 h-3" />
+            Agregar
+          </button>
+        </div>
+        {form.remolques.length > 0 && (
+          <div className="flex flex-col gap-1.5 mt-1.5">
+            {form.remolques.map((r, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <Input
+                  className="h-7 text-xs flex-1"
+                  placeholder="Subtipo (clave SAT)"
+                  value={r.subTipoRemolque}
+                  onChange={(e) => updateRemolque(i, { subTipoRemolque: e.target.value })}
+                />
+                <Input
+                  className="h-7 text-xs flex-1 font-mono"
+                  placeholder="Placa"
+                  value={r.placa}
+                  onChange={(e) => updateRemolque(i, { placa: e.target.value.toUpperCase() })}
+                />
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-red-600 shrink-0"
+                  onClick={() => removeRemolque(i)}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       {error && <p className="text-[11px] text-red-600">{error}</p>}
       <div className="flex items-center justify-end gap-1.5 mt-1">
@@ -920,11 +979,10 @@ function UbicacionSection({
 
       <div className="mb-2">
         <label className="text-[10px] text-muted-foreground">Fecha/hora estimada</label>
-        <Input
-          className="h-7 text-xs"
-          type="datetime-local"
+        <DateTimePicker
+          className="mt-1"
           value={value.fechaHoraSalidaLlegada}
-          onChange={(e) => set("fechaHoraSalidaLlegada", e.target.value)}
+          onChange={(v) => set("fechaHoraSalidaLlegada", v)}
         />
       </div>
 
