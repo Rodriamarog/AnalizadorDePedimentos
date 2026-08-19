@@ -514,7 +514,6 @@ export function FacturaForm({
       }
     } else {
       setUse("G03");
-      onDocumentTypeChange("factura");
       setIvaRate(8);
       setCurrency("MXN");
       setExchangeRate("");

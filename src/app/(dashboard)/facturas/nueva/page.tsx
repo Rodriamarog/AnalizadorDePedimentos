@@ -89,7 +89,7 @@ function NuevaFacturaPageContent() {
   }
 
   return (
-    <div>
+    <div className="h-full overflow-y-auto">
       <PageHeader title="Nueva factura" icon={Receipt} />
       <Link
         href={backHref}

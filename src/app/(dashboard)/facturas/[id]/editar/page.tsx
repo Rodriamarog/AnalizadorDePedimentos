@@ -37,7 +37,7 @@ export default function EditarFacturaPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <div>
+    <div className="h-full overflow-y-auto">
       <PageHeader title="Editar borrador" icon={Receipt} />
       <Link
         href="/facturas"
