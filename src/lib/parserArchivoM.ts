@@ -55,6 +55,7 @@ export function parseArchivoM(text: string): ParsedPedimento {
   let claveAduana: string | null = null;
   let tipoCambio = 0;
   let rfc: string | null = null;
+  let cvePedimento: string | null = null;
   let importador = "";
   let domicilioFiscal: string | null = null;
   let facturaNumero: string | null = null;
@@ -85,6 +86,10 @@ export function parseArchivoM(text: string): ParsedPedimento {
         break;
       }
       case "501": {
+        // f[5] is "CVE. PEDIMENTO" (SAT c_ClavePedimento, e.g. "C1" =
+        // consolidado, "A1" = definitivo) — cross-checked against the same
+        // pedimento's printed PDF header ("CVE. PEDIMENTO: C1 REGIMEN: IMD").
+        cvePedimento = f[5] || null;
         // f[7] is the CURP (18 chars); f[8] is the actual RFC (13 chars,
         // 4 letters + 6-digit date + 3-char homoclave).
         rfc = f[8] || null;
@@ -258,6 +263,7 @@ export function parseArchivoM(text: string): ParsedPedimento {
     rfc,
     domicilioFiscal,
     regimen,
+    cvePedimento,
     facturaNumero,
     fechaPedimento: fechaPago ?? fechaEntrada,
     fechaEntrada,

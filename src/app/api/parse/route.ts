@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
             rfc: result.rfc,
             domicilioFiscal: result.domicilioFiscal,
             regimen: result.regimen,
+            cvePedimento: result.cvePedimento,
             facturaNumero: result.facturaNumero,
             fechaPedimento: result.fechaPedimento,
             fechaEntrada: result.fechaEntrada,

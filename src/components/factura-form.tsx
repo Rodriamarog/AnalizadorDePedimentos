@@ -26,6 +26,7 @@ import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
 import { umcToUnitKey } from "@/lib/umc";
 import { alertError, alertInfo, alertSuccess } from "@/lib/alerts";
 import { aduanaName } from "@/lib/aduanas";
+import { regimenToName } from "@/lib/regimen";
 import {
   buildCartaPorteComplement,
   formatPedimentoNumber,
@@ -145,6 +146,8 @@ interface PedimentoLite {
   tipoCambio: number;
   fechaPago: string | null;
   claveAduana: string | null;
+  regimen: string | null;
+  cvePedimento: string | null;
 }
 
 export interface PedimentoForFactura {
@@ -154,6 +157,8 @@ export interface PedimentoForFactura {
   tipoCambio: number;
   fechaPago: string | null;
   claveAduana: string | null;
+  regimen: string | null;
+  cvePedimento: string | null;
   dta: number | null;
   igi: number | null;
   prv: number | null;
@@ -506,6 +511,8 @@ export function FacturaForm({
         tipoCambio: pedimento.tipoCambio,
         fechaPago: pedimento.fechaPago,
         claveAduana: pedimento.claveAduana,
+        regimen: pedimento.regimen,
+        cvePedimento: pedimento.cvePedimento,
       });
       // Carta Porte Ingreso bills the transportista's own service, not the
       // merchandise — see the comment on transporteFeeRow.
@@ -849,6 +856,8 @@ export function FacturaForm({
       if (pedimentoLink?.fechaPago) parts.push(`<strong>Fecha:</strong> ${isoToSlash(pedimentoLink.fechaPago)}`);
       const aduana = aduanaName(pedimentoLink?.claveAduana);
       if (aduana) parts.push(`<strong>Aduana:</strong> ${pedimentoLink!.claveAduana} - ${aduana}`);
+      if (pedimentoLink?.cvePedimento) parts.push(`<strong>Cve. Pedimento:</strong> ${pedimentoLink.cvePedimento}`);
+      if (pedimentoLink?.regimen) parts.push(`<strong>Régimen:</strong> ${regimenToName(pedimentoLink.regimen)}`);
       body.pdf_custom_section = `<div style="margin-top:8px;padding:6px 8px;border:1px solid #2f6fed;font-size:12px">${parts.join(" &nbsp;|&nbsp; ")}</div>`;
     }
     if (currency !== "MXN") {

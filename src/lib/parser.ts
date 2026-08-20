@@ -37,6 +37,10 @@ export interface ParsedPedimento {
   rfc: string | null;
   domicilioFiscal: string | null;
   regimen: string | null;
+  // "CVE. PEDIMENTO" (SAT c_ClavePedimento, e.g. "C1" = consolidado, "A1" =
+  // definitivo) — distinct from regimen (IMD/EXD/etc.), printed right next
+  // to it on the same header line.
+  cvePedimento: string | null;
   facturaNumero: string | null;
   fechaPedimento: string | null;
   fechaEntrada: string | null;
@@ -136,6 +140,7 @@ function extractHeaderInfo(fullText: string): {
   rfc: string | null;
   domicilioFiscal: string | null;
   regimen: string | null;
+  cvePedimento: string | null;
   facturaNumero: string | null;
   fechaPedimento: string | null;
   fechaEntrada: string | null;
@@ -180,6 +185,10 @@ function extractHeaderInfo(fullText: string): {
   m = fullText.match(/REGIMEN:\s*(\S+)/);
   if (m) regimen = m[1].trim();
 
+  let cvePedimento: string | null = null;
+  m = fullText.match(/CVE\.\s*PEDIMENTO:\s*(\S+)/);
+  if (m) cvePedimento = m[1].trim();
+
   let facturaNumero: string | null = null;
   m = fullText.match(/NUM\. FACTURA[^\n]*\n\s*(\S+)\s+\d{2}\/\d{2}\/\d{4}/);
   if (m) facturaNumero = m[1].trim();
@@ -203,6 +212,7 @@ function extractHeaderInfo(fullText: string): {
     rfc,
     domicilioFiscal,
     regimen,
+    cvePedimento,
     facturaNumero,
     fechaPedimento,
     pesoBruto,

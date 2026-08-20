@@ -21,6 +21,8 @@ interface PedimentoDetailResponse {
   tipoCambio: number;
   fechaPago: string | null;
   claveAduana: string | null;
+  regimen: string | null;
+  cvePedimento: string | null;
   dta: number | null;
   igi: number | null;
   prv: number | null;
@@ -66,6 +68,8 @@ function NuevaFacturaPageContent() {
           tipoCambio: data.tipoCambio,
           fechaPago: data.fechaPago,
           claveAduana: data.claveAduana,
+          regimen: data.regimen,
+          cvePedimento: data.cvePedimento,
           dta: data.dta,
           igi: data.igi,
           prv: data.prv,

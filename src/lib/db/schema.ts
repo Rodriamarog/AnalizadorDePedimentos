@@ -47,6 +47,10 @@ export const pedimentos = pgTable("pedimentos", {
   rfc: text("rfc"),
   domicilioFiscal: text("domicilio_fiscal"),
   regimen: text("regimen"),
+  // "CVE. PEDIMENTO" (SAT c_ClavePedimento, e.g. "C1" = consolidado, "A1" =
+  // definitivo) — shown alongside regimen on facturas linked to this
+  // pedimento (see factura-form.tsx's pdf_custom_section).
+  cvePedimento: text("cve_pedimento"),
   facturaNumero: text("factura_numero"),
   fechaPedimento: date("fecha_pedimento"),
   fechaEntrada: date("fecha_entrada"),

@@ -17,6 +17,8 @@ export async function GET() {
         tipoCambio: pedimentos.tipoCambio,
         fechaPago: pedimentos.fechaPago,
         claveAduana: pedimentos.claveAduana,
+        regimen: pedimentos.regimen,
+        cvePedimento: pedimentos.cvePedimento,
         pdfFilename: pedimentos.pdfFilename,
         fechaUpload: pedimentos.fechaUpload,
         numPartidas: sql<number>`count(${partidas.id})`.mapWith(Number),

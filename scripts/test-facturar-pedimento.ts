@@ -32,6 +32,8 @@ async function main() {
     tipoCambio: 18.5,
     fechaPago: "2026-07-10",
     claveAduana: "400",
+    regimen: "IMD",
+    cvePedimento: "C1",
     dta: 500,
     igi: 1200,
     prv: 0,
