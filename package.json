@@ -25,7 +25,8 @@
     "db:org-provisioning": "psql \"$DATABASE_URL\" -f drizzle/0014_org_provisioning.sql",
     "db:direcciones-place-id": "psql \"$DATABASE_URL\" -f drizzle/0015_direcciones_place_id.sql",
     "db:direcciones-tipo": "psql \"$DATABASE_URL\" -f drizzle/0016_direcciones_tipo.sql",
-    "db:migrate": "npm run db:push && npm run db:cliente-emails && npm run db:partida-tc && npm run db:inspeccion-fields && npm run db:pago-aduana-fields && npm run db:nota-credito-fields && npm run db:vehiculos-choferes && npm run db:vehiculos-extra-fields && npm run db:direcciones && npm run db:partida-peso && npm run db:pedimento-peso-bruto && npm run db:org-provisioning && npm run db:direcciones-place-id && npm run db:direcciones-tipo && npm run db:rls && npm run db:fts && npm run db:app-role",
+    "db:pedimento-documentacion-aduanera": "psql \"$DATABASE_URL\" -f drizzle/0017_pedimento_documentacion_aduanera.sql",
+    "db:migrate": "npm run db:push && npm run db:cliente-emails && npm run db:partida-tc && npm run db:inspeccion-fields && npm run db:pago-aduana-fields && npm run db:nota-credito-fields && npm run db:vehiculos-choferes && npm run db:vehiculos-extra-fields && npm run db:direcciones && npm run db:partida-peso && npm run db:pedimento-peso-bruto && npm run db:org-provisioning && npm run db:direcciones-place-id && npm run db:direcciones-tipo && npm run db:pedimento-documentacion-aduanera && npm run db:rls && npm run db:fts && npm run db:app-role",
     "db:seed": "./scripts/seed-sat-catalogs.sh",
     "db:test-rls": "tsx --env-file=.env.local scripts/test-rls-isolation.ts"
   },

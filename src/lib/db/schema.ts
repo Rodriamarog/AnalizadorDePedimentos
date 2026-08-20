@@ -58,6 +58,10 @@ export const pedimentos = pgTable("pedimentos", {
   // Total shipment weight in kg, from the header's "PESO BRUTO" — prefills
   // Carta Porte's PesoBrutoTotal (see mapPedimentoToMercancias).
   pesoBruto: doublePrecision("peso_bruto"),
+  // Header-level "ED" (Documento digitalizado) identificadores — VUCEM
+  // reference numbers of documents annexed to the pedimento. Prefills Carta
+  // Porte's DocumentacionAduanera.IdentDocAduanero (see buildCartaPorte.ts).
+  identificadoresDocAduanero: jsonb("identificadores_doc_aduanero").$type<string[]>().notNull().default([]),
 });
 
 export const partidas = pgTable("partidas", {

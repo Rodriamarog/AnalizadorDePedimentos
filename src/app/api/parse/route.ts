@@ -112,6 +112,7 @@ export async function POST(req: NextRequest) {
             fechaPago: result.fechaPago,
             claveAduana: result.claveAduana,
             pesoBruto: result.pesoBruto,
+            identificadoresDocAduanero: result.identificadoresDocAduanero,
           })
           .returning();
 

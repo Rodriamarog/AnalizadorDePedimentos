@@ -64,6 +64,13 @@ export interface CartaPorteAutotransporte {
   Remolques?: CartaPorteRemolque[];
 }
 
+export interface CartaPorteDocumentacionAduanera {
+  TipoDocumento: string;
+  NumPedimento?: string;
+  IdentDocAduanero?: string;
+  RFCImpo?: string;
+}
+
 export interface CartaPorteMercancia {
   BienesTransp: string;
   Descripcion: string;
@@ -78,6 +85,7 @@ export interface CartaPorteMercancia {
   ValorMercancia?: number;
   Moneda?: string;
   FraccionArancelaria?: string;
+  DocumentacionAduanera?: CartaPorteDocumentacionAduanera[];
 }
 
 export interface CartaPorteMercancias {
@@ -135,6 +143,13 @@ export interface UbicacionInput {
   domicilio: CartaPorteDomicilio;
 }
 
+export interface DocumentacionAduaneraInput {
+  tipoDocumento: string;
+  numPedimento?: string;
+  identDocAduanero?: string;
+  rfcImpo?: string;
+}
+
 export interface MercanciaInput {
   bienesTransp: string;
   descripcion: string;
@@ -149,6 +164,7 @@ export interface MercanciaInput {
   valorMercancia?: number;
   moneda?: string;
   fraccionArancelaria?: string;
+  documentacionAduanera?: DocumentacionAduaneraInput[];
 }
 
 export interface AutotransporteInput {
@@ -213,6 +229,15 @@ function buildUbicacion(
   };
 }
 
+function buildDocumentacionAduanera(d: DocumentacionAduaneraInput): CartaPorteDocumentacionAduanera {
+  return {
+    TipoDocumento: d.tipoDocumento,
+    NumPedimento: d.numPedimento,
+    IdentDocAduanero: d.identDocAduanero,
+    RFCImpo: d.rfcImpo,
+  };
+}
+
 function buildMercancia(m: MercanciaInput): CartaPorteMercancia {
   return {
     BienesTransp: m.bienesTransp,
@@ -228,6 +253,10 @@ function buildMercancia(m: MercanciaInput): CartaPorteMercancia {
     ValorMercancia: m.valorMercancia,
     Moneda: m.moneda,
     FraccionArancelaria: m.fraccionArancelaria,
+    DocumentacionAduanera:
+      m.documentacionAduanera && m.documentacionAduanera.length > 0
+        ? m.documentacionAduanera.map(buildDocumentacionAduanera)
+        : undefined,
   };
 }
 
@@ -317,8 +346,25 @@ export interface PedimentoPartidaForCartaPorte {
 }
 
 export interface PedimentoForCartaPorte {
+  pedimentoNum: string;
+  rfc: string | null;
+  // "ED" (Documento digitalizado) identificadores from the pedimento header
+  // (Anexo 22 Apéndice 8) — each is a VUCEM reference number for one document
+  // annexed to the pedimento (factura, certificado de origen, dictamen NOM,
+  // the carta porte contract itself, etc.). Feeds DocumentacionAduanera's
+  // IdentDocAduanero, one entry per value (see mapPedimentoToMercancias).
+  identificadoresDocAduanero: string[];
   partidas: PedimentoPartidaForCartaPorte[];
   pesoBruto: number | null;
+}
+
+// SAT's expected wire format for a pedimento number: the stored 15 raw
+// digits (año + aduana + patente + folio) grouped 2-2-4-7 — same grouping
+// used for a CFDI item's customs_keys and Carta Porte's NumPedimento.
+export function formatPedimentoNumber(pedNum: string): string {
+  const digits = pedNum.replace(/\D/g, "");
+  if (digits.length !== 15) return pedNum;
+  return `${digits.slice(0, 2)}  ${digits.slice(2, 4)}  ${digits.slice(4, 8)}  ${digits.slice(8, 15)}`;
 }
 
 export interface BienesTranspLookup {
@@ -354,12 +400,28 @@ export function mapPedimentoToMercancias(
 ): PedimentoMercanciasResult {
   const lookup = new Map(bienesTransp.map((b) => [b.fraccion, b.bienesTransp]));
 
+  // c_TipoDocumentoAduanero "01" = Pedimento — the only kind this app deals
+  // with. Same DocumentacionAduanera applies to every partida: it describes
+  // the pedimento itself and its annexed documents, not anything
+  // partida-specific.
+  const numPedimento = formatPedimentoNumber(pedimento.pedimentoNum);
+  const documentacionAduanera: DocumentacionAduaneraInput[] =
+    pedimento.identificadoresDocAduanero.length > 0
+      ? pedimento.identificadoresDocAduanero.map((identDocAduanero) => ({
+          tipoDocumento: "01",
+          numPedimento,
+          identDocAduanero,
+          rfcImpo: pedimento.rfc ?? undefined,
+        }))
+      : [{ tipoDocumento: "01", numPedimento, rfcImpo: pedimento.rfc ?? undefined }];
+
   const mercancias: MercanciaInput[] = pedimento.partidas.map((p) => ({
     bienesTransp: lookup.get(p.fraccion) ?? "",
     descripcion: p.descripcion,
     cantidad: p.cantidad,
     claveUnidad: umcToUnitKey(p.umc),
     pesoEnKg: p.pesoKg ?? 0,
+    documentacionAduanera,
   }));
 
   const paisOrigenDestino = pedimento.partidas.find((p) => p.paisOrigen)?.paisOrigen?.toUpperCase();

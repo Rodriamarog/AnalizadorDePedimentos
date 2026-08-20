@@ -26,7 +26,12 @@ import { fetchCatalogDescriptions } from "@/lib/fetchCatalogDescriptions";
 import { umcToUnitKey } from "@/lib/umc";
 import { alertError, alertInfo, alertSuccess } from "@/lib/alerts";
 import { aduanaName } from "@/lib/aduanas";
-import { buildCartaPorteComplement, mapPedimentoToMercancias, type PedimentoForCartaPorte } from "@/lib/buildCartaPorte";
+import {
+  buildCartaPorteComplement,
+  formatPedimentoNumber,
+  mapPedimentoToMercancias,
+  type PedimentoForCartaPorte,
+} from "@/lib/buildCartaPorte";
 
 const USO_CFDI_OPTIONS = [
   ["G01", "Adquisición de mercancias"],
@@ -712,12 +717,6 @@ export function FacturaForm({
     return `${dd}/${mm}/${yyyy}`;
   }
 
-  function formatPedimentoForCfdi(pedNum: string): string {
-    const digits = pedNum.replace(/\D/g, "");
-    if (digits.length !== 15) return pedNum;
-    return `${digits.slice(0, 2)}  ${digits.slice(2, 4)}  ${digits.slice(4, 8)}  ${digits.slice(8, 15)}`;
-  }
-
   function selectPedimentoLink(p: PedimentoLite | null) {
     setPedimentoLink(p);
     setPedimentoLinkQuery(p?.pedimentoNum ?? "");
@@ -797,7 +796,7 @@ export function FacturaForm({
       }
 
       const item: Record<string, unknown> = { quantity: Number(it.cantidad) || 1, product };
-      if (pedNum) item.customs_keys = [formatPedimentoForCfdi(pedNum)];
+      if (pedNum) item.customs_keys = [formatPedimentoNumber(pedNum)];
       outItems.push(item);
     }
 
@@ -846,7 +845,7 @@ export function FacturaForm({
     // FacturAPI's template doesn't offer a way to inject content above the
     // items table.
     if (pedNum) {
-      const parts = [`<strong>Pedimento:</strong> ${formatPedimentoForCfdi(pedNum)}`];
+      const parts = [`<strong>Pedimento:</strong> ${formatPedimentoNumber(pedNum)}`];
       if (pedimentoLink?.fechaPago) parts.push(`<strong>Fecha:</strong> ${isoToSlash(pedimentoLink.fechaPago)}`);
       const aduana = aduanaName(pedimentoLink?.claveAduana);
       if (aduana) parts.push(`<strong>Aduana:</strong> ${pedimentoLink!.claveAduana} - ${aduana}`);

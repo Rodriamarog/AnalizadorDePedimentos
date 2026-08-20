@@ -66,6 +66,7 @@ export function parseArchivoM(text: string): ParsedPedimento {
   let pesoBruto: number | null = null;
 
   const observacionesBySeq = new Map<number, string>();
+  const identificadoresDocAduanero: string[] = [];
 
   const partidaOrder: number[] = [];
   const partidaBySec = new Map<number, PartidaAccum>();
@@ -109,6 +110,17 @@ export function parseArchivoM(text: string): ParsedPedimento {
         const iso = toIsoDateDDMMYYYY(f[3]);
         if (seq === "1") fechaEntrada = iso;
         else if (seq === "2") fechaPago = iso;
+        break;
+      }
+      case "507": {
+        // Header-level identificadores (Anexo 22 Apéndice 8, nivel G). Only
+        // "ED" (Documento digitalizado) is captured — f[3] is its
+        // complemento 1, the VUCEM reference number of a document annexed to
+        // the pedimento (factura, certificado de origen, dictamen NOM, the
+        // carta porte contract itself, etc.). Other header claves seen here
+        // (e.g. "CF", a border-region company registration number) aren't
+        // needed anywhere in this app.
+        if (f[2] === "ED" && f[3]) identificadoresDocAduanero.push(f[3]);
         break;
       }
       case "510": {
@@ -251,6 +263,7 @@ export function parseArchivoM(text: string): ParsedPedimento {
     fechaEntrada,
     fechaPago,
     claveAduana,
+    identificadoresDocAduanero: [...new Set(identificadoresDocAduanero)],
     partidas,
   };
 }

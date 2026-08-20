@@ -46,6 +46,12 @@ export interface ParsedPedimento {
   // field — a single aggregate for the whole pedimento, unlike Partida.pesoKg
   // which is derived per partida from the UMT columns.
   pesoBruto: number | null;
+  // Header-level "ED" (Documento digitalizado) identificadores (Anexo 22
+  // Apéndice 8, nivel G) — each complemento 1 is a VUCEM reference number for
+  // one document annexed to the pedimento (factura, certificado de origen,
+  // dictamen NOM, the carta porte contract itself, etc.). Feeds Carta Porte's
+  // DocumentacionAduanera.IdentDocAduanero (see buildCartaPorte.ts).
+  identificadoresDocAduanero: string[];
   partidas: Partida[];
 }
 
@@ -266,6 +272,18 @@ function isJunkLine(line: string): boolean {
   return tokens.length > 0 && KNOWN_IDS.has(tokens[0]);
 }
 
+// "ED" identificadores only ever appear at nivel G (pedimento header), never
+// per-partida, so a single whole-document scan (rather than the per-partida
+// windowing isJunkLine relies on for NM) is enough to collect them all.
+function extractIdentificadoresDocAduanero(cleanText: string): string[] {
+  const values: string[] = [];
+  for (const line of cleanText.split("\n")) {
+    const tokens = line.split(/\s+/).filter(Boolean);
+    if (tokens[0] === "ED" && tokens[1]) values.push(tokens[1]);
+  }
+  return [...new Set(values)];
+}
+
 function parseCuadroLiquidacion(fullText: string): {
   dta: number | null;
   igi: number | null;
@@ -392,6 +410,7 @@ export async function parsePedimento(pdfPath: string): Promise<ParsedPedimento> 
     dta: liquidacion.dta,
     igi: liquidacion.igi,
     prv: liquidacion.prv,
+    identificadoresDocAduanero: extractIdentificadoresDocAduanero(cleanText),
     partidas,
   };
 }

@@ -21,7 +21,12 @@ import {
   UNIDAD_PESO_OPTIONS,
   VIA_ENTRADA_SALIDA_OPTIONS,
 } from "@/lib/cartaPorteOptions";
-import type { CartaPorteComplementInput, CartaPorteDomicilio, MercanciaInput } from "@/lib/buildCartaPorte";
+import type {
+  CartaPorteComplementInput,
+  CartaPorteDomicilio,
+  DocumentacionAduaneraInput,
+  MercanciaInput,
+} from "@/lib/buildCartaPorte";
 
 export interface VehiculoLite {
   id: string;
@@ -116,6 +121,9 @@ export interface MercanciaRow {
   cveMaterialPeligroso: string;
   embalaje: string;
   descripEmbalaje: string;
+  // Not user-editable — carried through as-is from the linked pedimento's
+  // prefill (see mapPedimentoToMercancias) into the built complement.
+  documentacionAduanera?: DocumentacionAduaneraInput[];
 }
 
 function newMercanciaRow(): MercanciaRow {
@@ -144,6 +152,7 @@ export function mercanciaRowFromPrefill(m: MercanciaInput): MercanciaRow {
     cantidad: String(m.cantidad),
     claveUnidad: m.claveUnidad,
     pesoEnKg: String(m.pesoEnKg),
+    documentacionAduanera: m.documentacionAduanera,
   };
 }
 
@@ -261,6 +270,7 @@ export function cartaPorteStateToInput(state: CartaPorteFormState): CartaPorteCo
       cveMaterialPeligroso: m.materialPeligroso ? m.cveMaterialPeligroso.trim() || undefined : undefined,
       embalaje: m.embalaje || undefined,
       descripEmbalaje: m.descripEmbalaje.trim() || undefined,
+      documentacionAduanera: m.documentacionAduanera,
     })),
     pesoBrutoTotal: Number(state.pesoBrutoTotal) || 0,
     unidadPeso: state.unidadPeso,
