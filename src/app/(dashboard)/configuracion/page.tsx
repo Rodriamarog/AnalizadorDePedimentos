@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Settings, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Settings, Loader2, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ type Status = {
   manualFacturapiKey: boolean;
   facturapiOrgId: string | null;
   csdUploadedAt: string | null;
+  plan: "demo" | "live";
 };
 
 export default function ConfiguracionPage() {
@@ -24,6 +25,9 @@ export default function ConfiguracionPage() {
   const [provisioning, setProvisioning] = useState(false);
   const [provisionError, setProvisionError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [upgrading, setUpgrading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -66,6 +70,22 @@ export default function ConfiguracionPage() {
       provision();
     }
   }, [status, provision]);
+
+  async function handleUpgrade() {
+    setUpgradeError(null);
+    setUpgrading(true);
+    try {
+      const res = await fetch("/api/billing/checkout", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        setUpgradeError(data.error ?? "No se pudo iniciar el pago");
+        return;
+      }
+      window.location.href = data.url;
+    } finally {
+      setUpgrading(false);
+    }
+  }
 
   async function handleSave() {
     setError(null);
@@ -150,6 +170,29 @@ export default function ConfiguracionPage() {
 
       {status && !status.manualFacturapiKey && (
         <div className="flex flex-col gap-4">
+          {status.plan === "demo" && (
+            <Card className="border-border shadow-none">
+              <CardContent className="p-5 flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
+                  <p className="text-sm font-medium text-foreground">Cuenta demo</p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Estás usando una cuenta demo: las facturas se generan con una llave de prueba de
+                  FacturAPI y no se timbran ante el SAT. Actualiza a una cuenta en vivo para emitir
+                  facturas reales.
+                </p>
+                {upgradeError && <p className="text-xs text-red-600">{upgradeError}</p>}
+                <div>
+                  <Button size="sm" onClick={handleUpgrade} disabled={upgrading}>
+                    {upgrading && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+                    Actualizar a cuenta en vivo
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="border-border shadow-none">
             <CardContent className="p-5 flex flex-col gap-3">
               <div className="flex items-center gap-2">

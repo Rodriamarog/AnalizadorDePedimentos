@@ -15,6 +15,7 @@ export async function GET() {
     manualFacturapiKey: org?.manualFacturapiKey ?? false,
     facturapiOrgId: org?.facturapiOrgId ?? null,
     csdUploadedAt: org?.csdUploadedAt ?? null,
+    plan: org?.plan ?? "demo",
   });
 }
 
@@ -30,8 +31,11 @@ export async function PUT(req: NextRequest) {
   const encrypted = encryptSecret(apiKey);
   await db
     .insert(organizations)
-    .values({ id: orgId, facturapiKeyEncrypted: encrypted })
-    .onConflictDoUpdate({ target: organizations.id, set: { facturapiKeyEncrypted: encrypted } });
+    .values({ id: orgId, facturapiKeyEncrypted: encrypted, manualFacturapiKey: true, plan: "live" })
+    .onConflictDoUpdate({
+      target: organizations.id,
+      set: { facturapiKeyEncrypted: encrypted, manualFacturapiKey: true, plan: "live" },
+    });
 
   return NextResponse.json({ configured: true });
 }

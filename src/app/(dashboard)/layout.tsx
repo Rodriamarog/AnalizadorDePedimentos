@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { PageTitleProvider } from "@/components/page-title-context";
 import { TopBarTitle } from "@/components/top-bar-title";
 import { clerkOrgSwitcherAppearance } from "@/lib/clerk-org-switcher-appearance";
+import { AutoProvisionFacturapi } from "@/components/auto-provision-facturapi";
 import { Bell } from "lucide-react";
 
 export default function DashboardLayout({
@@ -15,6 +16,7 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <PageTitleProvider>
+        <AutoProvisionFacturapi />
         <AppSidebar />
         <div className="flex-1 flex flex-col h-screen min-w-0">
           <header className="relative flex items-center h-13 border-b border-border bg-card/80 backdrop-blur-sm px-4 shrink-0 gap-3">

@@ -16,7 +16,10 @@ import {
 export const organizations = pgTable("organizations", {
   id: text("id").primaryKey(),
   facturapiKeyEncrypted: text("facturapi_key_encrypted"),
-  plan: text("plan").notNull().default("free"),
+  // "demo": auto-provisioned with a FacturAPI *test* key (no real timbrado).
+  // "live": real FacturAPI key, either auto-provisioned after a Stripe
+  // upgrade or pasted in manually (manualFacturapiKey).
+  plan: text("plan").notNull().default("demo"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   // FacturAPI's own org id — needed to call cert-upload and other org-scoped
   // management endpoints with the org's own key.
