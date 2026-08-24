@@ -13,7 +13,6 @@ export async function POST(req: NextRequest) {
   if (!priceId) {
     return NextResponse.json({ error: "La actualización a cuenta en vivo no está disponible por el momento" }, { status: 502 });
   }
-  const couponId = process.env.STRIPE_LIVE_PLAN_COUPON_ID;
 
   // Not req.nextUrl.origin: behind the mini-pc's reverse proxy that resolves
   // to the container's own bind address (0.0.0.0:3000), not the public
@@ -23,9 +22,9 @@ export async function POST(req: NextRequest) {
     const session = await getStripeClient().checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
-      // Applied automatically (not a code the customer types in) so every
-      // upgrade lands on the advertised discounted price.
-      discounts: couponId ? [{ coupon: couponId }] : undefined,
+      // Lets the customer type a promo code in on the Checkout page instead
+      // of a discount being applied automatically.
+      allow_promotion_codes: true,
       client_reference_id: orgId,
       metadata: { orgId },
       subscription_data: { metadata: { orgId } },
@@ -36,7 +35,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No se pudo iniciar el pago" }, { status: 502 });
     }
     return NextResponse.json({ url: session.url });
-  } catch {
+  } catch (e) {
+    console.error("Stripe checkout session creation failed:", e);
     return NextResponse.json({ error: "No se pudo iniciar el pago" }, { status: 502 });
   }
 }
