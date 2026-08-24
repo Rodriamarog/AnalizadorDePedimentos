@@ -10,17 +10,32 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { GridSearchInput } from "@/components/grid-search-input";
 import { confirmDelete } from "@/lib/alerts";
 
-const TAX_SYSTEMS = [
-  { value: "601", label: "601 – General de Ley Personas Morales" },
-  { value: "612", label: "612 – Personas Físicas con Act. Empresariales" },
-  { value: "626", label: "626 – Régimen Simplificado de Confianza (RESICO)" },
-  { value: "616", label: "616 – Sin obligaciones fiscales" },
-  { value: "621", label: "621 – Incorporación Fiscal" },
-  { value: "603", label: "603 – Personas Morales sin Fines de Lucro" },
-  { value: "606", label: "606 – Arrendamiento" },
-  { value: "610", label: "610 – Residentes en el Extranjero" },
-  { value: "625", label: "625 – Plataformas Tecnológicas" },
+// SAT's c_RegimenFiscal catalog restricts each code to persona física,
+// persona moral, or both — FacturAPI rejects a code/RFC combo that doesn't
+// match ("El campo tax_system no tiene un valor permitido") even though the
+// code itself is valid in isolation. Filtered against the typed RFC below so
+// that mismatch becomes impossible to submit from this form.
+const TAX_SYSTEMS: { value: string; label: string; persona: "fisica" | "moral" | "ambos" }[] = [
+  { value: "601", label: "601 – General de Ley Personas Morales", persona: "moral" },
+  { value: "603", label: "603 – Personas Morales sin Fines de Lucro", persona: "moral" },
+  { value: "606", label: "606 – Arrendamiento", persona: "fisica" },
+  { value: "610", label: "610 – Residentes en el Extranjero", persona: "ambos" },
+  { value: "612", label: "612 – Personas Físicas con Act. Empresariales", persona: "fisica" },
+  { value: "616", label: "616 – Sin obligaciones fiscales", persona: "fisica" },
+  { value: "621", label: "621 – Incorporación Fiscal", persona: "fisica" },
+  { value: "625", label: "625 – Plataformas Tecnológicas", persona: "fisica" },
+  { value: "626", label: "626 – Régimen Simplificado de Confianza (RESICO)", persona: "ambos" },
 ];
+
+// Persona moral RFCs are 12 chars (3-letter prefix); persona física RFCs are
+// 13 (4-letter prefix). An RFC too short to tell yet keeps every option
+// available rather than guessing.
+function taxSystemsForRfc(rfc: string): typeof TAX_SYSTEMS {
+  const len = rfc.trim().length;
+  if (len === 12) return TAX_SYSTEMS.filter((t) => t.persona !== "fisica");
+  if (len === 13) return TAX_SYSTEMS.filter((t) => t.persona !== "moral");
+  return TAX_SYSTEMS;
+}
 
 interface Cliente {
   id: string;
@@ -265,7 +280,14 @@ export default function ClientesPage() {
               <Input
                 value={form.taxId}
                 disabled={!!editingId}
-                onChange={(e) => setForm((f) => ({ ...f, taxId: e.target.value.toUpperCase() }))}
+                onChange={(e) => {
+                  const taxId = e.target.value.toUpperCase();
+                  setForm((f) => {
+                    const valid = taxSystemsForRfc(taxId);
+                    const taxSystem = valid.some((t) => t.value === f.taxSystem) ? f.taxSystem : valid[0].value;
+                    return { ...f, taxId, taxSystem };
+                  });
+                }}
                 placeholder="XAXX010101000"
                 maxLength={13}
                 className="uppercase"
@@ -278,7 +300,7 @@ export default function ClientesPage() {
                 value={form.taxSystem}
                 onChange={(e) => setForm((f) => ({ ...f, taxSystem: e.target.value }))}
               >
-                {TAX_SYSTEMS.map((t) => (
+                {taxSystemsForRfc(form.taxId).map((t) => (
                   <option key={t.value} value={t.value}>
                     {t.label}
                   </option>
