@@ -15,7 +15,10 @@ export async function POST(req: NextRequest) {
   }
   const couponId = process.env.STRIPE_LIVE_PLAN_COUPON_ID;
 
-  const origin = req.nextUrl.origin;
+  // Not req.nextUrl.origin: behind the mini-pc's reverse proxy that resolves
+  // to the container's own bind address (0.0.0.0:3000), not the public
+  // domain, sending users to a broken URL on cancel/back.
+  const origin = process.env.APP_URL ?? req.nextUrl.origin;
   try {
     const session = await getStripeClient().checkout.sessions.create({
       mode: "subscription",
