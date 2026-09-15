@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { validateSampleFiles } from "@/lib/sampleFiles";
 
 type Status = {
   configured: boolean;
@@ -117,6 +118,10 @@ export default function ConfiguracionPage() {
   return (
     <div className="h-full overflow-y-auto max-w-lg">
       <PageHeader title="Configuración" description="Integración con FacturAPI" icon={Settings} />
+
+      <div className="mb-4">
+        <SampleFilesCard />
+      </div>
 
       {loadError && (
         <Card className="border-border shadow-none">
@@ -230,6 +235,101 @@ export default function ConfiguracionPage() {
         </div>
       )}
     </div>
+  );
+}
+
+type SampleFilesStatus = {
+  lastUploadedAt: string | null;
+  totalCount: number;
+};
+
+function SampleFilesCard() {
+  const [status, setStatus] = useState<SampleFilesStatus | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(async () => {
+    const res = await fetch("/api/settings/sample-files");
+    if (res.ok) setStatus(await res.json());
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
+
+  async function handleUpload() {
+    setError(null);
+    const validationError = validateSampleFiles(files);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const form = new FormData();
+      for (const file of files) form.append("files", file);
+      const res = await fetch("/api/settings/sample-files", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Error al subir los archivos");
+        return;
+      }
+      setFiles([]);
+      if (inputRef.current) inputRef.current.value = "";
+      await load();
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <Card className="border-border shadow-none">
+      <CardContent className="p-5 flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-foreground">Archivos de muestra</p>
+          {status && status.totalCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-xs text-emerald-700">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Enviados{" "}
+              {status.lastUploadedAt && new Date(status.lastUploadedAt).toLocaleDateString("es-MX")} · {status.totalCount} en total
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Envíanos algunos pedimentos y/o facturas de ejemplo (hasta 10 archivos PDF, 20MB en
+          total) para que ajustemos el parser a tus documentos.
+        </p>
+        <div className="flex flex-col gap-2">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="application/pdf"
+            multiple
+            className="hidden"
+            onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+          />
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()}>
+              Seleccionar archivos
+            </Button>
+            <span className="text-xs text-foreground truncate">
+              {files.length > 0 ? `${files.length} archivo(s) seleccionado(s)` : "Ningún archivo seleccionado"}
+            </span>
+          </div>
+        </div>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <div>
+          <Button size="sm" onClick={handleUpload} disabled={uploading}>
+            {uploading && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+            Enviar archivos
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

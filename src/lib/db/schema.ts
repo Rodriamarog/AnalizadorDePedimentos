@@ -1,5 +1,6 @@
 import {
   boolean,
+  customType,
   doublePrecision,
   integer,
   jsonb,
@@ -9,6 +10,12 @@ import {
   date,
   unique,
 } from "drizzle-orm/pg-core";
+
+const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 // Keyed by the Clerk organization id (e.g. "org_xxx"). Clerk remains the
 // source of truth for membership/roles; this table only holds app-specific
@@ -255,6 +262,19 @@ export const complementosPago = pgTable("complementos_pago", {
   monto: doublePrecision("monto").notNull(),
   formaPago: text("forma_pago").notNull(),
   tipoCambio: doublePrecision("tipo_cambio"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Client-submitted sample pedimentos/facturas used to build their custom
+// parser (issue #32) — org-scoped like productos. One row per file; rows
+// from the same upload submission share a batchId so batches accumulate
+// over time and nothing is ever overwritten or deleted by a later upload.
+export const sampleFiles = pgTable("sample_files", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orgId: text("org_id").notNull().references(() => organizations.id),
+  batchId: text("batch_id").notNull(),
+  filename: text("filename").notNull(),
+  data: bytea("data").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -12,5 +12,6 @@ end $$;
 grant usage on schema public to app_user;
 grant select, insert, update, delete on
   organizations, pedimentos, partidas, productos, facturas, complementos_pago,
-  cliente_emails, vehiculos, choferes, direcciones, sat_claves, sat_unidades
+  cliente_emails, vehiculos, choferes, direcciones, sample_files, sat_claves,
+  sat_unidades
   to app_user;

@@ -4,6 +4,7 @@ import { NeurocrowLockup } from "@/components/neurocrow-lockup";
 import { WhatsappCta } from "@/components/landing/whatsapp-cta";
 import { AsiLoHacesHoy } from "@/components/landing/asi-lo-haces-hoy";
 import { ConNeurocrow } from "@/components/landing/con-neurocrow";
+import { Personalizacion } from "@/components/landing/personalizacion";
 
 const TICKER_ITEMS = [
   "8471.30.01 EQUIPO DE CÓMPUTO PORTÁTIL",
@@ -152,6 +153,8 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+
+      <Personalizacion />
 
       {/* ── Características ──────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-6 py-20 md:px-10 md:py-28">

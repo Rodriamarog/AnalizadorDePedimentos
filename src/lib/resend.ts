@@ -46,3 +46,23 @@ export async function sendFacturaEmail(params: {
   if (error) throw new Error(error.message);
   return data;
 }
+
+// Notifies the team when a client submits sample pedimentos/facturas for
+// custom-parser onboarding (issue #32) — there's no in-app inbox for this,
+// so email is the only signal that a new batch needs attention.
+export async function sendSampleFilesNotification(params: { orgId: string; fileCount: number }) {
+  const from = process.env.RESEND_EMAIL;
+  if (!from) throw new Error("RESEND_EMAIL is not set");
+  const to = process.env.TEAM_NOTIFICATION_EMAIL;
+  if (!to) throw new Error("TEAM_NOTIFICATION_EMAIL is not set");
+
+  const { data, error } = await getClient().emails.send({
+    from,
+    to: [to],
+    subject: "Nuevos archivos de muestra para personalización",
+    html: `<p>La organización <strong>${escapeHtml(params.orgId)}</strong> subió ${params.fileCount} archivo(s) de muestra (pedimentos/facturas) para la personalización del parser.</p>`,
+  });
+
+  if (error) throw new Error(error.message);
+  return data;
+}
