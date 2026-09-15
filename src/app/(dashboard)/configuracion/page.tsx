@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { validateSampleFiles } from "@/lib/sampleFiles";
+import { alertSuccess } from "@/lib/alerts";
 
 type Status = {
   configured: boolean;
@@ -281,6 +282,7 @@ function SampleFilesCard() {
       setFiles([]);
       if (inputRef.current) inputRef.current.value = "";
       await load();
+      alertSuccess("Archivos enviados", "Recibimos tus archivos de muestra correctamente.");
     } finally {
       setUploading(false);
     }
