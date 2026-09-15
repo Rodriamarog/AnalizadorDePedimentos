@@ -4,7 +4,7 @@ export function Personalizacion() {
       <div className="mx-auto max-w-2xl text-center">
         <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">Hecho a tu medida</span>
         <h2 className="mt-3 font-sans text-2xl font-black text-foreground md:text-3xl">
-          Cada comercializadora factura distinto — tu parser también debería.
+          Cada empresa factura distinto — tu parser también debería.
         </h2>
         <p className="mt-3 text-sm text-muted-foreground md:text-base">
           Tus pedimentos y facturas no se estructuran igual que los de nadie más, así que no
