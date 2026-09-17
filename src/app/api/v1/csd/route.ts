@@ -14,7 +14,7 @@ registry.registerPath({
   path: "/csd",
   summary: "Upload the org's CSD (cer/key/password) for stamping",
   description:
-    "Proxies straight through to FacturAPI's certificate endpoint using the org's own key — same " +
+    "Proxies straight through to the stamping provider's certificate endpoint using the org's own key — same " +
     "logic the internal dashboard's CSD upload uses. Nothing but a success timestamp is ever persisted " +
     "locally; the cert, key, and password never touch this app's database or disk.",
   tags: ["csd"],
@@ -40,7 +40,7 @@ registry.registerPath({
     ...invalidParameterResponse,
     ...unauthorizedResponse,
     502: {
-      description: "FacturAPI rejected the certificate/key/password, or couldn't be reached.",
+      description: "The stamping provider rejected the certificate/key/password, or couldn't be reached.",
       content: { "application/json": { schema: ErrorSchema } },
     },
   },

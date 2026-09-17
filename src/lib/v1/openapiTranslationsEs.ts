@@ -15,8 +15,8 @@ el plan o el modo de la key; una solicitud que exceda el límite recibe
 ## Modo sandbox
 
 El segmento \`<mode>\` de una key es \`test\` o \`live\`, y refleja el modo de la
-key de FacturAPI detrás de tu organización. Las keys en modo \`test\` usan el
-sandbox de FacturAPI — las facturas creadas con una nunca se envían al SAT y
+key del proveedor de timbrado detrás de tu organización. Las keys en modo \`test\` usan el
+sandbox del proveedor de timbrado — las facturas creadas con una nunca se envían al SAT y
 no tienen costo, así que construye y verifica tu integración ahí antes de
 cambiar a una key \`live\`.
 
@@ -35,7 +35,7 @@ cambiar a una key \`live\`.
 
 1. \`POST /clientes\` con \`legal_name\`, \`tax_id\`, \`tax_system\`, y opcionalmente
    \`zip\`/\`email\`/\`emails\` — devuelve el \`id\` del cliente (el id de cliente
-   crudo de FacturAPI, sin prefijo).
+   crudo del proveedor de timbrado, sin prefijo).
 2. \`POST /facturas\` con un header \`Idempotency-Key\` y un body cuyo \`customer\`
    sea ese mismo id — crea una factura en borrador.
 3. \`POST /facturas/{id}/stamp\`, también con un header \`Idempotency-Key\` —
@@ -57,9 +57,9 @@ completos del SAT en el servidor antes de crear la factura.
 \`type: "T"\` es una factura de movimiento de mercancías, no una venta — no
 lleva \`customer\`, ni \`payment_form\`/\`payment_method\`, ni \`price\`/\`taxes\` en
 los conceptos (solo \`description\`/\`product_key\`/\`unit_key\`). Es una forma de
-solicitud de FacturAPI distinta, no una variante del body I/E/N/P de arriba;
+solicitud del proveedor de timbrado distinta, no una variante del body I/E/N/P de arriba;
 el endpoint valida \`type\` pero por lo demás pasa el body tal cual, así que
-una solicitud de Traslado malformada muestra el error que devuelva FacturAPI.
+una solicitud de Traslado malformada muestra el error que devuelva el proveedor de timbrado.
 Una factura de Traslado casi siempre necesita un complemento de Carta Porte
 (ver arriba) para describir el movimiento.
 `.trim();
@@ -86,7 +86,7 @@ or key mode; a request over the limit gets back \`429 rate_limit_exceeded\`.
 ## Sandbox mode
 
 A key's \`<mode>\` segment is either \`test\` or \`live\`, mirroring the mode of
-the FacturAPI key behind your org. \`test\`-mode keys hit FacturAPI's sandbox —
+the stamping-provider key behind your org. \`test\`-mode keys hit the stamping provider's sandbox —
 facturas created with one are never sent to the SAT and cost nothing, so
 build and verify your integration there before switching to a \`live\` key.
 
@@ -103,8 +103,8 @@ build and verify your integration there before switching to a \`live\` key.
 **Create a cliente, then issue and stamp a factura**
 
 1. \`POST /clientes\` with \`legal_name\`, \`tax_id\`, \`tax_system\`, and
-   optionally \`zip\`/\`email\`/\`emails\` — returns the cliente's \`id\` (FacturAPI's
-   raw customer id, unprefixed).
+   optionally \`zip\`/\`email\`/\`emails\` — returns the cliente's \`id\` (the stamping
+   provider's raw customer id, unprefixed).
 2. \`POST /facturas\` with an \`Idempotency-Key\` header and a body whose
    \`customer\` is that same id — creates a draft invoice.
 3. \`POST /facturas/{id}/stamp\`, also with an \`Idempotency-Key\` header — this
@@ -125,16 +125,16 @@ fields server-side before the invoice is created.
 \`type: "T"\` is a goods-movement invoice, not a sale — it carries no
 \`customer\`, no \`payment_form\`/\`payment_method\`, and no \`price\`/\`taxes\` on
 line items (just \`description\`/\`product_key\`/\`unit_key\`). It's a distinct
-FacturAPI request shape, not a variant of the I/E/N/P body above; the
+stamping-provider request shape, not a variant of the I/E/N/P body above; the
 endpoint validates \`type\` but otherwise passes the body straight through,
-so a malformed Traslado request surfaces whatever error FacturAPI itself
+so a malformed Traslado request surfaces whatever error the stamping provider itself
 returns. A Traslado invoice almost always needs a Carta Porte complement
 (see above) to describe the movement.`]: GUIDES_MARKDOWN_ES,
   "Upload and retrieve parsed pedimentos.": "Sube y consulta pedimentos analizados.",
   "Poll async pedimento upload jobs.": "Consulta el estado de los jobs asíncronos de carga de pedimentos.",
   "Create, retrieve, cancel, stamp, and download facturas (CFDI), including Carta Porte.":
     "Crea, consulta, cancela, timbra y descarga facturas (CFDI), incluyendo Carta Porte.",
-  "Curated CRUD over FacturAPI customers.": "CRUD depurado sobre los clientes de FacturAPI.",
+  "Curated CRUD over stamping-provider customers.": "CRUD depurado sobre los clientes del proveedor de timbrado.",
   "Fracción → ClaveProdServ mappings.": "Mapeos de Fracción → ClaveProdServ.",
   "The org's fleet, for Carta Porte's Autotransporte.":
     "La flota de la organización, para el Autotransporte de Carta Porte.",
@@ -175,13 +175,13 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     "Una página de facturas, cada una incluyendo el `external_reference` propio de esta app (#68).",
   "Filter to facturas created with this exact external_reference (#68).":
     "Filtra a las facturas creadas con este external_reference exacto (#68).",
-  "Create a factura (I/E/N/P/T) via raw FacturAPI pass-through":
-    "Crea una factura (I/E/N/P/T) mediante paso directo a FacturAPI",
-  "The created invoice, raw FacturAPI shape.": "La factura creada, en el formato crudo de FacturAPI.",
+  "Create a factura (I/E/N/P/T) via raw stamping-provider pass-through":
+    "Crea una factura (I/E/N/P/T) mediante paso directo al proveedor de timbrado",
+  "The created invoice, raw shape from the stamping provider.": "La factura creada, en el formato crudo del proveedor de timbrado.",
   'CFDI type. Defaults to "I" (Ingreso) when omitted.':
     'Tipo de CFDI. Por defecto "I" (Ingreso) si se omite.',
-  "FacturAPI customer id (the unprefixed `id` from POST /clientes' response). Required for every type except Traslado (\"T\"), which carries no customer.":
-    "Id de cliente de FacturAPI (el `id` sin prefijo de la respuesta de POST /clientes). Requerido para todos los tipos excepto Traslado (\"T\"), que no lleva customer.",
+  "Stamping-provider customer id (the unprefixed `id` from POST /clientes' response). Required for every type except Traslado (\"T\"), which carries no customer.":
+    "Id de cliente del proveedor de timbrado (el `id` sin prefijo de la respuesta de POST /clientes). Requerido para todos los tipos excepto Traslado (\"T\"), que no lleva customer.",
   "CFDI line items (conceptos), each shaped `{ quantity, product: { description, product_key, unit_key, price, ... } }`. Required for every type except Traslado (\"T\"), whose items carry no price/taxes — see the guides' Traslado section.":
     "Conceptos del CFDI, cada uno con la forma `{ quantity, product: { description, product_key, unit_key, price, ... } }`. Requeridos para todos los tipos excepto Traslado (\"T\"), cuyos conceptos no llevan price/taxes — ver la sección de Traslado en las guías.",
   'SAT c_FormaPago key, e.g. "03" (transferencia).':
@@ -191,35 +191,36 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
   'SAT c_UsoCFDI key, e.g. "G03".': 'Clave c_UsoCFDI del SAT, ej. "G03".',
   'CFDI complements, e.g. a Carta Porte complement (`{ type: "carta_porte", data: {...} }`) — its vehiculo_id/chofer_id/direccion_id references are resolved the same way POST /cartas-porte resolves them.':
     'Complementos del CFDI, por ejemplo un complemento de Carta Porte (`{ type: "carta_porte", data: {...} }`) — sus referencias vehiculo_id/chofer_id/direccion_id se resuelven de la misma forma que POST /cartas-porte las resuelve.',
-  "This app's own field, not a FacturAPI one — links the created factura to an uploaded pedimento for tracking. Stripped before the request is forwarded to FacturAPI.":
-    "Campo propio de esta app, no de FacturAPI — vincula la factura creada a un pedimento subido para su seguimiento. Se elimina antes de reenviar la solicitud a FacturAPI.",
-  "This app's own field, not a FacturAPI one — a caller-supplied trip/operation id, echoed back on every response for this resource and filterable via GET /facturas?external_reference=. Independent of Idempotency-Key, which only dedups a single request. Stripped before the request is forwarded to FacturAPI.":
-    "Campo propio de esta app, no de FacturAPI — un id de viaje/operación proporcionado por quien llama, devuelto en cada respuesta de este recurso y filtrable vía GET /facturas?external_reference=. Independiente de Idempotency-Key, que solo deduplica una sola solicitud. Se elimina antes de reenviar la solicitud a FacturAPI.",
-  "This app's own field, not a FacturAPI one — a caller-supplied trip/operation id, echoed back on every response for this resource and filterable via GET /facturas?external_reference=. Independent of Idempotency-Key, which only dedups a single request.":
-    "Campo propio de esta app, no de FacturAPI — un id de viaje/operación proporcionado por quien llama, devuelto en cada respuesta de este recurso y filtrable vía GET /facturas?external_reference=. Independiente de Idempotency-Key, que solo deduplica una sola solicitud.",
-  "Forwarded to FacturAPI's invoice creation endpoint — any field FacturAPI accepts is allowed, not just the ones documented here.":
-    "Se reenvía al endpoint de creación de invoices de FacturAPI — se permite cualquier campo que FacturAPI acepte, no solo los documentados aquí.",
+  "This app's own field, not a stamping-provider one — links the created factura to an uploaded pedimento for tracking. Stripped before the request is forwarded to the stamping provider.":
+    "Campo propio de esta app, no del proveedor de timbrado — vincula la factura creada a un pedimento subido para su seguimiento. Se elimina antes de reenviar la solicitud al proveedor de timbrado.",
+  "This app's own field, not a stamping-provider one — a caller-supplied trip/operation id, echoed back on every response for this resource and filterable via GET /facturas?external_reference=. Independent of Idempotency-Key, which only dedups a single request. Stripped before the request is forwarded to the stamping provider.":
+    "Campo propio de esta app, no del proveedor de timbrado — un id de viaje/operación proporcionado por quien llama, devuelto en cada respuesta de este recurso y filtrable vía GET /facturas?external_reference=. Independiente de Idempotency-Key, que solo deduplica una sola solicitud. Se elimina antes de reenviar la solicitud al proveedor de timbrado.",
+  "This app's own field, not a stamping-provider one — a caller-supplied trip/operation id, echoed back on every response for this resource and filterable via GET /facturas?external_reference=. Independent of Idempotency-Key, which only dedups a single request.":
+    "Campo propio de esta app, no del proveedor de timbrado — un id de viaje/operación proporcionado por quien llama, devuelto en cada respuesta de este recurso y filtrable vía GET /facturas?external_reference=. Independiente de Idempotency-Key, que solo deduplica una sola solicitud.",
+  "Forwarded to the stamping provider's invoice creation endpoint — any field it accepts is allowed, not just the ones documented here.":
+    "Se reenvía al endpoint de creación de invoices del proveedor de timbrado — se permite cualquier campo que este acepte, no solo los documentados aquí.",
   "Freight service": "Servicio de flete",
   "Idempotency-Key reused with a different request body.":
     "Se reutilizó el Idempotency-Key con un body de solicitud distinto.",
-  "Retrieve a factura by its FacturAPI invoice id": "Consulta una factura por su id de invoice de FacturAPI",
-  "The full raw FacturAPI invoice object.": "El objeto completo y crudo del invoice de FacturAPI.",
-  "The full raw FacturAPI invoice object, plus this app's own `external_reference` (#68).":
-    "El objeto completo y crudo del invoice de FacturAPI, más el `external_reference` propio de esta app (#68).",
+  "Retrieve a factura by its stamping-provider invoice id": "Consulta una factura por su id de invoice del proveedor de timbrado",
+  "The full raw invoice object from the stamping provider.": "El objeto completo y crudo del invoice del proveedor de timbrado.",
+  "The full raw invoice object from the stamping provider, plus this app's own `external_reference` (#68).":
+    "El objeto completo y crudo del invoice del proveedor de timbrado, más el `external_reference` propio de esta app (#68).",
   "Cancel a factura": "Cancela una factura",
   "SAT cancellation motive code, defaults to 02.": "Código de motivo de cancelación del SAT, por defecto 02.",
   "Replacement invoice UUID, required for motive 01.":
     "UUID de la factura de reemplazo, requerido para el motivo 01.",
-  "The cancelled invoice, raw FacturAPI shape.": "La factura cancelada, en el formato crudo de FacturAPI.",
-  "The cancelled invoice, raw FacturAPI shape, plus this app's own `external_reference` (#68).":
-    "La factura cancelada, en el formato crudo de FacturAPI, más el `external_reference` propio de esta app (#68).",
+  "The cancelled invoice, raw invoice shape.": "La factura cancelada, en el formato crudo del proveedor de timbrado.",
+  "The cancelled invoice, raw shape from the stamping provider, plus this app's own `external_reference` (#68).":
+    "La factura cancelada, en el formato crudo del proveedor de timbrado, más el `external_reference` propio de esta app (#68).",
   "Stamp a draft factura with the SAT": "Timbra una factura en borrador ante el SAT",
-  "The stamped invoice, raw FacturAPI shape.": "La factura timbrada, en el formato crudo de FacturAPI.",
+  "The stamped invoice, raw shape returned by the stamping provider.": "La factura timbrada, en el formato crudo devuelto por el proveedor de timbrado.",
   "Idempotency-Key header is required.": "El header Idempotency-Key es requerido.",
   "Download a stamped factura's PDF": "Descarga el PDF de una factura timbrada",
   "The invoice PDF.": "El PDF de la factura.",
   "Download a stamped factura's XML (CFDI)": "Descarga el XML (CFDI) de una factura timbrada",
   "The invoice XML.": "El XML de la factura.",
+  "No factura with that id for this org.": "No existe una factura con ese id para esta organización.",
   "Generate a draft Carta Porte factura from reference ids or inline party/goods data":
     "Genera una factura de Carta Porte en borrador a partir de ids de referencia o datos de partes/mercancías en línea",
   "Builds a Complemento Carta Porte and a draft (unstamped) Traslado factura from cliente/direcciones/vehículo/chofer (each of which may be an existing `*_id` reference or fully inline data) plus mercancía data, which is either `pedimento_id` (reusing the pedimento's partidas the same way the internal UI's Mercancias prefill does) or inline `mercancias[]` for shipments with no pedimento at all — the two are mutually exclusive. The org's productos mapping (or, with `auto_classify: true`, automated classification) resolves BienesTransp/product_key. Does not stamp — use POST /facturas/{id}/stamp afterward.":
@@ -242,8 +243,8 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     "AAAA-MM-DDThh:mm:ss, la hora de salida de la ubicación de Origen.",
   "AAAA-MM-DDThh:mm:ss, the Destino ubicación's arrival time.":
     "AAAA-MM-DDThh:mm:ss, la hora de llegada de la ubicación de Destino.",
-  "The created draft invoice, raw FacturAPI shape, with its Carta Porte complement attached.":
-    "La factura en borrador creada, en el formato crudo de FacturAPI, con su complemento de Carta Porte adjunto.",
+  "The created draft invoice, raw shape from the stamping provider, with its Carta Porte complement attached.":
+    "La factura en borrador creada, en el formato crudo del proveedor de timbrado, con su complemento de Carta Porte adjunto.",
   "List the org's vehículos (fleet, for Carta Porte)": "Lista los vehículos de la organización (flota, para Carta Porte)",
   "The org's vehículos.": "Los vehículos de la organización.",
   "Create a vehículo": "Crea un vehículo",
@@ -280,8 +281,8 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
   "The updated dirección.": "La dirección actualizada.",
   "Deactivate a dirección (soft-delete)": "Desactiva una dirección (borrado suave)",
   "The deactivated dirección (active: false).": "La dirección desactivada (active: false).",
-  "List the org's clientes (FacturAPI customers, curated shape)":
-    "Lista los clientes de la organización (clientes de FacturAPI, formato depurado)",
+  "List the org's clientes (stamping-provider customers, curated shape)":
+    "Lista los clientes de la organización (clientes del proveedor de timbrado, formato depurado)",
   "A page of clientes.": "Una página de clientes.",
   "Create a cliente": "Crea un cliente",
   "The created cliente.": "El cliente creado.",
@@ -312,29 +313,29 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     "Endpoints solo para administradores de la plataforma, para dar de alta nuevas organizaciones.",
   "Upload the org's CSD (cer/key/password) for stamping":
     "Sube el CSD (cer/key/password) de la organización para timbrar",
-  "Proxies straight through to FacturAPI's certificate endpoint using the org's own key — same logic the internal dashboard's CSD upload uses. Nothing but a success timestamp is ever persisted locally; the cert, key, and password never touch this app's database or disk.":
-    "Reenvía directamente al endpoint de certificado de FacturAPI usando la llave propia de la organización — la misma lógica que usa la carga de CSD del dashboard interno. Solo se persiste localmente una marca de tiempo de éxito; el certificado, la llave y la contraseña nunca tocan la base de datos ni el disco de esta app.",
+  "Proxies straight through to the stamping provider's certificate endpoint using the org's own key — same logic the internal dashboard's CSD upload uses. Nothing but a success timestamp is ever persisted locally; the cert, key, and password never touch this app's database or disk.":
+    "Reenvía directamente al endpoint de certificado del proveedor de timbrado usando la llave propia de la organización — la misma lógica que usa la carga de CSD del dashboard interno. Solo se persiste localmente una marca de tiempo de éxito; el certificado, la llave y la contraseña nunca tocan la base de datos ni el disco de esta app.",
   "The .cer certificate file.": "El archivo de certificado .cer.",
   "The .key private key file.": "El archivo de llave privada .key.",
   "The private key's password.": "La contraseña de la llave privada.",
   "The CSD was uploaded successfully.": "El CSD se subió exitosamente.",
   "ISO 8601 timestamp of the successful upload.": "Marca de tiempo ISO 8601 de la carga exitosa.",
-  "FacturAPI rejected the certificate/key/password, or couldn't be reached.":
-    "FacturAPI rechazó el certificado/llave/contraseña, o no se pudo contactar.",
+  "The stamping provider rejected the certificate/key/password, or couldn't be reached.":
+    "El proveedor de timbrado rechazó el certificado/llave/contraseña, o no se pudo contactar.",
   "The deployment's PLATFORM_ADMIN_KEY — not a tenant API key. Never share this with an integrating platform.":
     "El PLATFORM_ADMIN_KEY del despliegue — no es una API key de un tenant. Nunca compartas esto con una plataforma integradora.",
-  "Provision a new org, its FacturAPI sub-account, and an API key":
-    "Aprovisiona una nueva organización, su subcuenta de FacturAPI, y una API key",
-  "Platform-admin-only (#72) — replaces the manual scripts/issue-api-key.ts step for onboarding a new transportista. Creates an organizations row, provisions a FacturAPI sub-account for it (reusing the same logic the Stripe upgrade flow uses), and issues its first API key, returned in plaintext exactly once.":
-    "Solo para administradores de la plataforma (#72) — reemplaza el paso manual de scripts/issue-api-key.ts para dar de alta un nuevo transportista. Crea un registro en organizations, aprovisiona una subcuenta de FacturAPI (reutilizando la misma lógica que usa el flujo de actualización de Stripe), y emite su primera API key, devuelta en texto plano exactamente una vez.",
-  "Name for the new FacturAPI sub-account.": "Nombre para la nueva subcuenta de FacturAPI.",
+  "Provision a new org, its stamping-provider sub-account, and an API key":
+    "Aprovisiona una nueva organización, su subcuenta del proveedor de timbrado, y una API key",
+  "Platform-admin-only (#72) — replaces the manual scripts/issue-api-key.ts step for onboarding a new transportista. Creates an organizations row, provisions a stamping-provider sub-account for it (reusing the same logic the Stripe upgrade flow uses), and issues its first API key, returned in plaintext exactly once.":
+    "Solo para administradores de la plataforma (#72) — reemplaza el paso manual de scripts/issue-api-key.ts para dar de alta un nuevo transportista. Crea un registro en organizations, aprovisiona una subcuenta del proveedor de timbrado (reutilizando la misma lógica que usa el flujo de actualización de Stripe), y emite su primera API key, devuelta en texto plano exactamente una vez.",
+  "Name for the new stamping-provider sub-account.": "Nombre para la nueva subcuenta del proveedor de timbrado.",
   "Caller-supplied id for the new org, e.g. for idempotent retries. Auto-generated if omitted.":
     "Id proporcionado por quien llama para la nueva organización, por ejemplo para reintentos idempotentes. Se genera automáticamente si se omite.",
   "Label for the issued API key.": "Etiqueta para la API key emitida.",
   "The provisioned org and its API key.": "La organización aprovisionada y su API key.",
   "Shown once, here — store it immediately.": "Se muestra una sola vez, aquí — guárdala de inmediato.",
   "An org with the given org_id already exists.": "Ya existe una organización con el org_id dado.",
-  "FacturAPI provisioning failed.": "El aprovisionamiento en FacturAPI falló.",
+  "Stamping-provider provisioning failed.": "El aprovisionamiento en el proveedor de timbrado falló.",
   "List the org's registered webhook subscriptions": "Lista las suscripciones de webhook registradas de la organización",
   "The org's webhook subscriptions.": "Las suscripciones de webhook de la organización.",
   "Register a webhook subscription": "Registra una suscripción de webhook",

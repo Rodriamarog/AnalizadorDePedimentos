@@ -34,7 +34,7 @@ const createInvoiceRequestSchema = z
       .meta({ description: 'CFDI type. Defaults to "I" (Ingreso) when omitted.' }),
     customer: z.string().optional().meta({
       description:
-        "FacturAPI customer id (the unprefixed `id` from POST /clientes' response). Required for every " +
+        "Stamping-provider customer id (the unprefixed `id` from POST /clientes' response). Required for every " +
         'type except Traslado ("T"), which carries no customer.',
     }),
     items: z.array(z.record(z.string(), z.unknown())).optional().meta({
@@ -54,20 +54,20 @@ const createInvoiceRequestSchema = z
     }),
     pedimento_id: z.string().optional().meta({
       description:
-        "This app's own field, not a FacturAPI one — links the created factura to an uploaded pedimento " +
-        "for tracking. Stripped before the request is forwarded to FacturAPI.",
+        "This app's own field, not a stamping-provider one — links the created factura to an uploaded pedimento " +
+        "for tracking. Stripped before the request is forwarded to the stamping provider.",
     }),
     external_reference: z.string().optional().meta({
       description:
-        "This app's own field, not a FacturAPI one — a caller-supplied trip/operation id, echoed back on " +
+        "This app's own field, not a stamping-provider one — a caller-supplied trip/operation id, echoed back on " +
         "every response for this resource and filterable via GET /facturas?external_reference=. Independent " +
         "of Idempotency-Key, which only dedups a single request. Stripped before the request is forwarded " +
-        "to FacturAPI.",
+        "to the stamping provider.",
     }),
   })
   .meta({
     description:
-      "Forwarded to FacturAPI's invoice creation endpoint — any field FacturAPI accepts is allowed, not " +
+      "Forwarded to the stamping provider's invoice creation endpoint — any field it accepts is allowed, not " +
       "just the ones documented here.",
     example: {
       type: "I",
@@ -213,7 +213,7 @@ export async function GET(req: NextRequest) {
 registry.registerPath({
   method: "post",
   path: "/facturas",
-  summary: "Create a factura (I/E/N/P/T) via raw FacturAPI pass-through",
+  summary: "Create a factura (I/E/N/P/T) via raw stamping-provider pass-through",
   tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
@@ -221,7 +221,7 @@ registry.registerPath({
   },
   responses: {
     201: {
-      description: "The created invoice, raw FacturAPI shape.",
+      description: "The created invoice, raw shape from the stamping provider.",
       content: { "application/json": { schema: rawInvoiceSchema } },
     },
     ...invalidParameterResponse,

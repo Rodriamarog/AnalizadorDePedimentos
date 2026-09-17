@@ -72,7 +72,7 @@ or key mode; a request over the limit gets back \`429 rate_limit_exceeded\`.
 ## Sandbox mode
 
 A key's \`<mode>\` segment is either \`test\` or \`live\`, mirroring the mode of
-the FacturAPI key behind your org. \`test\`-mode keys hit FacturAPI's sandbox —
+the stamping-provider key behind your org. \`test\`-mode keys hit the stamping provider's sandbox —
 facturas created with one are never sent to the SAT and cost nothing, so
 build and verify your integration there before switching to a \`live\` key.
 
@@ -89,8 +89,8 @@ build and verify your integration there before switching to a \`live\` key.
 **Create a cliente, then issue and stamp a factura**
 
 1. \`POST /clientes\` with \`legal_name\`, \`tax_id\`, \`tax_system\`, and
-   optionally \`zip\`/\`email\`/\`emails\` — returns the cliente's \`id\` (FacturAPI's
-   raw customer id, unprefixed).
+   optionally \`zip\`/\`email\`/\`emails\` — returns the cliente's \`id\` (the stamping
+   provider's raw customer id, unprefixed).
 2. \`POST /facturas\` with an \`Idempotency-Key\` header and a body whose
    \`customer\` is that same id — creates a draft invoice.
 3. \`POST /facturas/{id}/stamp\`, also with an \`Idempotency-Key\` header — this
@@ -111,9 +111,9 @@ fields server-side before the invoice is created.
 \`type: "T"\` is a goods-movement invoice, not a sale — it carries no
 \`customer\`, no \`payment_form\`/\`payment_method\`, and no \`price\`/\`taxes\` on
 line items (just \`description\`/\`product_key\`/\`unit_key\`). It's a distinct
-FacturAPI request shape, not a variant of the I/E/N/P body above; the
+stamping-provider request shape, not a variant of the I/E/N/P body above; the
 endpoint validates \`type\` but otherwise passes the body straight through,
-so a malformed Traslado request surfaces whatever error FacturAPI itself
+so a malformed Traslado request surfaces whatever error the stamping provider itself
 returns. A Traslado invoice almost always needs a Carta Porte complement
 (see above) to describe the movement.
 `.trim();
@@ -133,7 +133,7 @@ export function generateOpenApiDocument() {
       { name: "pedimentos", description: "Upload and retrieve parsed pedimentos." },
       { name: "jobs", description: "Poll async pedimento upload jobs." },
       { name: "facturas", description: "Create, retrieve, cancel, stamp, and download facturas (CFDI), including Carta Porte." },
-      { name: "clientes", description: "Curated CRUD over FacturAPI customers." },
+      { name: "clientes", description: "Curated CRUD over stamping-provider customers." },
       { name: "productos", description: "Fracción → ClaveProdServ mappings." },
       { name: "vehiculos", description: "The org's fleet, for Carta Porte's Autotransporte." },
       { name: "choferes", description: "The org's drivers, for Carta Porte's FiguraTransporte." },

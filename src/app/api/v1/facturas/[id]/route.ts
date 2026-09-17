@@ -15,13 +15,13 @@ const rawInvoiceSchema = z.record(z.string(), z.unknown());
 registry.registerPath({
   method: "get",
   path: "/facturas/{id}",
-  summary: "Retrieve a factura by its FacturAPI invoice id",
+  summary: "Retrieve a factura by its stamping-provider invoice id",
   tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: {
     200: {
-      description: "The full raw FacturAPI invoice object, plus this app's own `external_reference` (#68).",
+      description: "The full raw invoice object from the stamping provider, plus this app's own `external_reference` (#68).",
       content: { "application/json": { schema: rawInvoiceSchema } },
     },
     ...unauthorizedResponse,
@@ -67,7 +67,7 @@ registry.registerPath({
   },
   responses: {
     200: {
-      description: "The cancelled invoice, raw FacturAPI shape, plus this app's own `external_reference` (#68).",
+      description: "The cancelled invoice, raw shape from the stamping provider, plus this app's own `external_reference` (#68).",
       content: { "application/json": { schema: rawInvoiceSchema } },
     },
     ...unauthorizedResponse,

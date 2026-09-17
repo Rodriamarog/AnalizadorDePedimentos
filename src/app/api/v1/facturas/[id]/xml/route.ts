@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiKeyAuth } from "@/lib/v1/auth";
 import { apiError } from "@/lib/v1/envelope";
-import { bearerAuth, registry, unauthorizedResponse } from "@/lib/v1/openapi";
+import { bearerAuth, ErrorSchema, registry, unauthorizedResponse } from "@/lib/v1/openapi";
 import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 import { FacturapiError } from "@/lib/facturapi";
 
@@ -17,6 +17,10 @@ registry.registerPath({
     200: {
       description: "The invoice XML.",
       content: { "application/xml": { schema: z.string().meta({ format: "binary" }) } },
+    },
+    404: {
+      description: "No factura with that id for this org.",
+      content: { "application/json": { schema: ErrorSchema } },
     },
     ...unauthorizedResponse,
   },

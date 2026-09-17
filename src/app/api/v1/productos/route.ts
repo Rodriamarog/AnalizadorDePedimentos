@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiKeyAuth } from "@/lib/v1/auth";
 import { apiError, apiList } from "@/lib/v1/envelope";
-import { bearerAuth, registry, unauthorizedResponse, invalidParameterResponse } from "@/lib/v1/openapi";
+import { bearerAuth, ErrorSchema, registry, unauthorizedResponse, invalidParameterResponse } from "@/lib/v1/openapi";
 import { serializeProducto, productoResponseSchema } from "@/lib/v1/referenceData";
 import { productos } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
@@ -56,7 +56,7 @@ registry.registerPath({
     201: { description: "The created producto.", content: { "application/json": { schema: productoResponseSchema } } },
     409: {
       description: "A producto with that fracción already exists for this org.",
-      content: { "application/json": { schema: z.object({ error: z.object({ code: z.string(), message: z.string() }) }) } },
+      content: { "application/json": { schema: ErrorSchema } },
     },
     ...invalidParameterResponse,
     ...unauthorizedResponse,

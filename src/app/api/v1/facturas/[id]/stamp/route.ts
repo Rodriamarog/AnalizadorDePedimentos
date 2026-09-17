@@ -21,7 +21,7 @@ registry.registerPath({
   request: { params: z.object({ id: z.string() }) },
   responses: {
     200: {
-      description: "The stamped invoice, raw FacturAPI shape.",
+      description: "The stamped invoice, raw shape returned by the stamping provider.",
       content: { "application/json": { schema: rawInvoiceSchema } },
     },
     ...unauthorizedResponse,

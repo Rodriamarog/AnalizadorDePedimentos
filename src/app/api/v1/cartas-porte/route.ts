@@ -71,7 +71,7 @@ const createCartaPorteSchema = z.object({
   distancia_recorrida_km: z.number(),
   external_reference: z.string().optional().meta({
     description:
-      "This app's own field, not a FacturAPI one — a caller-supplied trip/operation id, echoed back on " +
+      "This app's own field, not a stamping-provider one — a caller-supplied trip/operation id, echoed back on " +
       "every response for this resource and filterable via GET /facturas?external_reference=. Independent " +
       "of Idempotency-Key, which only dedups a single request.",
   }),
@@ -126,7 +126,7 @@ registry.registerPath({
   request: { body: { content: { "application/json": { schema: createCartaPorteSchema } } } },
   responses: {
     201: {
-      description: "The created draft invoice, raw FacturAPI shape, with its Carta Porte complement attached.",
+      description: "The created draft invoice, raw shape from the stamping provider, with its Carta Porte complement attached.",
       content: { "application/json": { schema: invoiceResponseSchema } },
     },
     ...invalidParameterResponse,

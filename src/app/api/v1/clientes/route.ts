@@ -14,7 +14,7 @@ import { FacturapiError } from "@/lib/facturapi";
 registry.registerPath({
   method: "get",
   path: "/clientes",
-  summary: "List the org's clientes (FacturAPI customers, curated shape)",
+  summary: "List the org's clientes (stamping-provider customers, curated shape)",
   tags: ["clientes"],
   security: [{ [bearerAuth.name]: [] }],
   request: { query: z.object({ q: z.string().optional(), limit: z.coerce.number().optional(), offset: z.coerce.number().optional() }) },

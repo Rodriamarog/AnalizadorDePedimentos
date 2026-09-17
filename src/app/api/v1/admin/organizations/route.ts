@@ -22,7 +22,7 @@ function isUniqueViolation(e: unknown): boolean {
 }
 
 const provisionOrgSchema = z.object({
-  org_name: z.string().meta({ description: "Name for the new FacturAPI sub-account." }),
+  org_name: z.string().meta({ description: "Name for the new stamping-provider sub-account." }),
   org_id: z.string().optional().meta({
     description: "Caller-supplied id for the new org, e.g. for idempotent retries. Auto-generated if omitted.",
   }),
@@ -38,10 +38,10 @@ const provisionOrgResponseSchema = z.object({
 registry.registerPath({
   method: "post",
   path: "/admin/organizations",
-  summary: "Provision a new org, its FacturAPI sub-account, and an API key",
+  summary: "Provision a new org, its stamping-provider sub-account, and an API key",
   description:
     "Platform-admin-only (#72) — replaces the manual scripts/issue-api-key.ts step for onboarding a new " +
-    "transportista. Creates an organizations row, provisions a FacturAPI sub-account for it (reusing the " +
+    "transportista. Creates an organizations row, provisions a stamping-provider sub-account for it (reusing the " +
     "same logic the Stripe upgrade flow uses), and issues its first API key, returned in plaintext exactly " +
     "once.",
   tags: ["admin"],
@@ -59,7 +59,7 @@ registry.registerPath({
       content: { "application/json": { schema: ErrorSchema } },
     },
     502: {
-      description: "FacturAPI provisioning failed.",
+      description: "Stamping-provider provisioning failed.",
       content: { "application/json": { schema: ErrorSchema } },
     },
   },
