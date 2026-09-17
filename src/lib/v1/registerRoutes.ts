@@ -26,3 +26,5 @@ import "@/app/api/v1/productos/route";
 import "@/app/api/v1/productos/[id]/route";
 import "@/app/api/v1/csd/route";
 import "@/app/api/v1/admin/organizations/route";
+import "@/app/api/v1/webhooks/route";
+import "@/app/api/v1/webhooks/[id]/route";

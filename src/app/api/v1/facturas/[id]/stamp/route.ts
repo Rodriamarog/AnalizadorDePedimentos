@@ -8,6 +8,7 @@ import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 import { FacturapiError } from "@/lib/facturapi";
 import { saveFactura } from "@/lib/saveFactura";
 import { withOrg } from "@/lib/db/withOrg";
+import { scheduleWebhookEvent } from "@/lib/v1/webhookDelivery";
 
 const rawInvoiceSchema = z.record(z.string(), z.unknown());
 
@@ -60,6 +61,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     try {
       const inv = await client.post<{ id: string }>(`invoices/${id}/stamp`);
       await withOrg(auth.orgId, (tx) => saveFactura(tx, auth.orgId, inv, null));
+      // Only runs once per actual stamp attempt (not on an idempotent
+      // replay, which short-circuits before this handler runs at all).
+      scheduleWebhookEvent(auth.orgId, "factura.stamped", inv);
       return { status: 200, body: inv };
     } catch (e) {
       if (e instanceof FacturapiError) {

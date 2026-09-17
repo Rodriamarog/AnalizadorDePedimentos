@@ -8,6 +8,7 @@ import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 import { FacturapiError } from "@/lib/facturapi";
 import { facturas } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
+import { scheduleWebhookEvent } from "@/lib/v1/webhookDelivery";
 
 const rawInvoiceSchema = z.record(z.string(), z.unknown());
 
@@ -103,6 +104,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         .where(eq(facturas.id, existing.id));
       return existing.externalReference;
     });
+    scheduleWebhookEvent(auth.orgId, "factura.cancelled", inv);
     return NextResponse.json({ ...inv, external_reference: externalReference });
   } catch (e) {
     if (e instanceof FacturapiError) return apiError(e.status, "facturapi_error", e.message);

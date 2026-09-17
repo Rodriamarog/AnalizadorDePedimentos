@@ -16,7 +16,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['pedimentos', 'partidas', 'productos', 'facturas', 'complementos_pago', 'cliente_emails', 'vehiculos', 'choferes', 'direcciones', 'sample_files', 'idempotency_keys', 'api_rate_limits', 'pedimento_jobs']
+  foreach t in array array['pedimentos', 'partidas', 'productos', 'facturas', 'complementos_pago', 'cliente_emails', 'vehiculos', 'choferes', 'direcciones', 'sample_files', 'idempotency_keys', 'api_rate_limits', 'pedimento_jobs', 'webhook_subscriptions', 'webhook_deliveries']
   loop
     execute format('alter table %I enable row level security', t);
     execute format('alter table %I force row level security', t);

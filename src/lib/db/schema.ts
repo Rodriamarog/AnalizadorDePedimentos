@@ -348,6 +348,34 @@ export const apiRateLimits = pgTable(
   (t) => [unique("api_rate_limits_org_window_unique").on(t.orgId, t.windowStart)]
 );
 
+// Org-registered webhook URLs for outbound CFDI status events (#70).
+// `secret` signs every delivery to that URL (HMAC-SHA256, see
+// webhookDelivery.ts) — generated at creation, shown in the create
+// response, never echoed back on GET.
+export const webhookSubscriptions = pgTable("webhook_subscriptions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orgId: text("org_id").notNull().references(() => organizations.id),
+  url: text("url").notNull(),
+  secret: text("secret").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// One row per delivery attempt-sequence to a webhook_subscriptions row
+// (#70) — `status` and `attempts` are the "inspectable... ideally a status
+// field" the ticket asks for, beyond the delivery attempt log lines.
+export const webhookDeliveries = pgTable("webhook_deliveries", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orgId: text("org_id").notNull().references(() => organizations.id),
+  subscriptionId: text("subscription_id").notNull().references(() => webhookSubscriptions.id),
+  eventType: text("event_type").notNull(),
+  payload: jsonb("payload").notNull(),
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+});
+
 // Async job tracking for `POST /api/v1/pedimentos` (#52) — pedimento parsing
 // runs in the background; clients poll `GET /api/v1/jobs/{id}` through
 // pending -> processing -> done/failed. `pedimentoId` is set once a `done`

@@ -335,4 +335,16 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
   "Shown once, here — store it immediately.": "Se muestra una sola vez, aquí — guárdala de inmediato.",
   "An org with the given org_id already exists.": "Ya existe una organización con el org_id dado.",
   "FacturAPI provisioning failed.": "El aprovisionamiento en FacturAPI falló.",
+  "List the org's registered webhook subscriptions": "Lista las suscripciones de webhook registradas de la organización",
+  "The org's webhook subscriptions.": "Las suscripciones de webhook de la organización.",
+  "Register a webhook subscription": "Registra una suscripción de webhook",
+  'On a successful stamp or cancellation, this app POSTs a signed event payload (`{ id, type: "factura.stamped" | "factura.cancelled", created_at, data }`) to `url`, HMAC-SHA256-signed over the raw JSON body with the returned `secret`, sent as `X-Pedimentos-Signature: sha256=<hex>`. Verify by recomputing the same HMAC over the raw request body and comparing. Failed deliveries are retried twice with backoff (~5s, then ~30s after the initial attempt) before being marked failed.':
+    'Cuando un timbrado o una cancelación se completa exitosamente, esta app hace un POST con un payload de evento firmado (`{ id, type: "factura.stamped" | "factura.cancelled", created_at, data }`) a `url`, firmado con HMAC-SHA256 sobre el body JSON crudo usando el `secret` devuelto, enviado como `X-Pedimentos-Signature: sha256=<hex>`. Verifica recalculando el mismo HMAC sobre el body crudo de la solicitud y comparando. Las entregas fallidas se reintentan dos veces con backoff (~5s, luego ~30s después del intento inicial) antes de marcarse como fallidas.',
+  "HTTPS endpoint events are POSTed to.": "Endpoint HTTPS al que se envían los eventos por POST.",
+  "The created webhook subscription, including `secret` (shown only this once).":
+    "La suscripción de webhook creada, incluyendo `secret` (mostrado solo esta vez).",
+  "Remove a webhook subscription": "Elimina una suscripción de webhook",
+  "The webhook subscription was removed.": "La suscripción de webhook fue eliminada.",
+  "No webhook subscription with that id for this org.":
+    "No existe una suscripción de webhook con ese id para esta organización.",
 };
