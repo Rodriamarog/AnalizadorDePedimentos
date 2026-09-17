@@ -10,6 +10,7 @@ registry.registerPath({
   method: "get",
   path: "/facturas/{id}/xml",
   summary: "Download a stamped factura's XML (CFDI)",
+  tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: {

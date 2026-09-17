@@ -36,6 +36,7 @@ registry.registerPath({
   method: "get",
   path: "/vehiculos/{id}",
   summary: "Retrieve a vehículo",
+  tags: ["vehiculos"],
   security: [{ [bearerAuth.name]: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: {
@@ -64,6 +65,7 @@ registry.registerPath({
   method: "put",
   path: "/vehiculos/{id}",
   summary: "Update a vehículo",
+  tags: ["vehiculos"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
     params: z.object({ id: z.string() }),
@@ -128,6 +130,7 @@ registry.registerPath({
   method: "delete",
   path: "/vehiculos/{id}",
   summary: "Deactivate a vehículo (soft-delete)",
+  tags: ["vehiculos"],
   security: [{ [bearerAuth.name]: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: {

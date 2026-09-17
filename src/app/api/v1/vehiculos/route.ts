@@ -28,6 +28,7 @@ registry.registerPath({
   method: "get",
   path: "/vehiculos",
   summary: "List the org's vehículos (fleet, for Carta Porte)",
+  tags: ["vehiculos"],
   security: [{ [bearerAuth.name]: [] }],
   request: { query: z.object({ active: z.enum(["true", "false"]).optional() }) },
   responses: {
@@ -56,6 +57,7 @@ registry.registerPath({
   method: "post",
   path: "/vehiculos",
   summary: "Create a vehículo",
+  tags: ["vehiculos"],
   security: [{ [bearerAuth.name]: [] }],
   request: { body: { content: { "application/json": { schema: createVehiculoSchema } } } },
   responses: {

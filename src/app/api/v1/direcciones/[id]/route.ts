@@ -39,6 +39,7 @@ registry.registerPath({
   method: "get",
   path: "/direcciones/{id}",
   summary: "Retrieve a dirección",
+  tags: ["direcciones"],
   security: [{ [bearerAuth.name]: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: {
@@ -67,6 +68,7 @@ registry.registerPath({
   method: "put",
   path: "/direcciones/{id}",
   summary: "Update a dirección",
+  tags: ["direcciones"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
     params: z.object({ id: z.string() }),
@@ -133,6 +135,7 @@ registry.registerPath({
   method: "delete",
   path: "/direcciones/{id}",
   summary: "Deactivate a dirección (soft-delete)",
+  tags: ["direcciones"],
   security: [{ [bearerAuth.name]: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: {

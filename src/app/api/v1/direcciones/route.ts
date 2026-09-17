@@ -28,6 +28,7 @@ registry.registerPath({
   method: "get",
   path: "/direcciones",
   summary: "List the org's direcciones (Origen/Destino addresses, for Carta Porte)",
+  tags: ["direcciones"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
     query: z.object({
@@ -63,6 +64,7 @@ registry.registerPath({
   method: "post",
   path: "/direcciones",
   summary: "Create a dirección",
+  tags: ["direcciones"],
   security: [{ [bearerAuth.name]: [] }],
   request: { body: { content: { "application/json": { schema: createDireccionSchema } } } },
   responses: {

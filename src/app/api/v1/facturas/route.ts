@@ -28,6 +28,7 @@ registry.registerPath({
   method: "get",
   path: "/facturas",
   summary: "List facturas (I/E/N/P), most recent first",
+  tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
     query: z.object({
@@ -93,6 +94,7 @@ registry.registerPath({
   method: "post",
   path: "/facturas",
   summary: "Create a factura (I/E/N/P) via raw FacturAPI pass-through",
+  tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
     body: { content: { "application/json": { schema: rawInvoiceSchema } } },

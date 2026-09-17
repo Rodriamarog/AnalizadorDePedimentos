@@ -1,10 +1,11 @@
 import { z } from "zod";
-import type { vehiculos, choferes, direcciones } from "@/lib/db/schema";
+import type { vehiculos, choferes, direcciones, productos } from "@/lib/db/schema";
 import { toPublicId } from "./publicId";
 
 type VehiculoRow = typeof vehiculos.$inferSelect;
 type ChoferRow = typeof choferes.$inferSelect;
 type DireccionRow = typeof direcciones.$inferSelect;
+type ProductoRow = typeof productos.$inferSelect;
 
 // Curated snake_case public shapes for the reference-data resources (#56) —
 // internal fields minus internal-only concerns (org id, FacturAPI-specific
@@ -105,4 +106,62 @@ export const direccionResponseSchema = z.object({
   codigo_postal: z.string().nullable(),
   active: z.boolean(),
   created_at: z.string(),
+});
+
+// Clientes (#57) — no local table (customers live entirely in FacturAPI), so
+// there's no Drizzle row to type this against; shaped from the raw FacturAPI
+// Customer response plus the locally-stored extra `emails` (see
+// clienteEmails in schema.ts). `id` stays FacturAPI's raw unprefixed id —
+// unlike vehiculos/choferes/direcciones, there's no internal uuid to wrap.
+export interface FacturapiCustomer {
+  id: string;
+  legal_name: string;
+  tax_id?: string | null;
+  tax_system?: string | null;
+  email?: string | null;
+  address?: { zip?: string | null } | null;
+}
+
+export function serializeCliente(c: FacturapiCustomer, emails: string[]) {
+  return {
+    id: c.id,
+    legal_name: c.legal_name,
+    tax_id: c.tax_id ?? null,
+    tax_system: c.tax_system ?? null,
+    zip: c.address?.zip ?? null,
+    email: c.email ?? null,
+    emails,
+  };
+}
+
+export const clienteResponseSchema = z.object({
+  id: z.string(),
+  legal_name: z.string(),
+  tax_id: z.string().nullable(),
+  tax_system: z.string().nullable(),
+  zip: z.string().nullable(),
+  email: z.string().nullable(),
+  emails: z.array(z.string()),
+});
+
+export function serializeProducto(p: ProductoRow) {
+  return {
+    id: toPublicId("prd", p.id),
+    fraccion: p.fraccion,
+    descripcion: p.descripcion,
+    clave_prod_serv: p.claveProdServ,
+    descripcion_sat: p.descripcionSat,
+    unit_key: p.unitKey,
+    confidence: p.confidence,
+  };
+}
+
+export const productoResponseSchema = z.object({
+  id: z.string(),
+  fraccion: z.string(),
+  descripcion: z.string(),
+  clave_prod_serv: z.string().nullable(),
+  descripcion_sat: z.string().nullable(),
+  unit_key: z.string(),
+  confidence: z.string().nullable(),
 });

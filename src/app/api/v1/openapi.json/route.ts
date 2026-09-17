@@ -19,6 +19,10 @@ import "@/app/api/v1/choferes/route";
 import "@/app/api/v1/choferes/[id]/route";
 import "@/app/api/v1/direcciones/route";
 import "@/app/api/v1/direcciones/[id]/route";
+import "@/app/api/v1/clientes/route";
+import "@/app/api/v1/clientes/[id]/route";
+import "@/app/api/v1/productos/route";
+import "@/app/api/v1/productos/[id]/route";
 
 export function GET() {
   return NextResponse.json(generateOpenApiDocument());

@@ -15,6 +15,7 @@ registry.registerPath({
   method: "post",
   path: "/facturas/{id}/stamp",
   summary: "Stamp a draft factura with the SAT",
+  tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: {

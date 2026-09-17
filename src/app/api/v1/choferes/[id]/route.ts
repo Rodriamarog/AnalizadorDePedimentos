@@ -26,6 +26,7 @@ registry.registerPath({
   method: "get",
   path: "/choferes/{id}",
   summary: "Retrieve a chofer",
+  tags: ["choferes"],
   security: [{ [bearerAuth.name]: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: {
@@ -54,6 +55,7 @@ registry.registerPath({
   method: "put",
   path: "/choferes/{id}",
   summary: "Update a chofer",
+  tags: ["choferes"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
     params: z.object({ id: z.string() }),
@@ -101,6 +103,7 @@ registry.registerPath({
   method: "delete",
   path: "/choferes/{id}",
   summary: "Deactivate a chofer (soft-delete)",
+  tags: ["choferes"],
   security: [{ [bearerAuth.name]: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: {

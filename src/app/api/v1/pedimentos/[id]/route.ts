@@ -53,6 +53,7 @@ registry.registerPath({
   method: "get",
   path: "/pedimentos/{id}",
   summary: "Retrieve a parsed pedimento, full field parity with the internal record",
+  tags: ["pedimentos"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
     params: z.object({ id: z.string() }),

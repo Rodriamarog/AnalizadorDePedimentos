@@ -15,6 +15,7 @@ registry.registerPath({
   method: "get",
   path: "/facturas/{id}",
   summary: "Retrieve a factura by its FacturAPI invoice id",
+  tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: {
@@ -46,6 +47,7 @@ registry.registerPath({
   method: "delete",
   path: "/facturas/{id}",
   summary: "Cancel a factura",
+  tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
     params: z.object({ id: z.string() }),

@@ -17,6 +17,7 @@ registry.registerPath({
   method: "post",
   path: "/pedimentos",
   summary: "Upload a pedimento (PDF or Archivo M) for async parsing",
+  tags: ["pedimentos"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
     body: {

@@ -11,6 +11,7 @@ registry.registerPath({
   method: "get",
   path: "/catalogs/claves-prod-serv",
   summary: "Search SAT claves de producto/servicio (c_ClaveProdServ)",
+  tags: ["catalogs"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
     query: z.object({

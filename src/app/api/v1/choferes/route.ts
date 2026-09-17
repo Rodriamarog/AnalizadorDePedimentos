@@ -18,6 +18,7 @@ registry.registerPath({
   method: "get",
   path: "/choferes",
   summary: "List the org's choferes (drivers, for Carta Porte)",
+  tags: ["choferes"],
   security: [{ [bearerAuth.name]: [] }],
   request: { query: z.object({ active: z.enum(["true", "false"]).optional() }) },
   responses: {
@@ -46,6 +47,7 @@ registry.registerPath({
   method: "post",
   path: "/choferes",
   summary: "Create a chofer",
+  tags: ["choferes"],
   security: [{ [bearerAuth.name]: [] }],
   request: { body: { content: { "application/json": { schema: createChoferSchema } } } },
   responses: {

@@ -10,6 +10,7 @@ registry.registerPath({
   method: "get",
   path: "/facturas/{id}/pdf",
   summary: "Download a stamped factura's PDF",
+  tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: {

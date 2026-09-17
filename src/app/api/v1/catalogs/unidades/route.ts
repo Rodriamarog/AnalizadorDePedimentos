@@ -11,6 +11,7 @@ registry.registerPath({
   method: "get",
   path: "/catalogs/unidades",
   summary: "Search SAT unidades de medida (c_UnidadMedida)",
+  tags: ["catalogs"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
     query: z.object({

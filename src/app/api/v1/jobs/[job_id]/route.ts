@@ -21,6 +21,7 @@ registry.registerPath({
   method: "get",
   path: "/jobs/{job_id}",
   summary: "Poll a pedimento upload job's status",
+  tags: ["jobs"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
     params: z.object({ job_id: z.string() }),
