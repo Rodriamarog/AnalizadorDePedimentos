@@ -321,4 +321,18 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
   "ISO 8601 timestamp of the successful upload.": "Marca de tiempo ISO 8601 de la carga exitosa.",
   "FacturAPI rejected the certificate/key/password, or couldn't be reached.":
     "FacturAPI rechazó el certificado/llave/contraseña, o no se pudo contactar.",
+  "The deployment's PLATFORM_ADMIN_KEY — not a tenant API key. Never share this with an integrating platform.":
+    "El PLATFORM_ADMIN_KEY del despliegue — no es una API key de un tenant. Nunca compartas esto con una plataforma integradora.",
+  "Provision a new org, its FacturAPI sub-account, and an API key":
+    "Aprovisiona una nueva organización, su subcuenta de FacturAPI, y una API key",
+  "Platform-admin-only (#72) — replaces the manual scripts/issue-api-key.ts step for onboarding a new transportista. Creates an organizations row, provisions a FacturAPI sub-account for it (reusing the same logic the Stripe upgrade flow uses), and issues its first API key, returned in plaintext exactly once.":
+    "Solo para administradores de la plataforma (#72) — reemplaza el paso manual de scripts/issue-api-key.ts para dar de alta un nuevo transportista. Crea un registro en organizations, aprovisiona una subcuenta de FacturAPI (reutilizando la misma lógica que usa el flujo de actualización de Stripe), y emite su primera API key, devuelta en texto plano exactamente una vez.",
+  "Name for the new FacturAPI sub-account.": "Nombre para la nueva subcuenta de FacturAPI.",
+  "Caller-supplied id for the new org, e.g. for idempotent retries. Auto-generated if omitted.":
+    "Id proporcionado por quien llama para la nueva organización, por ejemplo para reintentos idempotentes. Se genera automáticamente si se omite.",
+  "Label for the issued API key.": "Etiqueta para la API key emitida.",
+  "The provisioned org and its API key.": "La organización aprovisionada y su API key.",
+  "Shown once, here — store it immediately.": "Se muestra una sola vez, aquí — guárdala de inmediato.",
+  "An org with the given org_id already exists.": "Ya existe una organización con el org_id dado.",
+  "FacturAPI provisioning failed.": "El aprovisionamiento en FacturAPI falló.",
 };

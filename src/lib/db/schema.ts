@@ -297,11 +297,13 @@ export const satUnidades = pgTable("sat_unidades", {
 
 // ── API v1 (issue #50) ──────────────────────────────────────────────────
 
-// White-glove issued keys for the public /api/v1 namespace (#35). No
-// self-serve UI yet (#42) — minted by scripts/issue-api-key.ts. Only the
-// hash is stored; the raw key is shown once at issuance. Not RLS-protected
-// like `organizations`: resolving a key is what *establishes* org context,
-// so it can't already be scoped by it.
+// Keys for the public /api/v1 namespace (#35). Issued self-serve from
+// Configuración (POST /api/settings/api-keys), by scripts/issue-api-key.ts
+// for an existing org, or as part of onboarding a brand-new org via
+// POST /api/v1/admin/organizations (#72). Only the hash is stored; the raw
+// key is shown once at issuance. Not RLS-protected like `organizations`:
+// resolving a key is what *establishes* org context, so it can't already
+// be scoped by it.
 export const apiKeys = pgTable("api_keys", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   orgId: text("org_id").notNull().references(() => organizations.id),
