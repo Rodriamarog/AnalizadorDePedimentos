@@ -20,7 +20,7 @@ registry.registerPath({
   request: { params: z.object({ id: z.string() }) },
   responses: {
     200: {
-      description: "The full raw FacturAPI invoice object.",
+      description: "The full raw FacturAPI invoice object, plus this app's own `external_reference` (#68).",
       content: { "application/json": { schema: rawInvoiceSchema } },
     },
     ...unauthorizedResponse,
@@ -36,7 +36,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const inv = await client.get<Record<string, unknown>>(`invoices/${id}`);
-    return NextResponse.json(inv);
+    const externalReference = await withOrg(auth.orgId, async (tx) => {
+      const [local] = await tx
+        .select({ externalReference: facturas.externalReference })
+        .from(facturas)
+        .where(eq(facturas.facturapiId, id))
+        .limit(1);
+      return local?.externalReference ?? null;
+    });
+    return NextResponse.json({ ...inv, external_reference: externalReference });
   } catch (e) {
     if (e instanceof FacturapiError) return apiError(e.status, "facturapi_error", e.message);
     throw e;
@@ -58,7 +66,7 @@ registry.registerPath({
   },
   responses: {
     200: {
-      description: "The cancelled invoice, raw FacturAPI shape.",
+      description: "The cancelled invoice, raw FacturAPI shape, plus this app's own `external_reference` (#68).",
       content: { "application/json": { schema: rawInvoiceSchema } },
     },
     ...unauthorizedResponse,
@@ -83,19 +91,19 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     );
     // Matches the internal route: only update the local mirror if it already
     // exists, never create one on cancel.
-    await withOrg(auth.orgId, async (tx) => {
+    const externalReference = await withOrg(auth.orgId, async (tx) => {
       const [existing] = await tx.select().from(facturas).where(eq(facturas.facturapiId, id)).limit(1);
-      if (existing) {
-        await tx
-          .update(facturas)
-          .set({
-            status: inv.status ?? "canceled",
-            cancellationStatus: inv.cancellation_status || "canceled",
-          })
-          .where(eq(facturas.id, existing.id));
-      }
+      if (!existing) return null;
+      await tx
+        .update(facturas)
+        .set({
+          status: inv.status ?? "canceled",
+          cancellationStatus: inv.cancellation_status || "canceled",
+        })
+        .where(eq(facturas.id, existing.id));
+      return existing.externalReference;
     });
-    return NextResponse.json(inv);
+    return NextResponse.json({ ...inv, external_reference: externalReference });
   } catch (e) {
     if (e instanceof FacturapiError) return apiError(e.status, "facturapi_error", e.message);
     throw e;

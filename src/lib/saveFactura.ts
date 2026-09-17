@@ -27,7 +27,13 @@ export interface FacturapiInvoice {
 // Upserts a FacturAPI invoice object into the local `facturas` table —
 // ported from the old app's `_save_factura`. Must run inside a `withOrg`
 // transaction; takes the transaction handle rather than opening its own.
-export async function saveFactura(tx: OrgTx, orgId: string, inv: FacturapiInvoice, pedimentoId: string | null) {
+export async function saveFactura(
+  tx: OrgTx,
+  orgId: string,
+  inv: FacturapiInvoice,
+  pedimentoId: string | null,
+  externalReference: string | null = null
+) {
   const [existing] = await tx.select().from(facturas).where(eq(facturas.facturapiId, inv.id)).limit(1);
   const relatedUuid = inv.related_documents?.[0]?.documents?.[0] ?? null;
 
@@ -54,6 +60,7 @@ export async function saveFactura(tx: OrgTx, orgId: string, inv: FacturapiInvoic
       facturapiId: inv.id,
       uuid: inv.uuid ?? null,
       pedimentoId,
+      externalReference,
       status: inv.status ?? "valid",
       cancellationStatus: inv.cancellation_status || "none",
       cfdiType: inv.type ?? "I",

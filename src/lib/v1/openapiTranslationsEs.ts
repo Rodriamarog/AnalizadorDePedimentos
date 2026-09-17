@@ -171,7 +171,10 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
   "The job's current status.": "El estado actual del job.",
   "No job with that id for this org.": "No existe un job con ese id para esta organización.",
   "List facturas (I/E/N/P/T), most recent first": "Lista facturas (I/E/N/P/T), más recientes primero",
-  "A page of facturas.": "Una página de facturas.",
+  "A page of facturas, each including this app's own `external_reference` (#68).":
+    "Una página de facturas, cada una incluyendo el `external_reference` propio de esta app (#68).",
+  "Filter to facturas created with this exact external_reference (#68).":
+    "Filtra a las facturas creadas con este external_reference exacto (#68).",
   "Create a factura (I/E/N/P/T) via raw FacturAPI pass-through":
     "Crea una factura (I/E/N/P/T) mediante paso directo a FacturAPI",
   "The created invoice, raw FacturAPI shape.": "La factura creada, en el formato crudo de FacturAPI.",
@@ -190,6 +193,10 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     'Complementos del CFDI, por ejemplo un complemento de Carta Porte (`{ type: "carta_porte", data: {...} }`) — sus referencias vehiculo_id/chofer_id/direccion_id se resuelven de la misma forma que POST /cartas-porte las resuelve.',
   "This app's own field, not a FacturAPI one — links the created factura to an uploaded pedimento for tracking. Stripped before the request is forwarded to FacturAPI.":
     "Campo propio de esta app, no de FacturAPI — vincula la factura creada a un pedimento subido para su seguimiento. Se elimina antes de reenviar la solicitud a FacturAPI.",
+  "This app's own field, not a FacturAPI one — a caller-supplied trip/operation id, echoed back on every response for this resource and filterable via GET /facturas?external_reference=. Independent of Idempotency-Key, which only dedups a single request. Stripped before the request is forwarded to FacturAPI.":
+    "Campo propio de esta app, no de FacturAPI — un id de viaje/operación proporcionado por quien llama, devuelto en cada respuesta de este recurso y filtrable vía GET /facturas?external_reference=. Independiente de Idempotency-Key, que solo deduplica una sola solicitud. Se elimina antes de reenviar la solicitud a FacturAPI.",
+  "This app's own field, not a FacturAPI one — a caller-supplied trip/operation id, echoed back on every response for this resource and filterable via GET /facturas?external_reference=. Independent of Idempotency-Key, which only dedups a single request.":
+    "Campo propio de esta app, no de FacturAPI — un id de viaje/operación proporcionado por quien llama, devuelto en cada respuesta de este recurso y filtrable vía GET /facturas?external_reference=. Independiente de Idempotency-Key, que solo deduplica una sola solicitud.",
   "Forwarded to FacturAPI's invoice creation endpoint — any field FacturAPI accepts is allowed, not just the ones documented here.":
     "Se reenvía al endpoint de creación de invoices de FacturAPI — se permite cualquier campo que FacturAPI acepte, no solo los documentados aquí.",
   "Freight service": "Servicio de flete",
@@ -197,11 +204,15 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     "Se reutilizó el Idempotency-Key con un body de solicitud distinto.",
   "Retrieve a factura by its FacturAPI invoice id": "Consulta una factura por su id de invoice de FacturAPI",
   "The full raw FacturAPI invoice object.": "El objeto completo y crudo del invoice de FacturAPI.",
+  "The full raw FacturAPI invoice object, plus this app's own `external_reference` (#68).":
+    "El objeto completo y crudo del invoice de FacturAPI, más el `external_reference` propio de esta app (#68).",
   "Cancel a factura": "Cancela una factura",
   "SAT cancellation motive code, defaults to 02.": "Código de motivo de cancelación del SAT, por defecto 02.",
   "Replacement invoice UUID, required for motive 01.":
     "UUID de la factura de reemplazo, requerido para el motivo 01.",
   "The cancelled invoice, raw FacturAPI shape.": "La factura cancelada, en el formato crudo de FacturAPI.",
+  "The cancelled invoice, raw FacturAPI shape, plus this app's own `external_reference` (#68).":
+    "La factura cancelada, en el formato crudo de FacturAPI, más el `external_reference` propio de esta app (#68).",
   "Stamp a draft factura with the SAT": "Timbra una factura en borrador ante el SAT",
   "The stamped invoice, raw FacturAPI shape.": "La factura timbrada, en el formato crudo de FacturAPI.",
   "Idempotency-Key header is required.": "El header Idempotency-Key es requerido.",

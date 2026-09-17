@@ -68,6 +68,12 @@ const createCartaPorteSchema = z.object({
   fecha_hora_salida: z.string().meta({ description: "AAAA-MM-DDThh:mm:ss, the Origen ubicación's departure time." }),
   fecha_hora_llegada: z.string().meta({ description: "AAAA-MM-DDThh:mm:ss, the Destino ubicación's arrival time." }),
   distancia_recorrida_km: z.number(),
+  external_reference: z.string().optional().meta({
+    description:
+      "This app's own field, not a FacturAPI one — a caller-supplied trip/operation id, echoed back on " +
+      "every response for this resource and filterable via GET /facturas?external_reference=. Independent " +
+      "of Idempotency-Key, which only dedups a single request.",
+  }),
 });
 
 type CreateCartaPorteBody = z.infer<typeof createCartaPorteSchema>;
@@ -168,8 +174,10 @@ export async function POST(req: NextRequest) {
 
     try {
       const inv = await client.post<{ id: string }>("invoices", built.invoiceBody);
-      await withOrg(auth.orgId, (tx) => saveFactura(tx, auth.orgId, inv, built.pedimentoId));
-      return { status: 201, body: inv };
+      await withOrg(auth.orgId, (tx) =>
+        saveFactura(tx, auth.orgId, inv, built.pedimentoId, body.external_reference ?? null)
+      );
+      return { status: 201, body: { ...inv, external_reference: body.external_reference ?? null } };
     } catch (e) {
       if (e instanceof FacturapiError) {
         return { status: e.status, body: { error: { code: "facturapi_error", message: e.message } } };

@@ -158,6 +158,17 @@ describe("/api/v1/cartas-porte POST", () => {
     expect(json.id).toEqual(expect.any(String));
   }, 20000);
 
+  it("persists and echoes back external_reference (#68)", async () => {
+    const externalReference = `trip-${randomUUID()}`;
+    const res = await post(basePayload({ external_reference: externalReference }), {
+      ...authHeaders(token),
+      "idempotency-key": randomUUID(),
+    });
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json.external_reference).toBe(externalReference);
+  }, 20000);
+
   it("replays the stored response when the same Idempotency-Key + body is sent again", async () => {
     const key = randomUUID();
     const payload = basePayload();

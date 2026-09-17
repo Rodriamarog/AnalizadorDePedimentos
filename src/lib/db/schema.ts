@@ -234,6 +234,11 @@ export const facturas = pgTable("facturas", {
   folioNumber: integer("folio_number"),
   fecha: timestamp("fecha", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Caller-supplied trip/operation id (#68) — durable, customer-visible
+  // reference for looking up/filtering a resource later, unlike
+  // Idempotency-Key which only dedups a single request. Set at creation
+  // only; never overwritten by later saveFactura() calls (e.g. stamping).
+  externalReference: text("external_reference"),
 });
 
 // Extra send-to addresses for a cliente, beyond the single `email` FacturAPI

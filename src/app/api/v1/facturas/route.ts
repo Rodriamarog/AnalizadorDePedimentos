@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { requireApiKeyAuth } from "@/lib/v1/auth";
 import { apiError, apiPage } from "@/lib/v1/envelope";
 import { parsePagination } from "@/lib/v1/pagination";
@@ -10,6 +11,7 @@ import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 import { FacturapiError } from "@/lib/facturapi";
 import { saveFactura } from "@/lib/saveFactura";
 import { withOrg } from "@/lib/db/withOrg";
+import { facturas } from "@/lib/db/schema";
 
 // Raw FacturAPI pass-through (#44) — no curated public shape, so the OpenAPI
 // schema is intentionally loose (#49's "loose Zod schema" carve-out for
@@ -55,6 +57,13 @@ const createInvoiceRequestSchema = z
         "This app's own field, not a FacturAPI one — links the created factura to an uploaded pedimento " +
         "for tracking. Stripped before the request is forwarded to FacturAPI.",
     }),
+    external_reference: z.string().optional().meta({
+      description:
+        "This app's own field, not a FacturAPI one — a caller-supplied trip/operation id, echoed back on " +
+        "every response for this resource and filterable via GET /facturas?external_reference=. Independent " +
+        "of Idempotency-Key, which only dedups a single request. Stripped before the request is forwarded " +
+        "to FacturAPI.",
+    }),
   })
   .meta({
     description:
@@ -91,11 +100,14 @@ registry.registerPath({
     query: z.object({
       limit: z.coerce.number().optional(),
       offset: z.coerce.number().optional(),
+      external_reference: z.string().optional().meta({
+        description: "Filter to facturas created with this exact external_reference (#68).",
+      }),
     }),
   },
   responses: {
     200: {
-      description: "A page of facturas.",
+      description: "A page of facturas, each including this app's own `external_reference` (#68).",
       content: { "application/json": { schema: z.object({ data: z.array(rawInvoiceSchema), meta: z.object({ limit: z.number(), offset: z.number(), total: z.number() }) }) } },
     },
     ...invalidParameterResponse,
@@ -114,7 +126,38 @@ export async function GET(req: NextRequest) {
   const client = await getOrgFacturapiClient(auth.orgId);
   if (client instanceof NextResponse) return client;
 
+  const externalReference = req.nextUrl.searchParams.get("external_reference");
+
   try {
+    // Filtering by external_reference (#68) is our own field, not
+    // FacturAPI's — resolved against the local mirror first (which also
+    // gives exact offset pagination, unlike the merge-4-lists path below),
+    // then hydrated with the raw invoice from FacturAPI per matching row.
+    if (externalReference !== null) {
+      const rows = await withOrg(auth.orgId, (tx) =>
+        tx
+          .select()
+          .from(facturas)
+          .where(and(eq(facturas.orgId, auth.orgId), eq(facturas.externalReference, externalReference)))
+          .orderBy(desc(facturas.fecha))
+          .limit(limit)
+          .offset(offset)
+      );
+      const [{ count: total }] = await withOrg(auth.orgId, (tx) =>
+        tx
+          .select({ count: count() })
+          .from(facturas)
+          .where(and(eq(facturas.orgId, auth.orgId), eq(facturas.externalReference, externalReference)))
+      );
+      const hydrated = await Promise.all(
+        rows.map(async (row) => {
+          const inv = await client.get<Record<string, unknown>>(`invoices/${row.facturapiId}`);
+          return { ...inv, external_reference: row.externalReference };
+        })
+      );
+      return apiPage(hydrated, { limit, offset, total });
+    }
+
     // FacturAPI's `type` filter takes one value per call and paginates by
     // `page`, not `offset` — fetch each type's leading `offset + limit`
     // rows, merge, sort by date desc (matches the internal /api/facturas
@@ -140,7 +183,23 @@ export async function GET(req: NextRequest) {
 
     const total = results.reduce((sum, r) => sum + (r.total_results ?? 0), 0);
 
-    return apiPage(merged, { limit, offset, total });
+    const mergedIds = merged.map((item) => item.id);
+    const localRows =
+      mergedIds.length === 0
+        ? []
+        : await withOrg(auth.orgId, (tx) =>
+            tx
+              .select({ facturapiId: facturas.facturapiId, externalReference: facturas.externalReference })
+              .from(facturas)
+              .where(and(eq(facturas.orgId, auth.orgId), inArray(facturas.facturapiId, mergedIds)))
+          );
+    const externalReferenceById = new Map(localRows.map((r) => [r.facturapiId, r.externalReference]));
+    const mergedWithExternalReference = merged.map((item) => ({
+      ...item,
+      external_reference: externalReferenceById.get(item.id) ?? null,
+    }));
+
+    return apiPage(mergedWithExternalReference, { limit, offset, total });
   } catch (e) {
     if (e instanceof FacturapiError) return apiError(e.status, "facturapi_error", e.message);
     throw e;
@@ -200,7 +259,9 @@ export async function POST(req: NextRequest) {
   if (client instanceof NextResponse) return client;
 
   const pedimentoId = typeof body.pedimento_id === "string" ? body.pedimento_id : null;
+  const externalReference = typeof body.external_reference === "string" ? body.external_reference : null;
   delete body.pedimento_id;
+  delete body.external_reference;
 
   return withIdempotency(req, auth.orgId, rawBody, async () => {
     // Resolved inside the handler (not before withIdempotency) so a replay
@@ -211,8 +272,8 @@ export async function POST(req: NextRequest) {
 
     try {
       const inv = await client.post<{ id: string }>("invoices", body);
-      await withOrg(auth.orgId, (tx) => saveFactura(tx, auth.orgId, inv, pedimentoId));
-      return { status: 201, body: inv };
+      await withOrg(auth.orgId, (tx) => saveFactura(tx, auth.orgId, inv, pedimentoId, externalReference));
+      return { status: 201, body: { ...inv, external_reference: externalReference } };
     } catch (e) {
       if (e instanceof FacturapiError) {
         return { status: e.status, body: { error: { code: "facturapi_error", message: e.message } } };
