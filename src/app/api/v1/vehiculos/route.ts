@@ -42,6 +42,11 @@ registry.registerPath({
   method: "post",
   path: "/vehiculos",
   summary: "Create a vehículo",
+  description:
+    "Only `placa` is required to create a standalone vehículo record. `config_vehicular`, `permiso_sct`, " +
+    "`numero_permiso`, `peso_bruto_vehicular`, and `anio_modelo_vehiculo` are optional here but are " +
+    "SAT-required for the Complemento Carta Porte — a vehículo missing them will be rejected by " +
+    "POST /cartas-porte with an invalid_parameter error naming the missing field(s), not at creation time.",
   tags: ["vehiculos"],
   security: [{ [bearerAuth.name]: [] }],
   request: { body: { content: { "application/json": { schema: createVehiculoSchema } } } },

@@ -304,16 +304,40 @@ async function resolveDireccion(orgId: string, id: string | undefined, inline: D
   return createDireccionRecord(orgId, { ...inline!, tipo });
 }
 
+// Optional on POST /vehiculos (a placa-only record is a valid standalone
+// vehículo), but SAT requires all of these on the Complemento Carta Porte's
+// Autotransporte node — reject here, by name, rather than letting FacturAPI
+// surface an opaque facturapi_error once the invoice is already assembled.
+const REQUIRED_VEHICULO_CARTA_PORTE_FIELDS = [
+  ["configVehicular", "config_vehicular"],
+  ["permisoSct", "permiso_sct"],
+  ["numeroPermiso", "numero_permiso"],
+  ["pesoBrutoVehicular", "peso_bruto_vehicular"],
+  ["anioModeloVehiculo", "anio_modelo_vehiculo"],
+] as const;
+
+function validateVehiculoForCartaPorte(row: { [K in (typeof REQUIRED_VEHICULO_CARTA_PORTE_FIELDS)[number][0]]: unknown }): NextResponse | null {
+  const missing = REQUIRED_VEHICULO_CARTA_PORTE_FIELDS.filter(([rowKey]) => row[rowKey] == null).map(([, field]) => field);
+  if (missing.length === 0) return null;
+  return apiError(
+    400,
+    "invalid_parameter",
+    "The vehículo is missing fields required for a Complemento Carta Porte",
+    missing.map((field) => ({ field: `vehiculo.${field}`, issue: "missing" }))
+  );
+}
+
 async function resolveVehiculo(orgId: string, id: string | undefined, inline: VehiculoInlineInput | undefined) {
-  if (id) {
-    return resolveReference("veh", "vehiculo_id", id, (rowId) =>
-      withOrg(orgId, async (tx) => {
-        const [r] = await tx.select().from(vehiculos).where(eq(vehiculos.id, rowId)).limit(1);
-        return r ?? null;
-      })
-    );
-  }
-  return createVehiculoRecord(orgId, inline!);
+  const row = id
+    ? await resolveReference("veh", "vehiculo_id", id, (rowId) =>
+        withOrg(orgId, async (tx) => {
+          const [r] = await tx.select().from(vehiculos).where(eq(vehiculos.id, rowId)).limit(1);
+          return r ?? null;
+        })
+      )
+    : await createVehiculoRecord(orgId, inline!);
+  if (row instanceof NextResponse) return row;
+  return validateVehiculoForCartaPorte(row) ?? row;
 }
 
 async function resolveChofer(orgId: string, id: string | undefined, inline: ChoferInlineInput | undefined) {
