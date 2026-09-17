@@ -5,6 +5,7 @@ import { apiError, apiPage } from "@/lib/v1/envelope";
 import { parsePagination } from "@/lib/v1/pagination";
 import { bearerAuth, ErrorSchema, registry, unauthorizedResponse, invalidParameterResponse } from "@/lib/v1/openapi";
 import { withIdempotency } from "@/lib/v1/idempotency";
+import { resolveCartaPorteReferences } from "@/lib/v1/cartaPorte";
 import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 import { FacturapiError } from "@/lib/facturapi";
 import { saveFactura } from "@/lib/saveFactura";
@@ -143,6 +144,12 @@ export async function POST(req: NextRequest) {
   delete body.pedimento_id;
 
   return withIdempotency(req, auth.orgId, rawBody, async () => {
+    // Resolved inside the handler (not before withIdempotency) so a replay
+    // of an already-used Idempotency-Key short-circuits on the stored
+    // response without paying for the reference lookups again.
+    const cartaPorteError = await resolveCartaPorteReferences(auth.orgId, body);
+    if (cartaPorteError) return { status: cartaPorteError.status, body: await cartaPorteError.json() };
+
     try {
       const inv = await client.post<{ id: string }>("invoices", body);
       await withOrg(auth.orgId, (tx) => saveFactura(tx, auth.orgId, inv, pedimentoId));

@@ -10,6 +10,15 @@ import "@/app/api/v1/pedimentos/[id]/route";
 import "@/app/api/v1/jobs/[job_id]/route";
 import "@/app/api/v1/facturas/route";
 import "@/app/api/v1/facturas/[id]/route";
+import "@/app/api/v1/facturas/[id]/stamp/route";
+import "@/app/api/v1/facturas/[id]/pdf/route";
+import "@/app/api/v1/facturas/[id]/xml/route";
+import "@/app/api/v1/vehiculos/route";
+import "@/app/api/v1/vehiculos/[id]/route";
+import "@/app/api/v1/choferes/route";
+import "@/app/api/v1/choferes/[id]/route";
+import "@/app/api/v1/direcciones/route";
+import "@/app/api/v1/direcciones/[id]/route";
 
 export function GET() {
   return NextResponse.json(generateOpenApiDocument());

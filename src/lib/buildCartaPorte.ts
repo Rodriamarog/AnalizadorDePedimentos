@@ -260,7 +260,11 @@ function buildMercancia(m: MercanciaInput): CartaPorteMercancia {
   };
 }
 
-function buildAutotransporte(a: AutotransporteInput): CartaPorteAutotransporte {
+// Exported so the v1 API's vehiculo_id/chofer_id reference resolution
+// (#55) can turn a vehiculos/choferes db row into the same PascalCase
+// shape this builds from the UI's inline form data — same code path
+// regardless of how the caller supplied the data, per #55's requirement.
+export function buildAutotransporte(a: AutotransporteInput): CartaPorteAutotransporte {
   return {
     PermSCT: a.permisoSct,
     NumPermisoSCT: a.numeroPermisoSct,
@@ -280,7 +284,8 @@ function buildAutotransporte(a: AutotransporteInput): CartaPorteAutotransporte {
   };
 }
 
-function buildFiguraTransporte(f: FiguraTransporteInput): CartaPorteFiguraTransporte {
+// Exported for the same reason as buildAutotransporte above.
+export function buildFiguraTransporte(f: FiguraTransporteInput): CartaPorteFiguraTransporte {
   return {
     TipoFigura: f.tipoFigura,
     NombreFigura: f.nombreFigura,
