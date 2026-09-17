@@ -324,3 +324,37 @@ export const idempotencyKeys = pgTable(
   },
   (t) => [unique("idempotency_keys_org_key_unique").on(t.orgId, t.key)]
 );
+
+// Fixed-window request counters for the v1 API's flat rate limit (#51). One
+// row per (org, windowStart); windowStart is truncated to the minute, so a
+// request's count is upserted with `count = count + 1` against the current
+// minute's row. No plan-tier gating (#39) — the same limit applies to every
+// org regardless of plan or key mode.
+export const apiRateLimits = pgTable(
+  "api_rate_limits",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    orgId: text("org_id").notNull().references(() => organizations.id),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [unique("api_rate_limits_org_window_unique").on(t.orgId, t.windowStart)]
+);
+
+// Async job tracking for `POST /api/v1/pedimentos` (#52) — pedimento parsing
+// runs in the background; clients poll `GET /api/v1/jobs/{id}` through
+// pending -> processing -> done/failed. `pedimentoId` is set once a `done`
+// job resolves (including a `duplicate` resolution, which points at the
+// pre-existing pedimento rather than erroring).
+export const pedimentoJobs = pgTable("pedimento_jobs", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orgId: text("org_id").notNull().references(() => organizations.id),
+  status: text("status").notNull().default("pending"),
+  sourceFilename: text("source_filename").notNull(),
+  pedimentoId: text("pedimento_id").references(() => pedimentos.id),
+  duplicate: boolean("duplicate").notNull().default(false),
+  errorCode: text("error_code"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+});

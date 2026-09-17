@@ -5,6 +5,11 @@ import { generateOpenApiDocument } from "@/lib/v1/openapi";
 // document or they simply won't be in it.
 import "@/app/api/v1/catalogs/unidades/route";
 import "@/app/api/v1/catalogs/claves-prod-serv/route";
+import "@/app/api/v1/pedimentos/route";
+import "@/app/api/v1/pedimentos/[id]/route";
+import "@/app/api/v1/jobs/[job_id]/route";
+import "@/app/api/v1/facturas/route";
+import "@/app/api/v1/facturas/[id]/route";
 
 export function GET() {
   return NextResponse.json(generateOpenApiDocument());

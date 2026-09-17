@@ -13,5 +13,5 @@ grant usage on schema public to app_user;
 grant select, insert, update, delete on
   organizations, pedimentos, partidas, productos, facturas, complementos_pago,
   cliente_emails, vehiculos, choferes, direcciones, sample_files, sat_claves,
-  sat_unidades, api_keys, idempotency_keys
+  sat_unidades, api_keys, idempotency_keys, api_rate_limits, pedimento_jobs
   to app_user;

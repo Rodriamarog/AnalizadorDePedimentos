@@ -6,7 +6,8 @@
 import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "../src/lib/db/client";
-import { apiKeys, organizations } from "../src/lib/db/schema";
+import { apiKeys, apiRateLimits, organizations } from "../src/lib/db/schema";
+import { withOrg } from "../src/lib/db/withOrg";
 import { hashApiKey, requireApiKeyAuth } from "../src/lib/v1/auth";
 
 const ORG = "org_api_key_auth_test";
@@ -22,8 +23,16 @@ function reqWithAuth(header: string | null) {
   return new NextRequest("http://localhost/api/v1/catalogs/unidades", { headers });
 }
 
-async function main() {
+async function cleanup() {
+  // requireApiKeyAuth also touches api_rate_limits (#51) — RLS-protected, so
+  // deleting it needs org context.
+  await withOrg(ORG, (tx) => tx.delete(apiRateLimits).where(eq(apiRateLimits.orgId, ORG)));
   await db.delete(apiKeys).where(eq(apiKeys.orgId, ORG));
+  await db.delete(organizations).where(eq(organizations.id, ORG));
+}
+
+async function main() {
+  await cleanup();
   await db.insert(organizations).values({ id: ORG }).onConflictDoNothing();
   await db.insert(apiKeys).values({ orgId: ORG, keyHash: hashApiKey(RAW_KEY), mode: "test" });
 
@@ -49,8 +58,7 @@ async function main() {
   const errorBody = await (wrongKey as NextResponse).json();
   assert(errorBody.error?.code === "unauthorized", "401s use the standard error envelope");
 
-  await db.delete(apiKeys).where(eq(apiKeys.orgId, ORG));
-  await db.delete(organizations).where(eq(organizations.id, ORG));
+  await cleanup();
   console.log("API key auth verified: valid key, invalid key, missing header, and malformed header all hold.");
 }
 

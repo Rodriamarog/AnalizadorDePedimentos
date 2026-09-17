@@ -30,7 +30,9 @@
     "db:demo-plan": "psql \"$DATABASE_URL\" -f drizzle/0019_demo_plan.sql",
     "db:sample-files": "psql \"$DATABASE_URL\" -f drizzle/0020_sample_files.sql",
     "db:api-v1-foundation": "psql \"$DATABASE_URL\" -f drizzle/0021_api_v1_foundation.sql",
-    "db:migrate": "npm run db:push && npm run db:cliente-emails && npm run db:partida-tc && npm run db:inspeccion-fields && npm run db:pago-aduana-fields && npm run db:nota-credito-fields && npm run db:vehiculos-choferes && npm run db:vehiculos-extra-fields && npm run db:direcciones && npm run db:partida-peso && npm run db:pedimento-peso-bruto && npm run db:org-provisioning && npm run db:direcciones-place-id && npm run db:direcciones-tipo && npm run db:pedimento-documentacion-aduanera && npm run db:pedimento-cve-pedimento && npm run db:demo-plan && npm run db:sample-files && npm run db:api-v1-foundation && npm run db:rls && npm run db:fts && npm run db:app-role",
+    "db:api-rate-limits": "psql \"$DATABASE_URL\" -f drizzle/0022_api_rate_limits.sql",
+    "db:pedimento-jobs": "psql \"$DATABASE_URL\" -f drizzle/0023_pedimento_jobs.sql",
+    "db:migrate": "npm run db:push && npm run db:cliente-emails && npm run db:partida-tc && npm run db:inspeccion-fields && npm run db:pago-aduana-fields && npm run db:nota-credito-fields && npm run db:vehiculos-choferes && npm run db:vehiculos-extra-fields && npm run db:direcciones && npm run db:partida-peso && npm run db:pedimento-peso-bruto && npm run db:org-provisioning && npm run db:direcciones-place-id && npm run db:direcciones-tipo && npm run db:pedimento-documentacion-aduanera && npm run db:pedimento-cve-pedimento && npm run db:demo-plan && npm run db:sample-files && npm run db:api-v1-foundation && npm run db:api-rate-limits && npm run db:pedimento-jobs && npm run db:rls && npm run db:fts && npm run db:app-role",
     "db:seed": "./scripts/seed-sat-catalogs.sh",
     "db:test-rls": "tsx --env-file=.env.local scripts/test-rls-isolation.ts"
   },
