@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Settings, Loader2, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
+import { Settings, Loader2, CheckCircle2, AlertCircle, Sparkles, KeyRound, Copy, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { validateSampleFiles } from "@/lib/sampleFiles";
-import { alertSuccess } from "@/lib/alerts";
+import { alertSuccess, confirmDelete } from "@/lib/alerts";
 
 type Status = {
   configured: boolean;
@@ -119,6 +119,10 @@ export default function ConfiguracionPage() {
   return (
     <div className="h-full overflow-y-auto max-w-lg">
       <PageHeader title="Configuración" description="Integración con FacturAPI" icon={Settings} />
+
+      <div className="mb-4">
+        <ApiKeysCard plan={status?.plan ?? null} />
+      </div>
 
       <div className="mb-4">
         <SampleFilesCard />
@@ -447,6 +451,156 @@ function CsdUploadCard({
             {csdUploadedAt ? "Reemplazar CSD" : "Subir CSD"}
           </Button>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type ApiKey = {
+  id: string;
+  label: string | null;
+  mode: "test" | "live";
+  createdAt: string;
+  lastUsedAt: string | null;
+};
+
+function ApiKeysCard({ plan }: { plan: "demo" | "live" | null }) {
+  const [keys, setKeys] = useState<ApiKey[] | null>(null);
+  const [label, setLabel] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const load = useCallback(async () => {
+    const res = await fetch("/api/settings/api-keys");
+    if (res.ok) setKeys((await res.json()).data);
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
+
+  async function handleCreate() {
+    setError(null);
+    setCreating(true);
+    try {
+      const res = await fetch("/api/settings/api-keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: label.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Error al crear la llave");
+        return;
+      }
+      setLabel("");
+      setRevealedKey(data.key);
+      setCopied(false);
+      await load();
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleRevoke(key: ApiKey) {
+    const ok = await confirmDelete(
+      "¿Revocar esta llave?",
+      `${key.label ?? "Llave sin nombre"} dejará de funcionar de inmediato.`,
+      "Revocar"
+    );
+    if (!ok) return;
+    const res = await fetch(`/api/settings/api-keys/${key.id}`, { method: "DELETE" });
+    if (res.ok) await load();
+  }
+
+  async function handleCopy() {
+    if (!revealedKey) return;
+    await navigator.clipboard.writeText(revealedKey);
+    setCopied(true);
+  }
+
+  return (
+    <Card className="border-border shadow-none">
+      <CardContent className="p-5 flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <KeyRound className="w-3.5 h-3.5 text-muted-foreground" />
+          <p className="text-sm font-medium text-foreground">Llaves de API</p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Usa una llave de API para integrar tu organización con la{" "}
+          <a href="/api-docs" target="_blank" rel="noreferrer" className="underline">
+            API pública
+          </a>
+          .{" "}
+          {plan === "demo"
+            ? "Tu cuenta es demo: las llaves que crees son de prueba y usan la API de pruebas de FacturAPI (no timbran ante el SAT)."
+            : "Tu cuenta es en vivo: las llaves que crees son de producción y timbran facturas reales."}
+        </p>
+
+        {revealedKey && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 flex flex-col gap-2">
+            <p className="text-xs text-amber-900">
+              Copia esta llave ahora — no se volverá a mostrar.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="text-xs bg-white border border-amber-200 rounded px-2 py-1 flex-1 truncate">
+                {revealedKey}
+              </code>
+              <Button size="sm" variant="outline" onClick={handleCopy}>
+                <Copy className="w-3.5 h-3.5 mr-1.5" />
+                {copied ? "Copiada" : "Copiar"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {keys && keys.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {keys.map((key) => (
+              <div key={key.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-medium text-foreground truncate">
+                      {key.label ?? "Llave sin nombre"}
+                    </span>
+                    <span
+                      className={
+                        "text-[10px] px-1.5 py-0.5 rounded-full " +
+                        (key.mode === "test" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800")
+                      }
+                    >
+                      {key.mode === "test" ? "Prueba" : "Producción"}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">
+                    Creada {new Date(key.createdAt).toLocaleDateString("es-MX")}
+                    {key.lastUsedAt && ` · Usada por última vez ${new Date(key.lastUsedAt).toLocaleDateString("es-MX")}`}
+                  </span>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => handleRevoke(key)}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Nombre de la llave (opcional)"
+            className="max-w-xs"
+          />
+          <Button size="sm" onClick={handleCreate} disabled={creating}>
+            {creating && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+            Crear llave
+          </Button>
+        </div>
+        {error && <p className="text-xs text-red-600">{error}</p>}
       </CardContent>
     </Card>
   );
