@@ -9,6 +9,15 @@ export const bearerAuth = registry.registerComponent("securitySchemes", "bearerA
   description: "A key issued via scripts/issue-api-key.ts, e.g. `Authorization: Bearer <key>`.",
 });
 
+// A single shared secret (PLATFORM_ADMIN_KEY), distinct from tenant API
+// keys — gates the platform-admin-only endpoints (#72), never issued to
+// integrating platforms.
+export const platformAdminAuth = registry.registerComponent("securitySchemes", "platformAdminAuth", {
+  type: "http",
+  scheme: "bearer",
+  description: "The deployment's PLATFORM_ADMIN_KEY — not a tenant API key. Never share this with an integrating platform.",
+});
+
 // Named (not `registry.register()`-ed — that path needs `extendZodWithOpenApi`,
 // which Turbopack's per-route-handler chunking breaks: the patched
 // `ZodType.prototype` in one chunk isn't visible in another) via zod's own
@@ -130,6 +139,8 @@ export function generateOpenApiDocument() {
       { name: "choferes", description: "The org's drivers, for Carta Porte's FiguraTransporte." },
       { name: "direcciones", description: "Saved Origen/Destino addresses, for Carta Porte's Ubicaciones." },
       { name: "catalogs", description: "SAT catalog search (unidades de medida, claves de producto/servicio)." },
+      { name: "csd", description: "Upload the org's CSD (Certificado de Sello Digital) for stamping." },
+      { name: "admin", description: "Platform-admin-only endpoints for onboarding new orgs." },
     ],
   });
   return {
@@ -140,6 +151,7 @@ export function generateOpenApiDocument() {
       { name: "Facturas", tags: ["facturas"] },
       { name: "Reference data", tags: ["clientes", "productos", "vehiculos", "choferes", "direcciones"] },
       { name: "Catalogs", tags: ["catalogs"] },
+      { name: "Organizations", tags: ["csd", "admin"] },
     ],
   };
 }

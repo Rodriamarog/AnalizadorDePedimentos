@@ -2,12 +2,13 @@ import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiKeyAuth } from "@/lib/v1/auth";
-import { apiError, apiList } from "@/lib/v1/envelope";
+import { apiList } from "@/lib/v1/envelope";
 import { bearerAuth, registry, unauthorizedResponse, invalidParameterResponse } from "@/lib/v1/openapi";
 import { serializeDireccion, direccionResponseSchema } from "@/lib/v1/referenceData";
 import { direcciones } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
 import { createDireccionRecord, createDireccionSchema } from "@/lib/v1/createReference";
+import { invalidBodyError } from "@/lib/v1/validation";
 
 registry.registerPath({
   method: "get",
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = createDireccionSchema.safeParse(await req.json());
   if (!parsed.success) {
-    return apiError(400, "invalid_parameter", "tipo, etiqueta y rfc son requeridos", [{ issue: "invalid" }]);
+    return invalidBodyError(parsed.error, "tipo, etiqueta y rfc son requeridos");
   }
   const body = parsed.data;
 

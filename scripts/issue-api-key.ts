@@ -1,5 +1,10 @@
-// White-glove API key issuance (#35) — there's no self-serve UI yet (#42),
-// so a v1 API key is minted by hand and sent to the customer out of band.
+// White-glove API key issuance (#35) for an *existing* org. Superseded for
+// the common case: an existing org's own dashboard user can now self-serve
+// a key from Configuración (POST /api/settings/api-keys), and onboarding a
+// brand-new transportista end to end (org + FacturAPI sub-account + first
+// key) is POST /api/v1/admin/organizations (#72). This script still has a
+// narrower use this doesn't cover — minting an *additional* key for an
+// existing org without dashboard access — so it's kept, not removed.
 // The raw key is only ever shown here, once; only its hash is persisted.
 //
 // Usage: tsx --env-file=.env.local scripts/issue-api-key.ts <org_id> [label]

@@ -234,6 +234,11 @@ export const facturas = pgTable("facturas", {
   folioNumber: integer("folio_number"),
   fecha: timestamp("fecha", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Caller-supplied trip/operation id (#68) — durable, customer-visible
+  // reference for looking up/filtering a resource later, unlike
+  // Idempotency-Key which only dedups a single request. Set at creation
+  // only; never overwritten by later saveFactura() calls (e.g. stamping).
+  externalReference: text("external_reference"),
 });
 
 // Extra send-to addresses for a cliente, beyond the single `email` FacturAPI
@@ -292,11 +297,13 @@ export const satUnidades = pgTable("sat_unidades", {
 
 // ── API v1 (issue #50) ──────────────────────────────────────────────────
 
-// White-glove issued keys for the public /api/v1 namespace (#35). No
-// self-serve UI yet (#42) — minted by scripts/issue-api-key.ts. Only the
-// hash is stored; the raw key is shown once at issuance. Not RLS-protected
-// like `organizations`: resolving a key is what *establishes* org context,
-// so it can't already be scoped by it.
+// Keys for the public /api/v1 namespace (#35). Issued self-serve from
+// Configuración (POST /api/settings/api-keys), by scripts/issue-api-key.ts
+// for an existing org, or as part of onboarding a brand-new org via
+// POST /api/v1/admin/organizations (#72). Only the hash is stored; the raw
+// key is shown once at issuance. Not RLS-protected like `organizations`:
+// resolving a key is what *establishes* org context, so it can't already
+// be scoped by it.
 export const apiKeys = pgTable("api_keys", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   orgId: text("org_id").notNull().references(() => organizations.id),
@@ -340,6 +347,34 @@ export const apiRateLimits = pgTable(
   },
   (t) => [unique("api_rate_limits_org_window_unique").on(t.orgId, t.windowStart)]
 );
+
+// Org-registered webhook URLs for outbound CFDI status events (#70).
+// `secret` signs every delivery to that URL (HMAC-SHA256, see
+// webhookDelivery.ts) — generated at creation, shown in the create
+// response, never echoed back on GET.
+export const webhookSubscriptions = pgTable("webhook_subscriptions", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orgId: text("org_id").notNull().references(() => organizations.id),
+  url: text("url").notNull(),
+  secret: text("secret").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// One row per delivery attempt-sequence to a webhook_subscriptions row
+// (#70) — `status` and `attempts` are the "inspectable... ideally a status
+// field" the ticket asks for, beyond the delivery attempt log lines.
+export const webhookDeliveries = pgTable("webhook_deliveries", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orgId: text("org_id").notNull().references(() => organizations.id),
+  subscriptionId: text("subscription_id").notNull().references(() => webhookSubscriptions.id),
+  eventType: text("event_type").notNull(),
+  payload: jsonb("payload").notNull(),
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+});
 
 // Async job tracking for `POST /api/v1/pedimentos` (#52) — pedimento parsing
 // runs in the background; clients poll `GET /api/v1/jobs/{id}` through

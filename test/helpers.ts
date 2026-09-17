@@ -59,6 +59,8 @@ const TENANT_TABLES = [
   "idempotency_keys",
   "api_rate_limits",
   "pedimento_jobs",
+  "webhook_deliveries",
+  "webhook_subscriptions",
 ] as const;
 
 /** Tears down everything a test org touched, in FK-safe order. */

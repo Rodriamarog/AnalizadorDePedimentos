@@ -171,7 +171,10 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
   "The job's current status.": "El estado actual del job.",
   "No job with that id for this org.": "No existe un job con ese id para esta organización.",
   "List facturas (I/E/N/P/T), most recent first": "Lista facturas (I/E/N/P/T), más recientes primero",
-  "A page of facturas.": "Una página de facturas.",
+  "A page of facturas, each including this app's own `external_reference` (#68).":
+    "Una página de facturas, cada una incluyendo el `external_reference` propio de esta app (#68).",
+  "Filter to facturas created with this exact external_reference (#68).":
+    "Filtra a las facturas creadas con este external_reference exacto (#68).",
   "Create a factura (I/E/N/P/T) via raw FacturAPI pass-through":
     "Crea una factura (I/E/N/P/T) mediante paso directo a FacturAPI",
   "The created invoice, raw FacturAPI shape.": "La factura creada, en el formato crudo de FacturAPI.",
@@ -190,6 +193,10 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     'Complementos del CFDI, por ejemplo un complemento de Carta Porte (`{ type: "carta_porte", data: {...} }`) — sus referencias vehiculo_id/chofer_id/direccion_id se resuelven de la misma forma que POST /cartas-porte las resuelve.',
   "This app's own field, not a FacturAPI one — links the created factura to an uploaded pedimento for tracking. Stripped before the request is forwarded to FacturAPI.":
     "Campo propio de esta app, no de FacturAPI — vincula la factura creada a un pedimento subido para su seguimiento. Se elimina antes de reenviar la solicitud a FacturAPI.",
+  "This app's own field, not a FacturAPI one — a caller-supplied trip/operation id, echoed back on every response for this resource and filterable via GET /facturas?external_reference=. Independent of Idempotency-Key, which only dedups a single request. Stripped before the request is forwarded to FacturAPI.":
+    "Campo propio de esta app, no de FacturAPI — un id de viaje/operación proporcionado por quien llama, devuelto en cada respuesta de este recurso y filtrable vía GET /facturas?external_reference=. Independiente de Idempotency-Key, que solo deduplica una sola solicitud. Se elimina antes de reenviar la solicitud a FacturAPI.",
+  "This app's own field, not a FacturAPI one — a caller-supplied trip/operation id, echoed back on every response for this resource and filterable via GET /facturas?external_reference=. Independent of Idempotency-Key, which only dedups a single request.":
+    "Campo propio de esta app, no de FacturAPI — un id de viaje/operación proporcionado por quien llama, devuelto en cada respuesta de este recurso y filtrable vía GET /facturas?external_reference=. Independiente de Idempotency-Key, que solo deduplica una sola solicitud.",
   "Forwarded to FacturAPI's invoice creation endpoint — any field FacturAPI accepts is allowed, not just the ones documented here.":
     "Se reenvía al endpoint de creación de invoices de FacturAPI — se permite cualquier campo que FacturAPI acepte, no solo los documentados aquí.",
   "Freight service": "Servicio de flete",
@@ -197,11 +204,15 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     "Se reutilizó el Idempotency-Key con un body de solicitud distinto.",
   "Retrieve a factura by its FacturAPI invoice id": "Consulta una factura por su id de invoice de FacturAPI",
   "The full raw FacturAPI invoice object.": "El objeto completo y crudo del invoice de FacturAPI.",
+  "The full raw FacturAPI invoice object, plus this app's own `external_reference` (#68).":
+    "El objeto completo y crudo del invoice de FacturAPI, más el `external_reference` propio de esta app (#68).",
   "Cancel a factura": "Cancela una factura",
   "SAT cancellation motive code, defaults to 02.": "Código de motivo de cancelación del SAT, por defecto 02.",
   "Replacement invoice UUID, required for motive 01.":
     "UUID de la factura de reemplazo, requerido para el motivo 01.",
   "The cancelled invoice, raw FacturAPI shape.": "La factura cancelada, en el formato crudo de FacturAPI.",
+  "The cancelled invoice, raw FacturAPI shape, plus this app's own `external_reference` (#68).":
+    "La factura cancelada, en el formato crudo de FacturAPI, más el `external_reference` propio de esta app (#68).",
   "Stamp a draft factura with the SAT": "Timbra una factura en borrador ante el SAT",
   "The stamped invoice, raw FacturAPI shape.": "La factura timbrada, en el formato crudo de FacturAPI.",
   "Idempotency-Key header is required.": "El header Idempotency-Key es requerido.",
@@ -295,4 +306,45 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
   "The updated producto.": "El producto actualizado.",
   "Delete a producto": "Elimina un producto",
   "The producto was deleted.": "El producto fue eliminado.",
+  "Upload the org's CSD (Certificado de Sello Digital) for stamping.":
+    "Sube el CSD (Certificado de Sello Digital) de la organización para timbrar.",
+  "Platform-admin-only endpoints for onboarding new orgs.":
+    "Endpoints solo para administradores de la plataforma, para dar de alta nuevas organizaciones.",
+  "Upload the org's CSD (cer/key/password) for stamping":
+    "Sube el CSD (cer/key/password) de la organización para timbrar",
+  "Proxies straight through to FacturAPI's certificate endpoint using the org's own key — same logic the internal dashboard's CSD upload uses. Nothing but a success timestamp is ever persisted locally; the cert, key, and password never touch this app's database or disk.":
+    "Reenvía directamente al endpoint de certificado de FacturAPI usando la llave propia de la organización — la misma lógica que usa la carga de CSD del dashboard interno. Solo se persiste localmente una marca de tiempo de éxito; el certificado, la llave y la contraseña nunca tocan la base de datos ni el disco de esta app.",
+  "The .cer certificate file.": "El archivo de certificado .cer.",
+  "The .key private key file.": "El archivo de llave privada .key.",
+  "The private key's password.": "La contraseña de la llave privada.",
+  "The CSD was uploaded successfully.": "El CSD se subió exitosamente.",
+  "ISO 8601 timestamp of the successful upload.": "Marca de tiempo ISO 8601 de la carga exitosa.",
+  "FacturAPI rejected the certificate/key/password, or couldn't be reached.":
+    "FacturAPI rechazó el certificado/llave/contraseña, o no se pudo contactar.",
+  "The deployment's PLATFORM_ADMIN_KEY — not a tenant API key. Never share this with an integrating platform.":
+    "El PLATFORM_ADMIN_KEY del despliegue — no es una API key de un tenant. Nunca compartas esto con una plataforma integradora.",
+  "Provision a new org, its FacturAPI sub-account, and an API key":
+    "Aprovisiona una nueva organización, su subcuenta de FacturAPI, y una API key",
+  "Platform-admin-only (#72) — replaces the manual scripts/issue-api-key.ts step for onboarding a new transportista. Creates an organizations row, provisions a FacturAPI sub-account for it (reusing the same logic the Stripe upgrade flow uses), and issues its first API key, returned in plaintext exactly once.":
+    "Solo para administradores de la plataforma (#72) — reemplaza el paso manual de scripts/issue-api-key.ts para dar de alta un nuevo transportista. Crea un registro en organizations, aprovisiona una subcuenta de FacturAPI (reutilizando la misma lógica que usa el flujo de actualización de Stripe), y emite su primera API key, devuelta en texto plano exactamente una vez.",
+  "Name for the new FacturAPI sub-account.": "Nombre para la nueva subcuenta de FacturAPI.",
+  "Caller-supplied id for the new org, e.g. for idempotent retries. Auto-generated if omitted.":
+    "Id proporcionado por quien llama para la nueva organización, por ejemplo para reintentos idempotentes. Se genera automáticamente si se omite.",
+  "Label for the issued API key.": "Etiqueta para la API key emitida.",
+  "The provisioned org and its API key.": "La organización aprovisionada y su API key.",
+  "Shown once, here — store it immediately.": "Se muestra una sola vez, aquí — guárdala de inmediato.",
+  "An org with the given org_id already exists.": "Ya existe una organización con el org_id dado.",
+  "FacturAPI provisioning failed.": "El aprovisionamiento en FacturAPI falló.",
+  "List the org's registered webhook subscriptions": "Lista las suscripciones de webhook registradas de la organización",
+  "The org's webhook subscriptions.": "Las suscripciones de webhook de la organización.",
+  "Register a webhook subscription": "Registra una suscripción de webhook",
+  'On a successful stamp or cancellation, this app POSTs a signed event payload (`{ id, type: "factura.stamped" | "factura.cancelled", created_at, data }`) to `url`, HMAC-SHA256-signed over the raw JSON body with the returned `secret`, sent as `X-Pedimentos-Signature: sha256=<hex>`. Verify by recomputing the same HMAC over the raw request body and comparing. Failed deliveries are retried twice with backoff (~5s, then ~30s after the initial attempt) before being marked failed.':
+    'Cuando un timbrado o una cancelación se completa exitosamente, esta app hace un POST con un payload de evento firmado (`{ id, type: "factura.stamped" | "factura.cancelled", created_at, data }`) a `url`, firmado con HMAC-SHA256 sobre el body JSON crudo usando el `secret` devuelto, enviado como `X-Pedimentos-Signature: sha256=<hex>`. Verifica recalculando el mismo HMAC sobre el body crudo de la solicitud y comparando. Las entregas fallidas se reintentan dos veces con backoff (~5s, luego ~30s después del intento inicial) antes de marcarse como fallidas.',
+  "HTTPS endpoint events are POSTed to.": "Endpoint HTTPS al que se envían los eventos por POST.",
+  "The created webhook subscription, including `secret` (shown only this once).":
+    "La suscripción de webhook creada, incluyendo `secret` (mostrado solo esta vez).",
+  "Remove a webhook subscription": "Elimina una suscripción de webhook",
+  "The webhook subscription was removed.": "La suscripción de webhook fue eliminada.",
+  "No webhook subscription with that id for this org.":
+    "No existe una suscripción de webhook con ese id para esta organización.",
 };

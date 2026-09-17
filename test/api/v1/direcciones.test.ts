@@ -125,6 +125,34 @@ describe("/api/v1/direcciones", () => {
       expect(json.calle).toBe("Av Reforma");
       expect(json.codigo_postal).toBe("06600");
     });
+
+    it("rejects a malformed rfc (#71)", async () => {
+      const res = await POST(
+        buildRequest("/api/v1/direcciones", {
+          method: "POST",
+          headers: authHeaders(token),
+          body: { tipo: "origen", etiqueta: "Bad RFC", rfc: "NOT-A-RFC" },
+        })
+      );
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error.code).toBe("invalid_parameter");
+      expect(json.error.details).toEqual([{ field: "rfc", issue: "invalid_format" }]);
+    });
+
+    it("rejects a malformed codigo_postal (#71)", async () => {
+      const res = await POST(
+        buildRequest("/api/v1/direcciones", {
+          method: "POST",
+          headers: authHeaders(token),
+          body: { tipo: "origen", etiqueta: "Bad CP", rfc: "MINI040404DDD", codigo_postal: "abc" },
+        })
+      );
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error.code).toBe("invalid_parameter");
+      expect(json.error.details).toEqual([{ field: "codigo_postal", issue: "invalid_format" }]);
+    });
   });
 
   describe("GET /:id", () => {

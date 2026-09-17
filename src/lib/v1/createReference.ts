@@ -4,6 +4,14 @@ import { direcciones, vehiculos, choferes } from "@/lib/db/schema";
 import type { FacturapiClient } from "@/lib/facturapi";
 import { replaceClienteEmails } from "./clienteEmails";
 import type { FacturapiCustomer } from "./referenceData";
+import { isValidCodigoPostal, isValidRfc } from "./mexicanIds";
+
+// Shared field-level schemas (#71) — reject a malformed RFC or código
+// postal with the app's own invalid_parameter error before any of these
+// records (or an inline party on POST /cartas-porte, which reuses these
+// same schemas) ever reach FacturAPI.
+const rfcField = z.string().refine(isValidRfc, { message: "Malformed RFC" });
+const codigoPostalField = z.string().refine(isValidCodigoPostal, { message: "Malformed código postal — expected 5 digits" });
 
 // Shared validation + create logic for the reference-data resources,
 // factored out of their POST /clientes, /direcciones, /vehiculos, /choferes
@@ -14,9 +22,9 @@ import type { FacturapiCustomer } from "./referenceData";
 
 export const createClienteSchema = z.object({
   legal_name: z.string(),
-  tax_id: z.string(),
+  tax_id: rfcField,
   tax_system: z.string(),
-  zip: z.string().optional(),
+  zip: codigoPostalField.optional(),
   email: z.string().optional(),
   emails: z.array(z.string()).optional(),
 });
@@ -45,7 +53,7 @@ export async function createClienteRecord(
 export const createDireccionSchema = z.object({
   tipo: z.enum(["origen", "destino"]),
   etiqueta: z.string(),
-  rfc: z.string(),
+  rfc: rfcField,
   nombre: z.string().optional(),
   calle: z.string().optional(),
   numero_exterior: z.string().optional(),
@@ -55,7 +63,7 @@ export const createDireccionSchema = z.object({
   localidad: z.string().optional(),
   estado: z.string().optional(),
   pais: z.string().optional(),
-  codigo_postal: z.string().optional(),
+  codigo_postal: codigoPostalField.optional(),
 });
 
 export type CreateDireccionInput = z.infer<typeof createDireccionSchema>;
@@ -128,7 +136,7 @@ export async function createVehiculoRecord(orgId: string, body: CreateVehiculoIn
 
 export const createChoferSchema = z.object({
   nombre: z.string(),
-  rfc: z.string(),
+  rfc: rfcField,
   numero_licencia: z.string().optional(),
 });
 

@@ -195,6 +195,24 @@ describe("/api/v1/facturas", () => {
       const json = await conflict.json();
       expect(json.error.code).toBe("idempotency_key_reused");
     });
+
+    it("persists and echoes back external_reference (#68)", async () => {
+      const externalReference = `trip-${randomUUID()}`;
+      const res = await POST(
+        buildRequest("/api/v1/facturas", {
+          method: "POST",
+          headers: { ...authHeaders(token), "Idempotency-Key": randomUUID() },
+          body: invoiceBody(customerId, { external_reference: externalReference }),
+        })
+      );
+      expect(res.status).toBe(201);
+      const json = await res.json();
+      expect(json.external_reference).toBe(externalReference);
+
+      const getRes = await getFactura(buildRequest(`/api/v1/facturas/${json.id}`, { headers: authHeaders(token) }), idParams(json.id));
+      const getJson = await getRes.json();
+      expect(getJson.external_reference).toBe(externalReference);
+    });
   });
 
   describe("GET / (list)", () => {
@@ -215,6 +233,27 @@ describe("/api/v1/facturas", () => {
     it("rejects an invalid limit", async () => {
       const res = await GET(buildRequest("/api/v1/facturas?limit=0", { headers: authHeaders(token) }));
       expect(res.status).toBe(400);
+    });
+
+    it("filters by external_reference (#68)", async () => {
+      const externalReference = `trip-${randomUUID()}`;
+      const created = await POST(
+        buildRequest("/api/v1/facturas", {
+          method: "POST",
+          headers: { ...authHeaders(token), "Idempotency-Key": randomUUID() },
+          body: invoiceBody(customerId, { external_reference: externalReference }),
+        })
+      );
+      const createdJson = await created.json();
+
+      const res = await GET(
+        buildRequest(`/api/v1/facturas?external_reference=${externalReference}`, { headers: authHeaders(token) })
+      );
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.data).toHaveLength(1);
+      expect(json.data[0].id).toBe(createdJson.id);
+      expect(json.data[0].external_reference).toBe(externalReference);
     });
   });
 

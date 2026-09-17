@@ -2,12 +2,13 @@ import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiKeyAuth } from "@/lib/v1/auth";
-import { apiError, apiList } from "@/lib/v1/envelope";
+import { apiList } from "@/lib/v1/envelope";
 import { bearerAuth, registry, unauthorizedResponse, invalidParameterResponse } from "@/lib/v1/openapi";
 import { serializeChofer, choferResponseSchema } from "@/lib/v1/referenceData";
 import { choferes } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
 import { createChoferRecord, createChoferSchema } from "@/lib/v1/createReference";
+import { invalidBodyError } from "@/lib/v1/validation";
 
 registry.registerPath({
   method: "get",
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = createChoferSchema.safeParse(await req.json());
   if (!parsed.success) {
-    return apiError(400, "invalid_parameter", "nombre y rfc son requeridos", [{ issue: "invalid" }]);
+    return invalidBodyError(parsed.error, "nombre y rfc son requeridos");
   }
   const body = parsed.data;
 
