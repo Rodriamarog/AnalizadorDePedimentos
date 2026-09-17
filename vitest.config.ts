@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["./test/setup.ts"],
-    include: ["test/api/**/*.test.ts"],
+    include: ["test/api/**/*.test.ts", "test/lib/**/*.test.ts"],
     testTimeout: 20000,
     hookTimeout: 20000,
     // The flat per-org rate limit (60 req/min) and Postgres connection

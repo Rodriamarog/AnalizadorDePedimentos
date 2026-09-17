@@ -90,6 +90,20 @@ describe("/api/v1/choferes", () => {
       const json = await res.json();
       expect(json.numero_licencia).toBe("LIC-123");
     });
+
+    it("rejects a malformed rfc (#71)", async () => {
+      const res = await POST(
+        buildRequest("/api/v1/choferes", {
+          method: "POST",
+          headers: authHeaders(token),
+          body: { nombre: "Bad RFC", rfc: "NOT-A-RFC" },
+        })
+      );
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error.code).toBe("invalid_parameter");
+      expect(json.error.details).toEqual([{ field: "rfc", issue: "invalid_format" }]);
+    });
   });
 
   describe("GET /:id", () => {

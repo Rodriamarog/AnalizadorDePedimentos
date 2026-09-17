@@ -80,5 +80,33 @@ describe("/api/v1/clientes", () => {
       const json = await res.json();
       expect(json).toEqual(expect.objectContaining({ id: expect.any(String), tax_id: "XAXX010101000" }));
     });
+
+    it("rejects a malformed tax_id (RFC) without calling FacturAPI (#71)", async () => {
+      const res = await POST(
+        buildRequest("/api/v1/clientes", {
+          method: "POST",
+          headers: authHeaders(token),
+          body: { legal_name: "Acme", tax_id: "NOT-A-RFC", tax_system: "616" },
+        })
+      );
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error.code).toBe("invalid_parameter");
+      expect(json.error.details).toEqual([{ field: "tax_id", issue: "invalid_format" }]);
+    });
+
+    it("rejects a malformed zip (código postal) without calling FacturAPI (#71)", async () => {
+      const res = await POST(
+        buildRequest("/api/v1/clientes", {
+          method: "POST",
+          headers: authHeaders(token),
+          body: { legal_name: "Acme", tax_id: "XAXX010101000", tax_system: "616", zip: "abc" },
+        })
+      );
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error.code).toBe("invalid_parameter");
+      expect(json.error.details).toEqual([{ field: "zip", issue: "invalid_format" }]);
+    });
   });
 });

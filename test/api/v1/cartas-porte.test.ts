@@ -158,6 +158,17 @@ describe("/api/v1/cartas-porte POST", () => {
     expect(json.id).toEqual(expect.any(String));
   }, 20000);
 
+  it("rejects an inline party with a malformed RFC before calling FacturAPI (#71)", async () => {
+    const res = await post(basePayload({ chofer: { ...inlineChofer, rfc: "NOT-A-RFC" } }), {
+      ...authHeaders(token),
+      "idempotency-key": randomUUID(),
+    });
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error.code).toBe("invalid_parameter");
+    expect(json.error.details).toEqual([{ field: "chofer.rfc", issue: "invalid_format" }]);
+  });
+
   it("persists and echoes back external_reference (#68)", async () => {
     const externalReference = `trip-${randomUUID()}`;
     const res = await post(basePayload({ external_reference: externalReference }), {

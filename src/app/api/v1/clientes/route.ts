@@ -7,6 +7,7 @@ import { bearerAuth, registry, unauthorizedResponse, invalidParameterResponse } 
 import { serializeCliente, clienteResponseSchema, type FacturapiCustomer } from "@/lib/v1/referenceData";
 import { clienteEmailsByCustomerIds } from "@/lib/v1/clienteEmails";
 import { createClienteRecord, createClienteSchema } from "@/lib/v1/createReference";
+import { invalidBodyError } from "@/lib/v1/validation";
 import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 import { FacturapiError } from "@/lib/facturapi";
 
@@ -87,9 +88,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = createClienteSchema.safeParse(await req.json());
   if (!parsed.success) {
-    return apiError(400, "invalid_parameter", "Invalid cliente payload", [
-      { field: "legal_name", issue: "invalid" },
-    ]);
+    return invalidBodyError(parsed.error, "Invalid cliente payload");
   }
   const body = parsed.data;
 

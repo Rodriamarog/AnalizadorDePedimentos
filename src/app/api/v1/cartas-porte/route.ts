@@ -10,6 +10,7 @@ import { FacturapiError } from "@/lib/facturapi";
 import { saveFactura } from "@/lib/saveFactura";
 import { withOrg } from "@/lib/db/withOrg";
 import { createClienteSchema, createDireccionSchema, createVehiculoSchema, createChoferSchema } from "@/lib/v1/createReference";
+import { invalidBodyError } from "@/lib/v1/validation";
 
 // Reuses the exact same validation schemas POST /clientes, /direcciones,
 // /vehiculos, and /choferes already declare (in createReference.ts) so an
@@ -158,7 +159,7 @@ export async function POST(req: NextRequest) {
 
   const parsed = createCartaPorteSchema.safeParse(json);
   if (!parsed.success) {
-    return apiError(400, "invalid_parameter", "Invalid cartas-porte payload", [{ issue: "invalid" }]);
+    return invalidBodyError(parsed.error, "Invalid cartas-porte payload");
   }
   const body = parsed.data;
 
