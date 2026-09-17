@@ -6,6 +6,11 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks/(.*)",
+  // /api/v1 authenticates via its own Bearer API key (#35), not a Clerk
+  // session — external callers won't have one. /api-docs (Scalar) and the
+  // spec it reads must be reachable the same way.
+  "/api/v1/(.*)",
+  "/api-docs(.*)",
 ]);
 const isOrgSelectionRoute = createRouteMatcher(["/select-org(.*)"]);
 

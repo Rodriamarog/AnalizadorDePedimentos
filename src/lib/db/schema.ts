@@ -289,3 +289,38 @@ export const satUnidades = pgTable("sat_unidades", {
   key: text("key").primaryKey(),
   description: text("description").notNull(),
 });
+
+// ── API v1 (issue #50) ──────────────────────────────────────────────────
+
+// White-glove issued keys for the public /api/v1 namespace (#35). No
+// self-serve UI yet (#42) — minted by scripts/issue-api-key.ts. Only the
+// hash is stored; the raw key is shown once at issuance. Not RLS-protected
+// like `organizations`: resolving a key is what *establishes* org context,
+// so it can't already be scoped by it.
+export const apiKeys = pgTable("api_keys", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  orgId: text("org_id").notNull().references(() => organizations.id),
+  keyHash: text("key_hash").notNull().unique(),
+  // Mirrors the org's FacturAPI key mode ("test" | "live") at issuance time.
+  mode: text("mode").notNull(),
+  label: text("label"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+});
+
+// Dedup store for the v1 API's Idempotency-Key support (#41). One row per
+// (org, key); replaying the same key+body returns the original response
+// instead of re-running the handler.
+export const idempotencyKeys = pgTable(
+  "idempotency_keys",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    orgId: text("org_id").notNull().references(() => organizations.id),
+    key: text("key").notNull(),
+    requestHash: text("request_hash").notNull(),
+    responseStatus: integer("response_status").notNull(),
+    responseBody: jsonb("response_body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("idempotency_keys_org_key_unique").on(t.orgId, t.key)]
+);
