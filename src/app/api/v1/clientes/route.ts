@@ -5,18 +5,10 @@ import { apiError, apiPage } from "@/lib/v1/envelope";
 import { parsePagination } from "@/lib/v1/pagination";
 import { bearerAuth, registry, unauthorizedResponse, invalidParameterResponse } from "@/lib/v1/openapi";
 import { serializeCliente, clienteResponseSchema, type FacturapiCustomer } from "@/lib/v1/referenceData";
-import { clienteEmailsByCustomerIds, replaceClienteEmails } from "@/lib/v1/clienteEmails";
+import { clienteEmailsByCustomerIds } from "@/lib/v1/clienteEmails";
+import { createClienteRecord, createClienteSchema } from "@/lib/v1/createReference";
 import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 import { FacturapiError } from "@/lib/facturapi";
-
-const createClienteSchema = z.object({
-  legal_name: z.string(),
-  tax_id: z.string(),
-  tax_system: z.string(),
-  zip: z.string().optional(),
-  email: z.string().optional(),
-  emails: z.array(z.string()).optional(),
-});
 
 registry.registerPath({
   method: "get",
@@ -105,18 +97,8 @@ export async function POST(req: NextRequest) {
   if (client instanceof NextResponse) return client;
 
   try {
-    const created = await client.post<FacturapiCustomer>("customers", {
-      legal_name: body.legal_name,
-      tax_id: body.tax_id,
-      tax_system: body.tax_system,
-      ...(body.zip ? { address: { zip: body.zip } } : {}),
-      ...(body.email ? { email: body.email } : {}),
-    });
-
-    const emails = body.emails ?? [];
-    if (emails.length > 0) await replaceClienteEmails(auth.orgId, created.id, emails);
-
-    return NextResponse.json(serializeCliente(created, emails), { status: 201 });
+    const created = await createClienteRecord(client, auth.orgId, body);
+    return NextResponse.json(serializeCliente(created, body.emails ?? []), { status: 201 });
   } catch (e) {
     if (e instanceof FacturapiError) return apiError(e.status, "facturapi_error", e.message);
     throw e;

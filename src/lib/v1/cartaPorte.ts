@@ -2,9 +2,78 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { withOrg } from "@/lib/db/withOrg";
 import { vehiculos, choferes, direcciones } from "@/lib/db/schema";
-import { buildAutotransporte, buildFiguraTransporte, generateIdCCP } from "@/lib/buildCartaPorte";
+import {
+  buildAutotransporte,
+  buildFiguraTransporte,
+  generateIdCCP,
+  type AutotransporteInput,
+  type FiguraTransporteInput,
+  type UbicacionInput,
+} from "@/lib/buildCartaPorte";
 import { apiError } from "./envelope";
 import { fromPublicId } from "./publicId";
+
+type VehiculoRow = typeof vehiculos.$inferSelect;
+type ChoferRow = typeof choferes.$inferSelect;
+type DireccionRow = typeof direcciones.$inferSelect;
+
+// Row -> builder-input mappings, shared between the `*_id` reference
+// resolution below (mutates an already-built raw complement in place, for
+// POST /facturas's pass-through `complements`) and POST /cartas-porte
+// (#62), which builds a complement from scratch via buildCartaPorteComplement
+// and needs the same row shapes turned into its typed *Input arguments
+// instead.
+export function vehiculoRowToAutotransporteInput(row: VehiculoRow): AutotransporteInput {
+  return {
+    permisoSct: row.permisoSct ?? undefined,
+    numeroPermisoSct: row.numeroPermiso ?? undefined,
+    configVehicular: row.configVehicular ?? undefined,
+    placa: row.placa,
+    pesoBrutoVehicular: row.pesoBrutoVehicular ? Number(row.pesoBrutoVehicular) : undefined,
+    anioModeloVehiculo: row.anioModeloVehiculo ?? undefined,
+    aseguradoraCarga: row.aseguradoraCarga ?? undefined,
+    polizaCarga: row.polizaCarga ?? undefined,
+    aseguradoraRespCivil: row.aseguradoraRespCivil ?? undefined,
+    polizaRespCivil: row.polizaRespCivil ?? undefined,
+    remolques:
+      row.remolques.length > 0
+        ? row.remolques.map((r) => ({ subTipoRemolque: r.subTipoRemolque, placa: r.placa }))
+        : undefined,
+  };
+}
+
+export function choferRowToFiguraTransporteInput(row: ChoferRow, tipoFigura: string): FiguraTransporteInput {
+  return {
+    tipoFigura,
+    nombreFigura: row.nombre,
+    rfc: row.rfc,
+    numeroLicencia: row.numeroLicencia ?? undefined,
+  };
+}
+
+export function direccionRowToUbicacionInput(
+  row: DireccionRow,
+  fechaHoraSalidaLlegada: string,
+  idUbicacion?: string
+): UbicacionInput {
+  return {
+    rfc: row.rfc,
+    nombre: row.nombre ?? undefined,
+    fechaHoraSalidaLlegada,
+    idUbicacion,
+    domicilio: {
+      Estado: row.estado ?? "",
+      Pais: row.pais ?? "",
+      CodigoPostal: row.codigoPostal ?? "",
+      Calle: row.calle ?? undefined,
+      NumeroExterior: row.numeroExterior ?? undefined,
+      NumeroInterior: row.numeroInterior ?? undefined,
+      Colonia: row.colonia ?? undefined,
+      Localidad: row.localidad ?? undefined,
+      Municipio: row.municipio ?? undefined,
+    },
+  };
+}
 
 type JsonRecord = Record<string, unknown>;
 
@@ -69,7 +138,7 @@ export async function resolveCartaPorteReferences(
 // look the row up org-scoped, and reject a missing/inactive reference with
 // the standard envelope — only the prefix, the field name, and what to do
 // with a found row differ per resource.
-async function resolveReference<Row extends { active: boolean }>(
+export async function resolveReference<Row extends { active: boolean }>(
   prefix: string,
   field: string,
   publicId: string,
@@ -138,22 +207,7 @@ async function resolveVehiculo(
   // Same builder the internal UI uses for an inline-entered vehículo
   // (buildCartaPorteComplement -> buildAutotransporte) — only the input
   // comes from the db row here instead of the form.
-  const built = buildAutotransporte({
-    permisoSct: row.permisoSct ?? undefined,
-    numeroPermisoSct: row.numeroPermiso ?? undefined,
-    configVehicular: row.configVehicular ?? undefined,
-    placa: row.placa,
-    pesoBrutoVehicular: row.pesoBrutoVehicular ? Number(row.pesoBrutoVehicular) : undefined,
-    anioModeloVehiculo: row.anioModeloVehiculo ?? undefined,
-    aseguradoraCarga: row.aseguradoraCarga ?? undefined,
-    polizaCarga: row.polizaCarga ?? undefined,
-    aseguradoraRespCivil: row.aseguradoraRespCivil ?? undefined,
-    polizaRespCivil: row.polizaRespCivil ?? undefined,
-    remolques:
-      row.remolques.length > 0
-        ? row.remolques.map((r) => ({ subTipoRemolque: r.subTipoRemolque, placa: r.placa }))
-        : undefined,
-  });
+  const built = buildAutotransporte(vehiculoRowToAutotransporteInput(row));
   delete autotransporte.vehiculo_id;
   Object.assign(autotransporte, built);
   return null;
@@ -174,12 +228,7 @@ async function resolveChofer(orgId: string, figura: JsonRecord, choferId: string
   // stored on the chofer record (it's per-shipment, e.g. "01" operador), so
   // it must already be on `figura` from the caller — untouched here.
   const tipoFigura = typeof figura.TipoFigura === "string" ? figura.TipoFigura : "";
-  const built = buildFiguraTransporte({
-    tipoFigura,
-    nombreFigura: row.nombre,
-    rfc: row.rfc,
-    numeroLicencia: row.numeroLicencia ?? undefined,
-  });
+  const built = buildFiguraTransporte(choferRowToFiguraTransporteInput(row, tipoFigura));
   delete figura.chofer_id;
   Object.assign(figura, built);
   return null;

@@ -7,22 +7,7 @@ import { bearerAuth, registry, unauthorizedResponse, invalidParameterResponse } 
 import { serializeVehiculo, vehiculoResponseSchema } from "@/lib/v1/referenceData";
 import { vehiculos } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
-
-const remolqueSchema = z.object({ sub_tipo_remolque: z.string(), placa: z.string() });
-
-const createVehiculoSchema = z.object({
-  placa: z.string(),
-  config_vehicular: z.string().optional(),
-  permiso_sct: z.string().optional(),
-  numero_permiso: z.string().optional(),
-  aseguradora_carga: z.string().optional(),
-  poliza_carga: z.string().optional(),
-  aseguradora_resp_civil: z.string().optional(),
-  poliza_resp_civil: z.string().optional(),
-  peso_bruto_vehicular: z.string().optional(),
-  anio_modelo_vehiculo: z.string().optional(),
-  remolques: z.array(remolqueSchema).optional(),
-});
+import { createVehiculoRecord, createVehiculoSchema } from "@/lib/v1/createReference";
 
 registry.registerPath({
   method: "get",
@@ -80,26 +65,7 @@ export async function POST(req: NextRequest) {
   }
   const body = parsed.data;
 
-  const created = await withOrg(auth.orgId, async (tx) => {
-    const [row] = await tx
-      .insert(vehiculos)
-      .values({
-        orgId: auth.orgId,
-        placa: body.placa,
-        configVehicular: body.config_vehicular ?? null,
-        permisoSct: body.permiso_sct ?? null,
-        numeroPermiso: body.numero_permiso ?? null,
-        aseguradoraCarga: body.aseguradora_carga ?? null,
-        polizaCarga: body.poliza_carga ?? null,
-        aseguradoraRespCivil: body.aseguradora_resp_civil ?? null,
-        polizaRespCivil: body.poliza_resp_civil ?? null,
-        pesoBrutoVehicular: body.peso_bruto_vehicular ?? null,
-        anioModeloVehiculo: body.anio_modelo_vehiculo ?? null,
-        remolques: (body.remolques ?? []).map((r) => ({ subTipoRemolque: r.sub_tipo_remolque, placa: r.placa })),
-      })
-      .returning();
-    return row;
-  });
+  const created = await createVehiculoRecord(auth.orgId, body);
 
   return NextResponse.json(serializeVehiculo(created), { status: 201 });
 }

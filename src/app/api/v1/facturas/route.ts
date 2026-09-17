@@ -16,7 +16,7 @@ import { withOrg } from "@/lib/db/withOrg";
 // raw-passthrough resources).
 const rawInvoiceSchema = z.record(z.string(), z.unknown());
 
-const CFDI_TYPES = ["I", "E", "N", "P"] as const;
+const CFDI_TYPES = ["I", "E", "N", "P", "T"] as const;
 
 interface FacturapiInvoiceListItem {
   id: string;
@@ -27,7 +27,7 @@ interface FacturapiInvoiceListItem {
 registry.registerPath({
   method: "get",
   path: "/facturas",
-  summary: "List facturas (I/E/N/P), most recent first",
+  summary: "List facturas (I/E/N/P/T), most recent first",
   tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
 registry.registerPath({
   method: "post",
   path: "/facturas",
-  summary: "Create a factura (I/E/N/P) via raw FacturAPI pass-through",
+  summary: "Create a factura (I/E/N/P/T) via raw FacturAPI pass-through",
   tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
 
   const type = typeof body.type === "string" ? body.type : "I";
   if (!(CFDI_TYPES as readonly string[]).includes(type)) {
-    return apiError(400, "invalid_parameter", "type must be one of I, E, N, P (T is not yet supported)", [
+    return apiError(400, "invalid_parameter", "type must be one of I, E, N, P, T", [
       { field: "type", issue: "unsupported" },
     ]);
   }

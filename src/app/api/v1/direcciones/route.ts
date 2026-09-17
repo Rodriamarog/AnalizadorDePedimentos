@@ -7,22 +7,7 @@ import { bearerAuth, registry, unauthorizedResponse, invalidParameterResponse } 
 import { serializeDireccion, direccionResponseSchema } from "@/lib/v1/referenceData";
 import { direcciones } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
-
-const createDireccionSchema = z.object({
-  tipo: z.enum(["origen", "destino"]),
-  etiqueta: z.string(),
-  rfc: z.string(),
-  nombre: z.string().optional(),
-  calle: z.string().optional(),
-  numero_exterior: z.string().optional(),
-  numero_interior: z.string().optional(),
-  colonia: z.string().optional(),
-  municipio: z.string().optional(),
-  localidad: z.string().optional(),
-  estado: z.string().optional(),
-  pais: z.string().optional(),
-  codigo_postal: z.string().optional(),
-});
+import { createDireccionRecord, createDireccionSchema } from "@/lib/v1/createReference";
 
 registry.registerPath({
   method: "get",
@@ -87,28 +72,7 @@ export async function POST(req: NextRequest) {
   }
   const body = parsed.data;
 
-  const created = await withOrg(auth.orgId, async (tx) => {
-    const [row] = await tx
-      .insert(direcciones)
-      .values({
-        orgId: auth.orgId,
-        tipo: body.tipo,
-        etiqueta: body.etiqueta,
-        rfc: body.rfc,
-        nombre: body.nombre ?? null,
-        calle: body.calle ?? null,
-        numeroExterior: body.numero_exterior ?? null,
-        numeroInterior: body.numero_interior ?? null,
-        colonia: body.colonia ?? null,
-        municipio: body.municipio ?? null,
-        localidad: body.localidad ?? null,
-        estado: body.estado ?? null,
-        pais: body.pais ?? null,
-        codigoPostal: body.codigo_postal ?? null,
-      })
-      .returning();
-    return row;
-  });
+  const created = await createDireccionRecord(auth.orgId, body);
 
   return NextResponse.json(serializeDireccion(created), { status: 201 });
 }

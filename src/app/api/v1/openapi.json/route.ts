@@ -13,6 +13,7 @@ import "@/app/api/v1/facturas/[id]/route";
 import "@/app/api/v1/facturas/[id]/stamp/route";
 import "@/app/api/v1/facturas/[id]/pdf/route";
 import "@/app/api/v1/facturas/[id]/xml/route";
+import "@/app/api/v1/cartas-porte/route";
 import "@/app/api/v1/vehiculos/route";
 import "@/app/api/v1/vehiculos/[id]/route";
 import "@/app/api/v1/choferes/route";

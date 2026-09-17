@@ -95,6 +95,17 @@ repeating it inline by setting \`vehiculo_id\`/\`chofer_id\`/\`direccion_id\`
 (the \`veh_\`/\`chf_\`/\`dir_\`-prefixed ids from \`GET /vehiculos\`, \`/choferes\`,
 \`/direcciones\`) on the relevant nodes — they're resolved into the full SAT
 fields server-side before the invoice is created.
+
+**Create a Traslado (type \`T\`) factura**
+
+\`type: "T"\` is a goods-movement invoice, not a sale — it carries no
+\`customer\`, no \`payment_form\`/\`payment_method\`, and no \`price\`/\`taxes\` on
+line items (just \`description\`/\`product_key\`/\`unit_key\`). It's a distinct
+FacturAPI request shape, not a variant of the I/E/N/P body above; the
+endpoint validates \`type\` but otherwise passes the body straight through,
+so a malformed Traslado request surfaces whatever error FacturAPI itself
+returns. A Traslado invoice almost always needs a Carta Porte complement
+(see above) to describe the movement.
 `.trim();
 
 export function generateOpenApiDocument() {

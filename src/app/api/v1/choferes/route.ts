@@ -7,12 +7,7 @@ import { bearerAuth, registry, unauthorizedResponse, invalidParameterResponse } 
 import { serializeChofer, choferResponseSchema } from "@/lib/v1/referenceData";
 import { choferes } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
-
-const createChoferSchema = z.object({
-  nombre: z.string(),
-  rfc: z.string(),
-  numero_licencia: z.string().optional(),
-});
+import { createChoferRecord, createChoferSchema } from "@/lib/v1/createReference";
 
 registry.registerPath({
   method: "get",
@@ -67,18 +62,7 @@ export async function POST(req: NextRequest) {
   }
   const body = parsed.data;
 
-  const created = await withOrg(auth.orgId, async (tx) => {
-    const [row] = await tx
-      .insert(choferes)
-      .values({
-        orgId: auth.orgId,
-        nombre: body.nombre,
-        rfc: body.rfc,
-        numeroLicencia: body.numero_licencia ?? null,
-      })
-      .returning();
-    return row;
-  });
+  const created = await createChoferRecord(auth.orgId, body);
 
   return NextResponse.json(serializeChofer(created), { status: 201 });
 }
