@@ -40,10 +40,8 @@ registry.registerPath({
   path: "/admin/organizations",
   summary: "Provision a new org, its stamping-provider sub-account, and an API key",
   description:
-    "Platform-admin-only (#72) — replaces the manual scripts/issue-api-key.ts step for onboarding a new " +
-    "transportista. Creates an organizations row, provisions a stamping-provider sub-account for it (reusing the " +
-    "same logic the Stripe upgrade flow uses), and issues its first API key, returned in plaintext exactly " +
-    "once.",
+    "Platform-admin-only — onboards a new org. Creates an organizations row, provisions a stamping-provider " +
+    "sub-account for it, and issues its first API key, returned in plaintext exactly once.",
   tags: ["admin"],
   security: [{ [platformAdminAuth.name]: [] }],
   request: { body: { content: { "application/json": { schema: provisionOrgSchema } } } },

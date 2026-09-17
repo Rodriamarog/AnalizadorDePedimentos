@@ -58,7 +58,7 @@ const createCartaPorteSchema = z.object({
     .array(mercanciaInlineSchema)
     .min(1)
     .optional()
-    .meta({ description: "Inline mercancía data, mutually exclusive with pedimento_id (#64)." }),
+    .meta({ description: "Inline mercancía data, mutually exclusive with pedimento_id." }),
   auto_classify: z.boolean().optional().meta({
     description:
       "When true, inline mercancías (mercancias[]) missing a resolvable clave_prod_serv are classified " +

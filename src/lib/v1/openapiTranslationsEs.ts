@@ -144,8 +144,8 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     "Direcciones guardadas de Origen/Destino, para las Ubicaciones de Carta Porte.",
   "SAT catalog search (unidades de medida, claves de producto/servicio).":
     "Búsqueda en catálogos del SAT (unidades de medida, claves de producto/servicio).",
-  "A key issued via scripts/issue-api-key.ts, e.g. `Authorization: Bearer <key>`.":
-    "Una key emitida vía scripts/issue-api-key.ts, ej. `Authorization: Bearer <key>`.",
+  "An API key issued from Configuración in the dashboard, e.g. `Authorization: Bearer <key>`.":
+    "Una API key emitida desde Configuración en el panel, ej. `Authorization: Bearer <key>`.",
   "The standard /api/v1 error envelope.": "El envoltorio de error estándar de /api/v1.",
   "Search SAT unidades de medida (c_UnidadMedida)": "Busca unidades de medida del SAT (c_UnidadMedida)",
   "Free-text or key-prefix search term.": "Término de búsqueda libre o por prefijo de clave.",
@@ -171,10 +171,10 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
   "The job's current status.": "El estado actual del job.",
   "No job with that id for this org.": "No existe un job con ese id para esta organización.",
   "List facturas (I/E/N/P/T), most recent first": "Lista facturas (I/E/N/P/T), más recientes primero",
-  "A page of facturas, each including this app's own `external_reference` (#68).":
-    "Una página de facturas, cada una incluyendo el `external_reference` propio de esta app (#68).",
-  "Filter to facturas created with this exact external_reference (#68).":
-    "Filtra a las facturas creadas con este external_reference exacto (#68).",
+  "A page of facturas, each including this app's own `external_reference`.":
+    "Una página de facturas, cada una incluyendo el `external_reference` propio de esta app.",
+  "Filter to facturas created with this exact external_reference.":
+    "Filtra a las facturas creadas con este external_reference exacto.",
   "Create a factura (I/E/N/P/T) via raw stamping-provider pass-through":
     "Crea una factura (I/E/N/P/T) mediante paso directo al proveedor de timbrado",
   "The created invoice, raw shape from the stamping provider.": "La factura creada, en el formato crudo del proveedor de timbrado.",
@@ -204,15 +204,15 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     "Se reutilizó el Idempotency-Key con un body de solicitud distinto.",
   "Retrieve a factura by its stamping-provider invoice id": "Consulta una factura por su id de invoice del proveedor de timbrado",
   "The full raw invoice object from the stamping provider.": "El objeto completo y crudo del invoice del proveedor de timbrado.",
-  "The full raw invoice object from the stamping provider, plus this app's own `external_reference` (#68).":
-    "El objeto completo y crudo del invoice del proveedor de timbrado, más el `external_reference` propio de esta app (#68).",
+  "The full raw invoice object from the stamping provider, plus this app's own `external_reference`.":
+    "El objeto completo y crudo del invoice del proveedor de timbrado, más el `external_reference` propio de esta app.",
   "Cancel a factura": "Cancela una factura",
   "SAT cancellation motive code, defaults to 02.": "Código de motivo de cancelación del SAT, por defecto 02.",
   "Replacement invoice UUID, required for motive 01.":
     "UUID de la factura de reemplazo, requerido para el motivo 01.",
   "The cancelled invoice, raw invoice shape.": "La factura cancelada, en el formato crudo del proveedor de timbrado.",
-  "The cancelled invoice, raw shape from the stamping provider, plus this app's own `external_reference` (#68).":
-    "La factura cancelada, en el formato crudo del proveedor de timbrado, más el `external_reference` propio de esta app (#68).",
+  "The cancelled invoice, raw shape from the stamping provider, plus this app's own `external_reference`.":
+    "La factura cancelada, en el formato crudo del proveedor de timbrado, más el `external_reference` propio de esta app.",
   "Stamp a draft factura with the SAT": "Timbra una factura en borrador ante el SAT",
   "The stamped invoice, raw shape returned by the stamping provider.": "La factura timbrada, en el formato crudo devuelto por el proveedor de timbrado.",
   "Idempotency-Key header is required.": "El header Idempotency-Key es requerido.",
@@ -233,8 +233,8 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     "Clave c_ClaveProdServ del SAT. También se reutiliza como BienesTransp a menos que se indique bienes_transp.",
   "SAT c_BienesTransp key, if it differs from clave_prod_serv.":
     "Clave c_BienesTransp del SAT, si difiere de clave_prod_serv.",
-  "Inline mercancía data, mutually exclusive with pedimento_id (#64).":
-    "Datos de mercancía en línea, mutuamente excluyentes con pedimento_id (#64).",
+  "Inline mercancía data, mutually exclusive with pedimento_id.":
+    "Datos de mercancía en línea, mutuamente excluyentes con pedimento_id.",
   "When true, inline mercancías (mercancias[]) missing a resolvable clave_prod_serv are classified via an automated classification pipeline and persisted to productos when keyed by fraccion. Adds latency to the request, so it defaults to false. Only applies to the inline mercancías path.":
     "Cuando es true, las mercancías en línea (mercancias[]) sin un clave_prod_serv resoluble se clasifican mediante un pipeline de clasificación automática y se guardan en productos cuando están indexadas por fraccion. Agrega latencia a la solicitud, por lo que su valor por defecto es false. Solo aplica a la ruta de mercancías en línea.",
   'SAT c_FiguraTransporte key, e.g. "01" (Operador).':
@@ -326,8 +326,8 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     "El PLATFORM_ADMIN_KEY del despliegue — no es una API key de un tenant. Nunca compartas esto con una plataforma integradora.",
   "Provision a new org, its stamping-provider sub-account, and an API key":
     "Aprovisiona una nueva organización, su subcuenta del proveedor de timbrado, y una API key",
-  "Platform-admin-only (#72) — replaces the manual scripts/issue-api-key.ts step for onboarding a new transportista. Creates an organizations row, provisions a stamping-provider sub-account for it (reusing the same logic the Stripe upgrade flow uses), and issues its first API key, returned in plaintext exactly once.":
-    "Solo para administradores de la plataforma (#72) — reemplaza el paso manual de scripts/issue-api-key.ts para dar de alta un nuevo transportista. Crea un registro en organizations, aprovisiona una subcuenta del proveedor de timbrado (reutilizando la misma lógica que usa el flujo de actualización de Stripe), y emite su primera API key, devuelta en texto plano exactamente una vez.",
+  "Platform-admin-only — onboards a new org. Creates an organizations row, provisions a stamping-provider sub-account for it, and issues its first API key, returned in plaintext exactly once.":
+    "Solo para administradores de la plataforma — da de alta una nueva organización. Crea un registro en organizations, aprovisiona una subcuenta del proveedor de timbrado, y emite su primera API key, devuelta en texto plano exactamente una vez.",
   "Name for the new stamping-provider sub-account.": "Nombre para la nueva subcuenta del proveedor de timbrado.",
   "Caller-supplied id for the new org, e.g. for idempotent retries. Auto-generated if omitted.":
     "Id proporcionado por quien llama para la nueva organización, por ejemplo para reintentos idempotentes. Se genera automáticamente si se omite.",

@@ -21,7 +21,7 @@ registry.registerPath({
   request: { params: z.object({ id: z.string() }) },
   responses: {
     200: {
-      description: "The full raw invoice object from the stamping provider, plus this app's own `external_reference` (#68).",
+      description: "The full raw invoice object from the stamping provider, plus this app's own `external_reference`.",
       content: { "application/json": { schema: rawInvoiceSchema } },
     },
     ...unauthorizedResponse,
@@ -67,7 +67,7 @@ registry.registerPath({
   },
   responses: {
     200: {
-      description: "The cancelled invoice, raw shape from the stamping provider, plus this app's own `external_reference` (#68).",
+      description: "The cancelled invoice, raw shape from the stamping provider, plus this app's own `external_reference`.",
       content: { "application/json": { schema: rawInvoiceSchema } },
     },
     ...unauthorizedResponse,

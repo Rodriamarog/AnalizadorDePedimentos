@@ -6,7 +6,7 @@ export const registry = new OpenAPIRegistry();
 export const bearerAuth = registry.registerComponent("securitySchemes", "bearerAuth", {
   type: "http",
   scheme: "bearer",
-  description: "A key issued via scripts/issue-api-key.ts, e.g. `Authorization: Bearer <key>`.",
+  description: "An API key issued from Configuración in the dashboard, e.g. `Authorization: Bearer <key>`.",
 });
 
 // A single shared secret (PLATFORM_ADMIN_KEY), distinct from tenant API

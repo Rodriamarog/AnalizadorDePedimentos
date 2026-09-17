@@ -101,13 +101,13 @@ registry.registerPath({
       limit: z.coerce.number().optional(),
       offset: z.coerce.number().optional(),
       external_reference: z.string().optional().meta({
-        description: "Filter to facturas created with this exact external_reference (#68).",
+        description: "Filter to facturas created with this exact external_reference.",
       }),
     }),
   },
   responses: {
     200: {
-      description: "A page of facturas, each including this app's own `external_reference` (#68).",
+      description: "A page of facturas, each including this app's own `external_reference`.",
       content: { "application/json": { schema: z.object({ data: z.array(rawInvoiceSchema), meta: z.object({ limit: z.number(), offset: z.number(), total: z.number() }) }) } },
     },
     ...invalidParameterResponse,
