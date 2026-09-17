@@ -491,15 +491,22 @@ function ApiKeysCard({ plan }: { plan: "demo" | "live" | null }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ label: label.trim() || undefined }),
       });
-      const data = await res.json();
+      // A non-2xx response isn't guaranteed to be JSON (a framework-level
+      // 500 renders an HTML error page) — res.json() would throw and, with
+      // no catch, leave the button silently resetting with no feedback at
+      // all. Read as text first and only parse what looks like JSON.
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
       if (!res.ok) {
-        setError(data.error ?? "Error al crear la llave");
+        setError(typeof data.error === "string" ? data.error : "Error al crear la llave");
         return;
       }
       setLabel("");
       setRevealedKey(data.key);
       setCopied(false);
       await load();
+    } catch {
+      setError("Error al crear la llave. Intenta de nuevo.");
     } finally {
       setCreating(false);
     }
