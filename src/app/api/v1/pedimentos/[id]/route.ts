@@ -6,6 +6,8 @@ import { apiError } from "@/lib/v1/envelope";
 import { bearerAuth, ErrorSchema, registry, unauthorizedResponse } from "@/lib/v1/openapi";
 import { pedimentos, partidas } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
+import { umcToUnitKey } from "@/lib/umc";
+import { productosByFraccion } from "@/lib/v1/productosLookup";
 
 const partidaResponseSchema = z.object({
   sec: z.number(),
@@ -23,6 +25,19 @@ const partidaResponseSchema = z.object({
   umc: z.string().nullable(),
   tipo_cambio: z.number().nullable(),
   peso_kg: z.number().nullable(),
+  // SAT codes resolved for this partida (#60): clave_prod_serv is `null`
+  // with `clave_prod_serv_mapped: false` when the fracción has no entry yet
+  // in the org's `productos` table — an explicit "not mapped" signal, not
+  // just an ambiguous bare null (which could otherwise mean "mapped to
+  // nothing" or "not looked up at all").
+  clave_prod_serv: z.string().nullable(),
+  clave_prod_serv_description: z.string().nullable(),
+  clave_prod_serv_confidence: z.string().nullable(),
+  clave_prod_serv_mapped: z.boolean(),
+  // Always present, via the deterministic umc -> c_ClaveUnidad lookup
+  // (src/lib/umc.ts) — unlike clave_prod_serv this never needs AI and has a
+  // safe default fallback, so there's no "unmapped" state to signal.
+  clave_unidad: z.string(),
 });
 
 const pedimentoResponseSchema = z.object({
@@ -80,13 +95,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const [pedimento] = await tx.select().from(pedimentos).where(eq(pedimentos.id, id)).limit(1);
     if (!pedimento) return null;
     const rows = await tx.select().from(partidas).where(eq(partidas.pedimentoId, id)).orderBy(asc(partidas.sec));
-    return { pedimento, rows };
+
+    const productoRows = await productosByFraccion(tx, auth.orgId, rows.map((p) => p.fraccion));
+    const productoByFraccion = new Map(productoRows.map((p) => [p.fraccion, p]));
+
+    return { pedimento, rows, productoByFraccion };
   });
 
   if (!result) {
     return apiError(404, "not_found", "No pedimento with that id");
   }
-  const { pedimento, rows } = result;
+  const { pedimento, rows, productoByFraccion } = result;
 
   return NextResponse.json({
     pedimento_id: pedimento.id,
@@ -109,22 +128,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     clave_aduana: pedimento.claveAduana,
     peso_bruto: pedimento.pesoBruto,
     identificadores_doc_aduanero: pedimento.identificadoresDocAduanero,
-    partidas: rows.map((p) => ({
-      sec: p.sec,
-      fraccion: p.fraccion,
-      subd: p.subd,
-      descripcion: p.descripcion,
-      marca: p.marca,
-      pais_origen: p.paisOrigen,
-      nom_clave: p.nomClave,
-      cantidad: p.cantidad,
-      val_aduana: p.valAduana,
-      val_comercial: p.valComercial,
-      precio_unitario: p.precioUnitario,
-      tiene_incrementables: p.tieneIncrementables,
-      umc: p.umc,
-      tipo_cambio: p.tipoCambio,
-      peso_kg: p.pesoKg,
-    })),
+    partidas: rows.map((p) => {
+      const producto = productoByFraccion.get(p.fraccion);
+      return {
+        sec: p.sec,
+        fraccion: p.fraccion,
+        subd: p.subd,
+        descripcion: p.descripcion,
+        marca: p.marca,
+        pais_origen: p.paisOrigen,
+        nom_clave: p.nomClave,
+        cantidad: p.cantidad,
+        val_aduana: p.valAduana,
+        val_comercial: p.valComercial,
+        precio_unitario: p.precioUnitario,
+        tiene_incrementables: p.tieneIncrementables,
+        umc: p.umc,
+        tipo_cambio: p.tipoCambio,
+        peso_kg: p.pesoKg,
+        clave_prod_serv: producto?.claveProdServ ?? null,
+        clave_prod_serv_description: producto?.descripcionSat ?? null,
+        clave_prod_serv_confidence: producto?.confidence ?? null,
+        clave_prod_serv_mapped: !!producto?.claveProdServ,
+        clave_unidad: umcToUnitKey(p.umc),
+      };
+    }),
   });
 }

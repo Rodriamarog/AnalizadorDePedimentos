@@ -23,7 +23,18 @@ registry.registerPath({
     body: {
       content: {
         "multipart/form-data": {
-          schema: z.object({ file: z.string().meta({ format: "binary", description: "PDF or Archivo M file." }) }),
+          schema: z.object({
+            file: z.string().meta({ format: "binary", description: "PDF or Archivo M file." }),
+            auto_classify: z
+              .stringbool()
+              .optional()
+              .meta({
+                description:
+                  "When true, unmapped fracciones are classified via the Gemini automap pipeline " +
+                  "and persisted to productos before the job is marked done. Costs real Gemini $ per " +
+                  "call and can take up to ~2 minutes for a batch, so it defaults to false.",
+              }),
+          }),
         },
       },
     },
@@ -63,6 +74,9 @@ export async function POST(req: NextRequest) {
     ]);
   }
 
+  const autoClassifyRaw = form.get("auto_classify");
+  const autoClassify = typeof autoClassifyRaw === "string" ? ["true", "1", "yes", "on"].includes(autoClassifyRaw) : false;
+
   const job = await createPedimentoJob(auth.orgId, file.name);
 
   // `after()` (next/server) schedules work post-response without blocking
@@ -70,7 +84,7 @@ export async function POST(req: NextRequest) {
   // deploy targets this app actually runs on (self-hosted, not serverless;
   // see node_modules/next/dist/docs/01-app/03-api-reference/04-functions/after.md's
   // platform-support table), so no `waitUntil` shim is needed here.
-  after(() => runPedimentoJob(job.id, auth.orgId, file));
+  after(() => runPedimentoJob(job.id, auth.orgId, file, autoClassify));
 
   return NextResponse.json(
     { job_id: job.id, status: "pending", created_at: job.createdAt.toISOString() },
