@@ -157,8 +157,8 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
   "Upload a pedimento (PDF or Archivo M) for async parsing":
     "Sube un pedimento (PDF o Archivo M) para análisis asíncrono",
   "PDF or Archivo M file.": "Archivo PDF o Archivo M.",
-  "When true, unmapped fracciones are classified via the Gemini automap pipeline and persisted to productos before the job is marked done. Costs real Gemini $ per call and can take up to ~2 minutes for a batch, so it defaults to false.":
-    "Cuando es true, las fracciones sin mapeo se clasifican mediante el pipeline de automapeo de Gemini y se guardan en productos antes de marcar el job como terminado. Tiene costo real en $ de Gemini por llamada y puede tardar hasta ~2 minutos por lote, por lo que su valor por defecto es false.",
+  "When true, unmapped fracciones are classified via an automated classification pipeline and persisted to productos before the job is marked done. Can take up to ~2 minutes for a batch, so it defaults to false.":
+    "Cuando es true, las fracciones sin mapeo se clasifican mediante un pipeline de clasificación automática y se guardan en productos antes de marcar el job como terminado. Puede tardar hasta ~2 minutos por lote, por lo que su valor por defecto es false.",
   "Upload accepted; poll GET /jobs/{job_id} for the result.":
     "Carga aceptada; consulta GET /jobs/{job_id} para el resultado.",
   "Invalid request parameters.": "Parámetros de la solicitud inválidos.",
@@ -193,8 +193,8 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
   "The invoice XML.": "El XML de la factura.",
   "Generate a draft Carta Porte factura from reference ids or inline party/goods data":
     "Genera una factura de Carta Porte en borrador a partir de ids de referencia o datos de partes/mercancías en línea",
-  "Builds a Complemento Carta Porte and a draft (unstamped) Traslado factura from cliente/direcciones/vehículo/chofer (each of which may be an existing `*_id` reference or fully inline data) plus mercancía data, which is either `pedimento_id` (reusing the pedimento's partidas the same way the internal UI's Mercancias prefill does) or inline `mercancias[]` for shipments with no pedimento at all — the two are mutually exclusive. The org's productos mapping (or, with `auto_classify: true`, the Gemini automap pipeline) resolves BienesTransp/product_key. Does not stamp — use POST /facturas/{id}/stamp afterward.":
-    "Construye un Complemento Carta Porte y una factura de Traslado en borrador (sin timbrar) a partir de cliente/direcciones/vehículo/chofer (cada uno puede ser una referencia `*_id` existente o datos completos en línea), más los datos de mercancía, que son `pedimento_id` (reutilizando las partidas del pedimento igual que el prellenado de Mercancías de la UI interna) o `mercancias[]` en línea para envíos sin pedimento — ambas opciones son mutuamente excluyentes. El mapeo de productos de la organización (o, con `auto_classify: true`, el pipeline de automapeo de Gemini) resuelve BienesTransp/product_key. No timbra — usa POST /facturas/{id}/stamp después.",
+  "Builds a Complemento Carta Porte and a draft (unstamped) Traslado factura from cliente/direcciones/vehículo/chofer (each of which may be an existing `*_id` reference or fully inline data) plus mercancía data, which is either `pedimento_id` (reusing the pedimento's partidas the same way the internal UI's Mercancias prefill does) or inline `mercancias[]` for shipments with no pedimento at all — the two are mutually exclusive. The org's productos mapping (or, with `auto_classify: true`, automated classification) resolves BienesTransp/product_key. Does not stamp — use POST /facturas/{id}/stamp afterward.":
+    "Construye un Complemento Carta Porte y una factura de Traslado en borrador (sin timbrar) a partir de cliente/direcciones/vehículo/chofer (cada uno puede ser una referencia `*_id` existente o datos completos en línea), más los datos de mercancía, que son `pedimento_id` (reutilizando las partidas del pedimento igual que el prellenado de Mercancías de la UI interna) o `mercancias[]` en línea para envíos sin pedimento — ambas opciones son mutuamente excluyentes. El mapeo de productos de la organización (o, con `auto_classify: true`, clasificación automática) resuelve BienesTransp/product_key. No timbra — usa POST /facturas/{id}/stamp después.",
   'SAT c_ClaveUnidad key, e.g. "H87". Defaults to "H87" when omitted.':
     'Clave c_ClaveUnidad del SAT, ej. "H87". Por defecto "H87" si se omite.',
   "Fracción arancelaria, if the caller has it — used to look up (or auto_classify) the org's productos mapping.":
@@ -205,8 +205,8 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     "Clave c_BienesTransp del SAT, si difiere de clave_prod_serv.",
   "Inline mercancía data, mutually exclusive with pedimento_id (#64).":
     "Datos de mercancía en línea, mutuamente excluyentes con pedimento_id (#64).",
-  "When true, inline mercancías (mercancias[]) missing a resolvable clave_prod_serv are classified via the Gemini automap pipeline and persisted to productos when keyed by fraccion. Costs real Gemini $ per call, so it defaults to false. Only applies to the inline mercancías path.":
-    "Cuando es true, las mercancías en línea (mercancias[]) sin un clave_prod_serv resoluble se clasifican mediante el pipeline de automapeo de Gemini y se guardan en productos cuando están indexadas por fraccion. Tiene costo real en $ de Gemini por llamada, por lo que su valor por defecto es false. Solo aplica a la ruta de mercancías en línea.",
+  "When true, inline mercancías (mercancias[]) missing a resolvable clave_prod_serv are classified via an automated classification pipeline and persisted to productos when keyed by fraccion. Adds latency to the request, so it defaults to false. Only applies to the inline mercancías path.":
+    "Cuando es true, las mercancías en línea (mercancias[]) sin un clave_prod_serv resoluble se clasifican mediante un pipeline de clasificación automática y se guardan en productos cuando están indexadas por fraccion. Agrega latencia a la solicitud, por lo que su valor por defecto es false. Solo aplica a la ruta de mercancías en línea.",
   'SAT c_FiguraTransporte key, e.g. "01" (Operador).':
     'Clave c_FiguraTransporte del SAT, ej. "01" (Operador).',
   "AAAA-MM-DDThh:mm:ss, the Origen ubicación's departure time.":

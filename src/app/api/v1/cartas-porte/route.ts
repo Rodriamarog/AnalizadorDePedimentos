@@ -61,8 +61,8 @@ const createCartaPorteSchema = z.object({
   auto_classify: z.boolean().optional().meta({
     description:
       "When true, inline mercancías (mercancias[]) missing a resolvable clave_prod_serv are classified " +
-      "via the Gemini automap pipeline and persisted to productos when keyed by fraccion. Costs real " +
-      "Gemini $ per call, so it defaults to false. Only applies to the inline mercancías path.",
+      "via an automated classification pipeline and persisted to productos when keyed by fraccion. Adds " +
+      "latency to the request, so it defaults to false. Only applies to the inline mercancías path.",
   }),
   tipo_figura: z.string().meta({ description: 'SAT c_FiguraTransporte key, e.g. "01" (Operador).' }),
   fecha_hora_salida: z.string().meta({ description: "AAAA-MM-DDThh:mm:ss, the Origen ubicación's departure time." }),
@@ -112,8 +112,8 @@ registry.registerPath({
     "vehículo/chofer (each of which may be an existing `*_id` reference or fully inline data) plus mercancía " +
     "data, which is either `pedimento_id` (reusing the pedimento's partidas the same way the internal UI's " +
     "Mercancias prefill does) or inline `mercancias[]` for shipments with no pedimento at all — the two are " +
-    "mutually exclusive. The org's productos mapping (or, with `auto_classify: true`, the Gemini automap " +
-    "pipeline) resolves BienesTransp/product_key. Does not stamp — use POST /facturas/{id}/stamp afterward.",
+    "mutually exclusive. The org's productos mapping (or, with `auto_classify: true`, automated " +
+    "classification) resolves BienesTransp/product_key. Does not stamp — use POST /facturas/{id}/stamp afterward.",
   tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: { body: { content: { "application/json": { schema: createCartaPorteSchema } } } },

@@ -30,9 +30,9 @@ registry.registerPath({
               .optional()
               .meta({
                 description:
-                  "When true, unmapped fracciones are classified via the Gemini automap pipeline " +
-                  "and persisted to productos before the job is marked done. Costs real Gemini $ per " +
-                  "call and can take up to ~2 minutes for a batch, so it defaults to false.",
+                  "When true, unmapped fracciones are classified via an automated classification " +
+                  "pipeline and persisted to productos before the job is marked done. Can take up to " +
+                  "~2 minutes for a batch, so it defaults to false.",
               }),
           }),
         },
