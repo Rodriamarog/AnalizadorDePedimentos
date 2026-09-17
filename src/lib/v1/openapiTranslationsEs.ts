@@ -3,10 +3,10 @@ import type { TranslationDictionary } from "@/lib/v1/translateOpenApiDocument";
 const GUIDES_MARKDOWN_ES = `
 ## Configuración de autenticación
 
-Toda solicitud a \`/api/v1\` necesita \`Authorization: Bearer <key>\`. Las keys se
-emiten fuera de banda (todavía no hay una UI de autoservicio) con el formato
-\`pdm_<mode>_<hex>\`, y solo se muestran una vez al momento de emitirlas —
-guárdala de inmediato.
+Toda solicitud a \`/api/v1\` necesita \`Authorization: Bearer <key>\`. Las keys
+son de autoservicio — emite una desde Configuración en el dashboard — y
+tienen el formato \`pdm_<mode>_<hex>\`. Una key solo se muestra una vez, al
+momento de emitirla — guárdala de inmediato.
 
 Hay un límite fijo de 60 solicitudes por minuto por organización, sin importar
 el plan o el modo de la key; una solicitud que exceda el límite recibe
@@ -75,9 +75,10 @@ export const openapiTranslationsEs: TranslationDictionary = {
     "API pública de Pedimentos — búsqueda en catálogos del SAT y, más adelante, emisión de facturas.",
   [`## Auth setup
 
-Every \`/api/v1\` request needs \`Authorization: Bearer <key>\`. Keys are issued
-out of band (there's no self-serve UI yet) as \`pdm_<mode>_<hex>\`, and are
-only ever shown once at issuance time — store it immediately.
+Every \`/api/v1\` request needs \`Authorization: Bearer <key>\`. Keys are
+self-serve — issue one from Configuración in the dashboard — and are shaped
+\`pdm_<mode>_<hex>\`. A key is only ever shown once, at issuance time —
+store it immediately.
 
 There's a flat rate limit of 60 requests/minute per org, regardless of plan
 or key mode; a request over the limit gets back \`429 rate_limit_exceeded\`.

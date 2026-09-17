@@ -52,9 +52,10 @@ export const invalidParameterResponse = {
 const GUIDES_MARKDOWN = `
 ## Auth setup
 
-Every \`/api/v1\` request needs \`Authorization: Bearer <key>\`. Keys are issued
-out of band (there's no self-serve UI yet) as \`pdm_<mode>_<hex>\`, and are
-only ever shown once at issuance time — store it immediately.
+Every \`/api/v1\` request needs \`Authorization: Bearer <key>\`. Keys are
+self-serve — issue one from Configuración in the dashboard — and are shaped
+\`pdm_<mode>_<hex>\`. A key is only ever shown once, at issuance time —
+store it immediately.
 
 There's a flat rate limit of 60 requests/minute per org, regardless of plan
 or key mode; a request over the limit gets back \`429 rate_limit_exceeded\`.
