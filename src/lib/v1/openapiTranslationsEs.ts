@@ -306,4 +306,19 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
   "The updated producto.": "El producto actualizado.",
   "Delete a producto": "Elimina un producto",
   "The producto was deleted.": "El producto fue eliminado.",
+  "Upload the org's CSD (Certificado de Sello Digital) for stamping.":
+    "Sube el CSD (Certificado de Sello Digital) de la organización para timbrar.",
+  "Platform-admin-only endpoints for onboarding new orgs.":
+    "Endpoints solo para administradores de la plataforma, para dar de alta nuevas organizaciones.",
+  "Upload the org's CSD (cer/key/password) for stamping":
+    "Sube el CSD (cer/key/password) de la organización para timbrar",
+  "Proxies straight through to FacturAPI's certificate endpoint using the org's own key — same logic the internal dashboard's CSD upload uses. Nothing but a success timestamp is ever persisted locally; the cert, key, and password never touch this app's database or disk.":
+    "Reenvía directamente al endpoint de certificado de FacturAPI usando la llave propia de la organización — la misma lógica que usa la carga de CSD del dashboard interno. Solo se persiste localmente una marca de tiempo de éxito; el certificado, la llave y la contraseña nunca tocan la base de datos ni el disco de esta app.",
+  "The .cer certificate file.": "El archivo de certificado .cer.",
+  "The .key private key file.": "El archivo de llave privada .key.",
+  "The private key's password.": "La contraseña de la llave privada.",
+  "The CSD was uploaded successfully.": "El CSD se subió exitosamente.",
+  "ISO 8601 timestamp of the successful upload.": "Marca de tiempo ISO 8601 de la carga exitosa.",
+  "FacturAPI rejected the certificate/key/password, or couldn't be reached.":
+    "FacturAPI rechazó el certificado/llave/contraseña, o no se pudo contactar.",
 };

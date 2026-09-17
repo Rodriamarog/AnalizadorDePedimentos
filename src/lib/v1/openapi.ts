@@ -130,6 +130,8 @@ export function generateOpenApiDocument() {
       { name: "choferes", description: "The org's drivers, for Carta Porte's FiguraTransporte." },
       { name: "direcciones", description: "Saved Origen/Destino addresses, for Carta Porte's Ubicaciones." },
       { name: "catalogs", description: "SAT catalog search (unidades de medida, claves de producto/servicio)." },
+      { name: "csd", description: "Upload the org's CSD (Certificado de Sello Digital) for stamping." },
+      { name: "admin", description: "Platform-admin-only endpoints for onboarding new orgs." },
     ],
   });
   return {
@@ -140,6 +142,7 @@ export function generateOpenApiDocument() {
       { name: "Facturas", tags: ["facturas"] },
       { name: "Reference data", tags: ["clientes", "productos", "vehiculos", "choferes", "direcciones"] },
       { name: "Catalogs", tags: ["catalogs"] },
+      { name: "Organizations", tags: ["csd", "admin"] },
     ],
   };
 }

@@ -24,3 +24,4 @@ import "@/app/api/v1/clientes/route";
 import "@/app/api/v1/clientes/[id]/route";
 import "@/app/api/v1/productos/route";
 import "@/app/api/v1/productos/[id]/route";
+import "@/app/api/v1/csd/route";
