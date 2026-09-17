@@ -24,6 +24,23 @@ const direccionInlineSchema = createDireccionSchema.omit({ tipo: true });
 const vehiculoInlineSchema = createVehiculoSchema;
 const choferInlineSchema = createChoferSchema;
 
+// Inline goods (#64): an alternative to `pedimento_id` for shipments that
+// never went through pedimento upload/parsing. `clave_prod_serv`/
+// `bienes_transp` are optional — if the caller doesn't supply them and no
+// `productos` mapping exists for a supplied `fraccion`, the SAT code is left
+// unresolved unless `auto_classify` (#65) is set.
+const mercanciaInlineSchema = z.object({
+  descripcion: z.string(),
+  cantidad: z.number(),
+  peso_kg: z.number(),
+  clave_unidad: z.string().optional().meta({ description: 'SAT c_ClaveUnidad key, e.g. "H87". Defaults to "H87" when omitted.' }),
+  fraccion: z.string().optional().meta({ description: "Fracción arancelaria, if the caller has it — used to look up (or auto_classify) the org's productos mapping." }),
+  clave_prod_serv: z.string().optional().meta({ description: "SAT c_ClaveProdServ key. Also reused as BienesTransp unless bienes_transp is given." }),
+  bienes_transp: z.string().optional().meta({ description: "SAT c_BienesTransp key, if it differs from clave_prod_serv." }),
+  valor_mercancia: z.number().optional(),
+  moneda: z.string().optional(),
+});
+
 const createCartaPorteSchema = z.object({
   cliente_id: z.string().optional(),
   cliente: clienteInlineSchema.optional(),
@@ -35,7 +52,18 @@ const createCartaPorteSchema = z.object({
   vehiculo: vehiculoInlineSchema.optional(),
   chofer_id: z.string().optional(),
   chofer: choferInlineSchema.optional(),
-  pedimento_id: z.string(),
+  pedimento_id: z.string().optional(),
+  mercancias: z
+    .array(mercanciaInlineSchema)
+    .min(1)
+    .optional()
+    .meta({ description: "Inline mercancía data, mutually exclusive with pedimento_id (#64)." }),
+  auto_classify: z.boolean().optional().meta({
+    description:
+      "When true, inline mercancías (mercancias[]) missing a resolvable clave_prod_serv are classified " +
+      "via the Gemini automap pipeline and persisted to productos when keyed by fraccion. Costs real " +
+      "Gemini $ per call, so it defaults to false. Only applies to the inline mercancías path.",
+  }),
   tipo_figura: z.string().meta({ description: 'SAT c_FiguraTransporte key, e.g. "01" (Operador).' }),
   fecha_hora_salida: z.string().meta({ description: "AAAA-MM-DDThh:mm:ss, the Origen ubicación's departure time." }),
   fecha_hora_llegada: z.string().meta({ description: "AAAA-MM-DDThh:mm:ss, the Destino ubicación's arrival time." }),
@@ -64,6 +92,7 @@ function validateExclusive(idValue: unknown, inlineValue: unknown, field: string
 
 function validateBody(body: CreateCartaPorteBody): NextResponse | null {
   return (
+    validateExclusive(body.pedimento_id, body.mercancias, "pedimento_id") ??
     validateExclusive(body.cliente_id, body.cliente, "cliente_id") ??
     validateExclusive(body.direccion_origen_id, body.direccion_origen, "direccion_origen_id") ??
     validateExclusive(body.direccion_destino_id, body.direccion_destino, "direccion_destino_id") ??
@@ -77,13 +106,14 @@ const invoiceResponseSchema = z.record(z.string(), z.unknown());
 registry.registerPath({
   method: "post",
   path: "/cartas-porte",
-  summary: "Generate a draft Carta Porte factura from reference ids or inline party data",
+  summary: "Generate a draft Carta Porte factura from reference ids or inline party/goods data",
   description:
-    "Builds a Complemento Carta Porte and a draft (unstamped) Traslado factura from a pedimento plus " +
-    "cliente/direcciones/vehículo/chofer, each of which may be an existing `*_id` reference or fully " +
-    "inline data. Reuses the pedimento's partidas (via the same Mercancias prefill the internal UI uses) " +
-    "and the org's productos mapping for BienesTransp/product_key. Does not stamp — use " +
-    "POST /facturas/{id}/stamp afterward.",
+    "Builds a Complemento Carta Porte and a draft (unstamped) Traslado factura from cliente/direcciones/" +
+    "vehículo/chofer (each of which may be an existing `*_id` reference or fully inline data) plus mercancía " +
+    "data, which is either `pedimento_id` (reusing the pedimento's partidas the same way the internal UI's " +
+    "Mercancias prefill does) or inline `mercancias[]` for shipments with no pedimento at all — the two are " +
+    "mutually exclusive. The org's productos mapping (or, with `auto_classify: true`, the Gemini automap " +
+    "pipeline) resolves BienesTransp/product_key. Does not stamp — use POST /facturas/{id}/stamp afterward.",
   tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: { body: { content: { "application/json": { schema: createCartaPorteSchema } } } },

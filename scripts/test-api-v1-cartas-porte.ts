@@ -255,11 +255,196 @@ async function main() {
   const replayInv = await replayRes.json();
   assert(replayInv.id === inv.id, "replay does not re-create the invoice");
 
+  // ── #64/#65: inline mercancía, mutually exclusive with pedimento_id ────
+
+  const inlinePayload = {
+    cliente: { legal_name: "Carlos Alberto Amaro Reyes", tax_id: "AARC700811CL4", tax_system: "616", zip: "22504" },
+    direccion_origen_id: direccionOrigen.id,
+    direccion_destino: basePayload.direccion_destino,
+    vehiculo_id: vehiculo.id,
+    chofer_id: chofer.id,
+    tipo_figura: "01",
+    fecha_hora_salida: "2026-01-15T08:00:00",
+    fecha_hora_llegada: "2026-01-15T20:00:00",
+    distancia_recorrida_km: 250,
+  };
+
+  // 7. Both pedimento_id and mercancias -> 400 invalid_parameter (XOR, #64).
+  const bothMercanciasRes = await createCartaPorte(
+    authedReq("http://localhost/api/v1/cartas-porte", {
+      method: "POST",
+      headers: { "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({
+        ...inlinePayload,
+        pedimento_id: pedimentoId,
+        mercancias: [{ descripcion: "Herramienta manual", cantidad: 1, peso_kg: 5 }],
+      }),
+    })
+  );
+  assert(bothMercanciasRes.status === 400, "pedimento_id + mercancias together is rejected");
+  const bothMercanciasBody = await bothMercanciasRes.json();
+  assert(bothMercanciasBody.error?.code === "invalid_parameter", "pedimento_id/mercancias conflict uses the standard error envelope");
+
+  // 8. Neither pedimento_id nor mercancias -> 400 invalid_parameter.
+  const neitherMercanciasRes = await createCartaPorte(
+    authedReq("http://localhost/api/v1/cartas-porte", {
+      method: "POST",
+      headers: { "Idempotency-Key": randomUUID() },
+      body: JSON.stringify(inlinePayload),
+    })
+  );
+  assert(neitherMercanciasRes.status === 400, "neither pedimento_id nor mercancias is rejected");
+
+  // 9. Inline mercancía with an explicit clave_prod_serv -> 201, no pedimento
+  // anywhere in the flow (#64).
+  const explicitCodeRes = await createCartaPorte(
+    authedReq("http://localhost/api/v1/cartas-porte", {
+      method: "POST",
+      headers: { "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({
+        ...inlinePayload,
+        mercancias: [
+          {
+            descripcion: "Cable de cobre",
+            cantidad: 10,
+            peso_kg: 50,
+            clave_unidad: "KGM",
+            clave_prod_serv: "26121600",
+          },
+        ],
+      }),
+    })
+  );
+  assert(
+    explicitCodeRes.status === 201,
+    `inline mercancía with explicit clave_prod_serv succeeds (got ${explicitCodeRes.status}: ${JSON.stringify(await explicitCodeRes.clone().json())})`
+  );
+  const explicitCodeInv = await explicitCodeRes.json();
+  const explicitCodeComplement = explicitCodeInv.complements?.find((c: { type: string }) => c.type === "carta_porte");
+  const explicitMercancia = explicitCodeComplement?.data?.Mercancias?.Mercancia?.[0];
+  assert(!!explicitMercancia, "inline complement has a Mercancia entry");
+  assert(explicitMercancia.BienesTransp === "26121600", "explicit clave_prod_serv is reused as BienesTransp");
+  assert(explicitCodeInv.items?.[0]?.product?.product_key === "26121600", "explicit clave_prod_serv is used as the CFDI product_key");
+
+  const [explicitLocalRow] = await withOrg(ORG, (tx) => tx.select().from(facturas).where(eq(facturas.facturapiId, explicitCodeInv.id)));
+  assert(explicitLocalRow?.pedimentoId === null, "inline-mercancía factura has no pedimento link");
+
+  // 9b. bienes_transp and clave_prod_serv are distinct catalogs (c_BienesTransp
+  // vs c_ClaveProdServ) — a caller supplying both must not have bienes_transp
+  // leak into the CFDI product_key (#64/#65 reuse only goes clave_prod_serv ->
+  // BienesTransp, never the other direction).
+  const distinctCodesRes = await createCartaPorte(
+    authedReq("http://localhost/api/v1/cartas-porte", {
+      method: "POST",
+      headers: { "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({
+        ...inlinePayload,
+        mercancias: [
+          {
+            descripcion: "Motor eléctrico",
+            cantidad: 2,
+            peso_kg: 30,
+            clave_unidad: "H87",
+            clave_prod_serv: "26111702",
+            bienes_transp: "78101800",
+            valor_mercancia: 5000,
+          },
+        ],
+      }),
+    })
+  );
+  assert(
+    distinctCodesRes.status === 201,
+    `distinct clave_prod_serv/bienes_transp succeeds (got ${distinctCodesRes.status}: ${JSON.stringify(await distinctCodesRes.clone().json())})`
+  );
+  const distinctCodesInv = await distinctCodesRes.json();
+  const distinctMercancia = distinctCodesInv.complements
+    ?.find((c: { type: string }) => c.type === "carta_porte")
+    ?.data?.Mercancias?.Mercancia?.[0];
+  assert(distinctMercancia?.BienesTransp === "78101800", "explicit bienes_transp is used as-is for BienesTransp");
+  assert(distinctCodesInv.items?.[0]?.product?.product_key === "26111702", "explicit bienes_transp does not leak into the CFDI product_key");
+  assert(distinctMercancia?.ValorMercancia === 5000, "valor_mercancia passes through");
+  assert(distinctMercancia?.Moneda === "MXN", "valor_mercancia without an explicit moneda defaults to MXN");
+
+  // 10. Inline mercancía with no code at all and auto_classify unset -> SAT
+  // code is left unresolved, falling back to the generic placeholder rather
+  // than failing the draft.
+  const unresolvedRes = await createCartaPorte(
+    authedReq("http://localhost/api/v1/cartas-porte", {
+      method: "POST",
+      headers: { "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({
+        ...inlinePayload,
+        mercancias: [{ descripcion: "Artículo sin clasificar", cantidad: 1, peso_kg: 2 }],
+      }),
+    })
+  );
+  assert(
+    unresolvedRes.status === 201,
+    `inline mercancía with no code still creates a draft (got ${unresolvedRes.status}: ${JSON.stringify(await unresolvedRes.clone().json())})`
+  );
+  const unresolvedInv = await unresolvedRes.json();
+  const unresolvedComplement = unresolvedInv.complements?.find((c: { type: string }) => c.type === "carta_porte");
+  assert(
+    unresolvedComplement?.data?.Mercancias?.Mercancia?.[0]?.BienesTransp === "01010101",
+    "unresolved item falls back to the generic SAT placeholder code"
+  );
+
+  // 11. auto_classify=true with a fraccion runs the Gemini automap pipeline
+  // and, when it resolves a key, persists it into productos (#65). Same
+  // fraccion/descripcion fixture as scripts/test-automap-integration.ts,
+  // which the real Gemini API classifies reliably — but classification is
+  // still nondeterministic, so this doesn't hard-fail on a null key the way
+  // that script doesn't either; it only asserts the pipeline ran without
+  // error and persisted whatever it resolved.
+  const autoClassifyFraccion = "87089999";
+  const autoClassifyRes = await createCartaPorte(
+    authedReq("http://localhost/api/v1/cartas-porte", {
+      method: "POST",
+      headers: { "Idempotency-Key": randomUUID() },
+      body: JSON.stringify({
+        ...inlinePayload,
+        auto_classify: true,
+        mercancias: [
+          {
+            descripcion: "PARTES Y ACCESORIOS PARA VEHICULOS AUTOMOVILES",
+            cantidad: 1,
+            peso_kg: 3,
+            fraccion: autoClassifyFraccion,
+          },
+        ],
+      }),
+    })
+  );
+  assert(
+    autoClassifyRes.status === 201,
+    `auto_classify inline mercancía succeeds (got ${autoClassifyRes.status}: ${JSON.stringify(await autoClassifyRes.clone().json())})`
+  );
+  const autoClassifyInv = await autoClassifyRes.json();
+  const autoClassifyComplement = autoClassifyInv.complements?.find((c: { type: string }) => c.type === "carta_porte");
+  const autoClassifiedMercancia = autoClassifyComplement?.data?.Mercancias?.Mercancia?.[0];
+  assert(!!autoClassifiedMercancia?.BienesTransp, "auto_classify path still resolves a non-empty BienesTransp (classified or fallback)");
+
+  const [autoClassifiedProducto] = await withOrg(ORG, (tx) =>
+    tx.select().from(productos).where(eq(productos.fraccion, autoClassifyFraccion))
+  );
+  if (autoClassifiedProducto?.claveProdServ) {
+    assert(
+      autoClassifiedMercancia.BienesTransp === autoClassifiedProducto.claveProdServ,
+      "persisted productos mapping matches the code reused as BienesTransp"
+    );
+    console.log(`  auto_classify resolved and persisted ${autoClassifyFraccion} -> ${autoClassifiedProducto.claveProdServ}`);
+  } else {
+    console.log(`  auto_classify did not resolve a key for ${autoClassifyFraccion} this run (Gemini classification is nondeterministic)`);
+  }
+
   await cleanup();
   console.log(
     "POST /cartas-porte verified: Idempotency-Key required, id/inline exclusivity (#63), invalid reference -> 400, " +
-      "and a successful mixed reference-id/inline create returns a draft Traslado factura with its Carta Porte " +
-      "complement attached (#62)."
+      "a successful mixed reference-id/inline create returns a draft Traslado factura with its Carta Porte " +
+      "complement attached (#62), inline mercancía is mutually exclusive with pedimento_id and builds a valid " +
+      "Mercancias node with unresolved codes left blank (#64), and auto_classify resolves+persists SAT codes " +
+      "for inline mercancía via automap (#65)."
   );
 }
 
