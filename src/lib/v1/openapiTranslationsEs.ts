@@ -175,6 +175,24 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
   "Create a factura (I/E/N/P/T) via raw FacturAPI pass-through":
     "Crea una factura (I/E/N/P/T) mediante paso directo a FacturAPI",
   "The created invoice, raw FacturAPI shape.": "La factura creada, en el formato crudo de FacturAPI.",
+  'CFDI type. Defaults to "I" (Ingreso) when omitted.':
+    'Tipo de CFDI. Por defecto "I" (Ingreso) si se omite.',
+  "FacturAPI customer id (the unprefixed `id` from POST /clientes' response). Required for every type except Traslado (\"T\"), which carries no customer.":
+    "Id de cliente de FacturAPI (el `id` sin prefijo de la respuesta de POST /clientes). Requerido para todos los tipos excepto Traslado (\"T\"), que no lleva customer.",
+  "CFDI line items (conceptos), each shaped `{ quantity, product: { description, product_key, unit_key, price, ... } }`. Required for every type except Traslado (\"T\"), whose items carry no price/taxes — see the guides' Traslado section.":
+    "Conceptos del CFDI, cada uno con la forma `{ quantity, product: { description, product_key, unit_key, price, ... } }`. Requeridos para todos los tipos excepto Traslado (\"T\"), cuyos conceptos no llevan price/taxes — ver la sección de Traslado en las guías.",
+  'SAT c_FormaPago key, e.g. "03" (transferencia).':
+    'Clave c_FormaPago del SAT, ej. "03" (transferencia).',
+  'SAT c_MetodoPago key: "PUE" or "PPD".':
+    'Clave c_MetodoPago del SAT: "PUE" o "PPD".',
+  'SAT c_UsoCFDI key, e.g. "G03".': 'Clave c_UsoCFDI del SAT, ej. "G03".',
+  'CFDI complements, e.g. a Carta Porte complement (`{ type: "carta_porte", data: {...} }`) — its vehiculo_id/chofer_id/direccion_id references are resolved the same way POST /cartas-porte resolves them.':
+    'Complementos del CFDI, por ejemplo un complemento de Carta Porte (`{ type: "carta_porte", data: {...} }`) — sus referencias vehiculo_id/chofer_id/direccion_id se resuelven de la misma forma que POST /cartas-porte las resuelve.',
+  "This app's own field, not a FacturAPI one — links the created factura to an uploaded pedimento for tracking. Stripped before the request is forwarded to FacturAPI.":
+    "Campo propio de esta app, no de FacturAPI — vincula la factura creada a un pedimento subido para su seguimiento. Se elimina antes de reenviar la solicitud a FacturAPI.",
+  "Forwarded to FacturAPI's invoice creation endpoint — any field FacturAPI accepts is allowed, not just the ones documented here.":
+    "Se reenvía al endpoint de creación de invoices de FacturAPI — se permite cualquier campo que FacturAPI acepte, no solo los documentados aquí.",
+  "Freight service": "Servicio de flete",
   "Idempotency-Key reused with a different request body.":
     "Se reutilizó el Idempotency-Key con un body de solicitud distinto.",
   "Retrieve a factura by its FacturAPI invoice id": "Consulta una factura por su id de invoice de FacturAPI",

@@ -18,6 +18,63 @@ const rawInvoiceSchema = z.record(z.string(), z.unknown());
 
 const CFDI_TYPES = ["I", "E", "N", "P", "T"] as const;
 
+// Documents the commonly-used top-level fields for the request body while
+// staying a pass-through: a plain z.object() defaults to
+// `additionalProperties: true` in the generated schema (any other field
+// FacturAPI accepts still goes through untouched), so this is purely a
+// docs improvement — POST doesn't validate the body against this schema,
+// it forwards whatever JSON it receives straight to FacturAPI.
+const createInvoiceRequestSchema = z
+  .object({
+    type: z
+      .enum(CFDI_TYPES)
+      .optional()
+      .meta({ description: 'CFDI type. Defaults to "I" (Ingreso) when omitted.' }),
+    customer: z.string().optional().meta({
+      description:
+        "FacturAPI customer id (the unprefixed `id` from POST /clientes' response). Required for every " +
+        'type except Traslado ("T"), which carries no customer.',
+    }),
+    items: z.array(z.record(z.string(), z.unknown())).optional().meta({
+      description:
+        "CFDI line items (conceptos), each shaped `{ quantity, product: { description, product_key, " +
+        'unit_key, price, ... } }`. Required for every type except Traslado ("T"), whose items carry no ' +
+        "price/taxes — see the guides' Traslado section.",
+    }),
+    payment_form: z.string().optional().meta({ description: 'SAT c_FormaPago key, e.g. "03" (transferencia).' }),
+    payment_method: z.string().optional().meta({ description: 'SAT c_MetodoPago key: "PUE" or "PPD".' }),
+    use: z.string().optional().meta({ description: 'SAT c_UsoCFDI key, e.g. "G03".' }),
+    complements: z.array(z.record(z.string(), z.unknown())).optional().meta({
+      description:
+        'CFDI complements, e.g. a Carta Porte complement (`{ type: "carta_porte", data: {...} }`) — its ' +
+        "vehiculo_id/chofer_id/direccion_id references are resolved the same way POST /cartas-porte " +
+        "resolves them.",
+    }),
+    pedimento_id: z.string().optional().meta({
+      description:
+        "This app's own field, not a FacturAPI one — links the created factura to an uploaded pedimento " +
+        "for tracking. Stripped before the request is forwarded to FacturAPI.",
+    }),
+  })
+  .meta({
+    description:
+      "Forwarded to FacturAPI's invoice creation endpoint — any field FacturAPI accepts is allowed, not " +
+      "just the ones documented here.",
+    example: {
+      type: "I",
+      customer: "cus_abc123",
+      items: [
+        {
+          quantity: 1,
+          product: { description: "Freight service", product_key: "78101803", unit_key: "E48", price: 1500 },
+        },
+      ],
+      payment_form: "03",
+      payment_method: "PUE",
+      use: "G03",
+    },
+  });
+
 interface FacturapiInvoiceListItem {
   id: string;
   date?: string;
@@ -97,7 +154,7 @@ registry.registerPath({
   tags: ["facturas"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
-    body: { content: { "application/json": { schema: rawInvoiceSchema } } },
+    body: { content: { "application/json": { schema: createInvoiceRequestSchema } } },
   },
   responses: {
     201: {
