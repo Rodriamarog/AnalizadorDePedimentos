@@ -132,7 +132,11 @@ export async function GET(req: NextRequest) {
     // Filtering by external_reference (#68) is our own field, not
     // FacturAPI's — resolved against the local mirror first (which also
     // gives exact offset pagination, unlike the merge-4-lists path below),
-    // then hydrated with the raw invoice from FacturAPI per matching row.
+    // then hydrated with the raw invoice from FacturAPI per matching row —
+    // FacturAPI's list endpoint has no "fetch these specific ids" batch
+    // form to hydrate against instead, so this is one GET per row (bounded
+    // by `limit`'s 100-row cap, same trade-off as any N+1 against an API
+    // with no batch-get).
     if (externalReference !== null) {
       const rows = await withOrg(auth.orgId, (tx) =>
         tx

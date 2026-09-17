@@ -11,6 +11,16 @@ import { provisionFacturapiOrg } from "@/lib/provisionFacturapiOrg";
 import { db } from "@/lib/db/client";
 import { apiKeys, organizations } from "@/lib/db/schema";
 
+// Postgres' unique_violation SQLSTATE. node-postgres surfaces it as `.code`
+// on the thrown error, but drizzle wraps that in its own error with the
+// original as `.cause` — check both.
+function hasUniqueViolationCode(e: unknown): boolean {
+  return typeof e === "object" && e !== null && "code" in e && (e as { code: unknown }).code === "23505";
+}
+function isUniqueViolation(e: unknown): boolean {
+  return hasUniqueViolationCode(e) || (e instanceof Error && hasUniqueViolationCode(e.cause));
+}
+
 const provisionOrgSchema = z.object({
   org_name: z.string().meta({ description: "Name for the new FacturAPI sub-account." }),
   org_id: z.string().optional().meta({
@@ -65,11 +75,20 @@ export async function POST(req: NextRequest) {
 
   const orgId = body.org_id ?? `org_${randomUUID()}`;
 
-  const [existing] = await db.select({ id: organizations.id }).from(organizations).where(eq(organizations.id, orgId)).limit(1);
-  if (existing) {
-    return apiError(409, "duplicate_org", `An organization with id "${orgId}" already exists`, [
-      { field: "org_id", issue: "conflict" },
-    ]);
+  // Claims orgId atomically via the primary key constraint, rather than a
+  // select-then-insert check — the latter is a race under concurrent
+  // requests for the same caller-supplied org_id (explicitly documented as
+  // usable for idempotent retries), where both could pass the check, both
+  // provision a distinct FacturAPI sub-org, and both mint a live key.
+  try {
+    await db.insert(organizations).values({ id: orgId });
+  } catch (e) {
+    if (isUniqueViolation(e)) {
+      return apiError(409, "duplicate_org", `An organization with id "${orgId}" already exists`, [
+        { field: "org_id", issue: "conflict" },
+      ]);
+    }
+    throw e;
   }
 
   const result = await provisionFacturapiOrg(orgId, body.org_name);

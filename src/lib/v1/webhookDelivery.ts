@@ -129,7 +129,13 @@ export async function deliverWebhookEvent(
 export function scheduleWebhookEvent(orgId: string, type: WebhookEventType, data: Record<string, unknown>): void {
   try {
     after(() => deliverWebhookEvent(orgId, type, data));
-  } catch {
-    // outside request scope — see comment above.
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    if (!/after.*outside a request scope/i.test(message)) {
+      // Anything other than the documented test-seam case above is an
+      // unexpected failure to even schedule delivery — surface it instead
+      // of silently dropping the event.
+      console.error(`[webhooks] failed to schedule ${type} for org ${orgId}: ${message}`);
+    }
   }
 }
