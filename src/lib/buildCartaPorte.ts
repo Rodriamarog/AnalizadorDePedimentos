@@ -426,6 +426,7 @@ export function mapPedimentoToMercancias(
     cantidad: p.cantidad,
     claveUnidad: umcToUnitKey(p.umc),
     pesoEnKg: p.pesoKg ?? 0,
+    fraccionArancelaria: p.fraccion,
     documentacionAduanera,
   }));
 
