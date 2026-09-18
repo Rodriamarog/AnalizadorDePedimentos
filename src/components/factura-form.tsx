@@ -72,6 +72,36 @@ export const PAYMENT_FORM_OPTIONS = [
   ["99", "Por definir"],
 ] as const;
 
+// Full SAT c_FormaPago catalog (docs/facturapi/api-es.yaml, "Forma de pago"
+// section) — used by the "Registrar pago" dialog, where debt-settling codes
+// like "17 – Compensación" are legitimate (e.g. a factoraje commission
+// node). PAYMENT_FORM_OPTIONS above stays the curated subset for the
+// invoice-creation form, where those codes don't apply.
+export const PAYMENT_FORM_OPTIONS_FULL = [
+  ["01", "Efectivo"],
+  ["02", "Cheque nominativo"],
+  ["03", "Transferencia electrónica de fondos"],
+  ["04", "Tarjeta de crédito"],
+  ["05", "Monedero electrónico"],
+  ["06", "Dinero electrónico"],
+  ["08", "Vales de despensa"],
+  ["12", "Dación en pago"],
+  ["13", "Pago por subrogación"],
+  ["14", "Pago por consignación"],
+  ["15", "Condonación"],
+  ["17", "Compensación"],
+  ["23", "Novación"],
+  ["24", "Confusión"],
+  ["25", "Remisión de deuda"],
+  ["26", "Prescripción o caducidad"],
+  ["27", "A satisfacción del acreedor"],
+  ["28", "Tarjeta de débito"],
+  ["29", "Tarjeta de servicios"],
+  ["30", "Aplicación de anticipos"],
+  ["31", "Intermediario pagos"],
+  ["99", "Por definir"],
+] as const;
+
 // "Tipo de Documento" is a business-level document type distinct from
 // FacturAPI's CFDI `type` field — two document types ("Recibo de Honorarios"
 // and "Carta Porte Ingreso") both map to CFDI "Ingreso", so they can't share

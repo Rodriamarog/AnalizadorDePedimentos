@@ -15,6 +15,7 @@ const { POST: previewComplemento } = await import("@/app/api/complementos/previe
 describe("/api/complementos (multi-node, #74)", () => {
   let orgId: string;
   let customerId: string;
+  let factorCustomerId: string;
   let invoiceId: string;
   let invoiceUuid: string;
 
@@ -32,6 +33,17 @@ describe("/api/complementos (multi-node, #74)", () => {
       email: "test@example.com",
     });
     customerId = customer.id;
+
+    // A second customer standing in for the factoring institution in the
+    // receptor-override tests (#77).
+    const factorCustomer = await client.post<{ id: string }>("customers", {
+      legal_name: "Test Factoring Institution",
+      tax_id: "XEXX010101000",
+      tax_system: "616",
+      address: { zip: "22504" },
+      email: "factor@example.com",
+    });
+    factorCustomerId = factorCustomer.id;
   });
 
   afterAll(async () => {
@@ -199,5 +211,56 @@ describe("/api/complementos (multi-node, #74)", () => {
     const complements = result.complementBody.complements as { data: { related_documents: { uuid: string }[] }[] }[];
     expect(complements[0].data).toHaveLength(2);
     expect(complements[0].data.every((d) => d.related_documents[0].uuid === invoiceUuid)).toBe(true);
+  });
+
+  // #77: a factoraje-style complement whose actual payer (the factoring
+  // institution) differs from the original invoice's debtor.
+  it("buildComplementForInvoice sets the complement's customer to the override id, not the original invoice's customer", async () => {
+    const client = await getOrgFacturapiClient(orgId);
+    if (client instanceof Response) throw new Error("failed to resolve FacturAPI client");
+
+    const result = await buildComplementForInvoice(client, {
+      facturaFacturapiId: invoiceId,
+      nodos: [{ formaPago: "17", monto: INVOICE_TOTAL, fechaPagoStr: "2026-01-10" }],
+      receptorCustomerId: factorCustomerId,
+    });
+    if ("error" in result) throw new Error(`expected success, got error: ${result.error}`);
+
+    expect(result.complementBody.customer).toBe(factorCustomerId);
+  });
+
+  it("emitting a complement with receptor_cliente_id set stamps the CFDI with that customer as receptor", async () => {
+    const res = await postComplemento(
+      buildRequest("/api/complementos", {
+        method: "POST",
+        body: {
+          ...nodosBody([{ forma_pago: "17", monto: INVOICE_TOTAL, fecha_pago: "2026-01-10" }]),
+          receptor_cliente_id: factorCustomerId,
+        },
+      })
+    );
+    expect(res.status).toBe(201);
+    const comp = await res.json();
+
+    const client = await getOrgFacturapiClient(orgId);
+    if (client instanceof Response) throw new Error("failed to resolve FacturAPI client");
+    const stamped = await client.get<{ customer?: { tax_id?: string } }>(`invoices/${comp.id}`);
+    expect(stamped.customer?.tax_id).toBe("XEXX010101000");
+  });
+
+  it("emitting a complement without receptor_cliente_id preserves today's behavior (original invoice's customer)", async () => {
+    const res = await postComplemento(
+      buildRequest("/api/complementos", {
+        method: "POST",
+        body: nodosBody([{ forma_pago: "03", monto: INVOICE_TOTAL, fecha_pago: "2026-01-10" }]),
+      })
+    );
+    expect(res.status).toBe(201);
+    const comp = await res.json();
+
+    const client = await getOrgFacturapiClient(orgId);
+    if (client instanceof Response) throw new Error("failed to resolve FacturAPI client");
+    const stamped = await client.get<{ customer?: { tax_id?: string } }>(`invoices/${comp.id}`);
+    expect(stamped.customer?.tax_id).toBe("XAXX010101000");
   });
 });

@@ -137,6 +137,12 @@ export interface ComplementNodoInput {
 export interface ComplementInput {
   facturaFacturapiId: string;
   nodos: ComplementNodoInput[];
+  // Overrides the complement's receptor with a different FacturAPI customer
+  // id — the factoraje case where the institution actually paying isn't the
+  // original invoice's debtor (SAT/Kamina guide step 6, "Sustitución del
+  // Receptor"). Omitted/undefined preserves today's behavior: the original
+  // invoice's customer is embedded inline.
+  receptorCustomerId?: string;
 }
 
 // Shared by POST /api/complementos and its /preview sibling so the wire
@@ -175,7 +181,7 @@ export async function buildComplementForInvoice(
   client: FacturapiClient,
   input: ComplementInput
 ): Promise<ComplementBuildResult | ComplementBuildError> {
-  const { facturaFacturapiId, nodos } = input;
+  const { facturaFacturapiId, nodos, receptorCustomerId } = input;
 
   const inv = await client.get<FacturapiInvoice>(`invoices/${facturaFacturapiId}`);
 
@@ -247,7 +253,7 @@ export async function buildComplementForInvoice(
 
   const complementBody = {
     type: "P",
-    customer: customerObj,
+    customer: receptorCustomerId ?? customerObj,
     pdf_custom_section: buildPagoPdfCustomSection({ nodos: pdfNodos }),
     complements: [
       {

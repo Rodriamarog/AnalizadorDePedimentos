@@ -14,7 +14,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { PAYMENT_FORM_OPTIONS } from "@/components/factura-form";
+import { PAYMENT_FORM_OPTIONS_FULL } from "@/components/factura-form";
 import { FacturaTipoSelectorDialog } from "@/components/factura-tipo-selector-dialog";
 import { GridSearchInput } from "@/components/grid-search-input";
 import { alertSuccess, confirmDelete } from "@/lib/alerts";
@@ -55,6 +55,12 @@ const statusLabel: Record<string, string> = {
   canceled: "Cancelada",
   draft: "Borrador",
 };
+
+interface Cliente {
+  id: string;
+  legal_name: string;
+  tax_id?: string;
+}
 
 interface Complemento {
   id: string;
@@ -110,6 +116,8 @@ export default function FacturasPage() {
   const [pagoSaving, setPagoSaving] = useState(false);
   const [pagoPreviewing, setPagoPreviewing] = useState(false);
   const [pagoError, setPagoError] = useState<string | null>(null);
+  const [pagoReceptorId, setPagoReceptorId] = useState("");
+  const [clientes, setClientes] = useState<Cliente[]>([]);
 
   const [reporteOpen, setReporteOpen] = useState(false);
   const [reporteMonth, setReporteMonth] = useState(() => new Date().toISOString().slice(0, 7));
@@ -142,6 +150,12 @@ export default function FacturasPage() {
     load(paymentMethodFilter);
   }, [paymentMethodFilter, load]);
 
+  useEffect(() => {
+    fetch("/api/clientes?limit=100")
+      .then((res) => (res.ok ? res.json() : { data: [] }))
+      .then((data) => setClientes(data.data ?? []));
+  }, []);
+
   const filteredRows = rows.filter((f) => {
     const query = q.trim().toLowerCase();
     if (!query) return true;
@@ -173,6 +187,7 @@ export default function FacturasPage() {
     setPagoTarget(f);
     setPagoNodos([emptyPagoNodo(String(saldoPendiente(f)))]);
     setPagoError(null);
+    setPagoReceptorId("");
   }
 
   function addPagoNodo() {
@@ -224,6 +239,7 @@ export default function FacturasPage() {
         forma_pago: n.forma,
         ...(n.numeroOperacion.trim() ? { numero_operacion: n.numeroOperacion.trim() } : {}),
       })),
+      ...(pagoReceptorId ? { receptor_cliente_id: pagoReceptorId } : {}),
     };
   }
 
@@ -833,6 +849,22 @@ export default function FacturasPage() {
                 de ${saldoPendiente(pagoTarget).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
               </p>
             )}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Receptor del complemento</label>
+              <select
+                className="w-full rounded-md border border-input px-3 py-2 text-sm"
+                value={pagoReceptorId}
+                onChange={(e) => setPagoReceptorId(e.target.value)}
+              >
+                <option value="">Cliente original de la factura</option>
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.legal_name}
+                    {c.tax_id ? ` – ${c.tax_id}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
             {pagoNodos.map((nodo, i) => (
               <div key={i} className="flex flex-col gap-2 rounded-md border border-border p-3">
                 {pagoNodos.length > 1 && (
@@ -877,7 +909,7 @@ export default function FacturasPage() {
                     value={nodo.forma}
                     onChange={(e) => updatePagoNodo(i, { forma: e.target.value })}
                   >
-                    {PAYMENT_FORM_OPTIONS.map(([code, label]) => (
+                    {PAYMENT_FORM_OPTIONS_FULL.map(([code, label]) => (
                       <option key={code} value={code}>
                         {code} – {label}
                       </option>

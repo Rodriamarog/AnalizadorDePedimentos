@@ -44,11 +44,13 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const facturaFacturapiId: string = body.factura_facturapi_id;
   const nodos = parseNodosBody(body.nodos);
+  const receptorCustomerId: string | undefined = body.receptor_cliente_id || undefined;
 
   try {
     const result = await buildComplementForInvoice(client, {
       facturaFacturapiId,
       nodos,
+      receptorCustomerId,
     });
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
