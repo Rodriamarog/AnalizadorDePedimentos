@@ -835,11 +835,11 @@ export default function FacturasPage() {
       </Dialog>
 
       <Dialog open={!!pagoTarget} onOpenChange={(open) => !open && setPagoTarget(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>Registrar pago</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
             {pagoTarget && (
               <p className="text-xs text-muted-foreground">
                 Saldo restante:{" "}
