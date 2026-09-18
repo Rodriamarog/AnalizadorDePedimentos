@@ -37,6 +37,13 @@ export const organizations = pgTable("organizations", {
   // Status marker only — no expiry tracking; FacturAPI itself rejects
   // invoicing once a cert lapses. The cert/key/password are never persisted.
   csdUploadedAt: timestamp("csd_uploaded_at", { withTimezone: true }),
+  // Self-service "continue my old numbering" for orgs migrating from another
+  // invoicing system (#78, #79). Each is independently locked (see
+  // src/lib/startingFolio.ts) the moment the org has issued its first
+  // invoice of that CFDI type — null means "use FacturAPI's normal
+  // autoincrement starting at 1", the default for every org.
+  startingFolioFactura: integer("starting_folio_factura"),
+  startingFolioNotaCredito: integer("starting_folio_nota_credito"),
 });
 
 // ── Tenant-scoped tables (RLS-protected, see drizzle/0001_rls.sql) ─────────

@@ -10,6 +10,7 @@ import { resolveCartaPorteReferences } from "@/lib/v1/cartaPorte";
 import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 import { FacturapiError } from "@/lib/facturapi";
 import { saveFactura } from "@/lib/saveFactura";
+import { applyStartingFolio } from "@/lib/startingFolio";
 import { withOrg } from "@/lib/db/withOrg";
 import { facturas } from "@/lib/db/schema";
 
@@ -273,6 +274,8 @@ export async function POST(req: NextRequest) {
     // response without paying for the reference lookups again.
     const cartaPorteError = await resolveCartaPorteReferences(auth.orgId, body);
     if (cartaPorteError) return { status: cartaPorteError.status, body: await cartaPorteError.json() };
+
+    await applyStartingFolio(auth.orgId, type, body);
 
     try {
       const inv = await client.post<{ id: string }>("invoices", body);

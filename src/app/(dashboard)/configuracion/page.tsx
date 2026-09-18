@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Settings, Loader2, CheckCircle2, AlertCircle, Sparkles, KeyRound, Copy, Trash2 } from "lucide-react";
+import { Settings, Loader2, CheckCircle2, AlertCircle, Sparkles, KeyRound, Copy, Trash2, Hash } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -122,6 +122,10 @@ export default function ConfiguracionPage() {
 
       <div className="mb-4">
         <ApiKeysCard plan={status?.plan ?? null} />
+      </div>
+
+      <div className="mb-4">
+        <StartingFolioCard />
       </div>
 
       <div className="mb-4">
@@ -336,6 +340,133 @@ function SampleFilesCard() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+type StartingFolioStatus = {
+  factura: { folioNumber: number | null; locked: boolean };
+  notaCredito: { folioNumber: number | null; locked: boolean };
+};
+
+function StartingFolioCard() {
+  const [status, setStatus] = useState<StartingFolioStatus | null>(null);
+
+  const load = useCallback(async () => {
+    const res = await fetch("/api/settings/starting-folio");
+    if (res.ok) setStatus(await res.json());
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
+
+  return (
+    <Card className="border-border shadow-none">
+      <CardContent className="p-5 flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <Hash className="w-3.5 h-3.5 text-muted-foreground" />
+          <p className="text-sm font-medium text-foreground">Folio inicial</p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Si te estás migrando de otro sistema de facturación, indica con qué número debe empezar tu
+          próxima factura o nota de crédito, en vez de empezar en 1. Cada tipo se bloquea en cuanto
+          emites la primera de ese tipo.
+        </p>
+        {status && (
+          <div className="flex flex-col gap-3">
+            <StartingFolioField
+              label="Facturas"
+              type="I"
+              value={status.factura.folioNumber}
+              locked={status.factura.locked}
+              onSaved={load}
+            />
+            <StartingFolioField
+              label="Notas de crédito"
+              type="E"
+              value={status.notaCredito.folioNumber}
+              locked={status.notaCredito.locked}
+              onSaved={load}
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function StartingFolioField({
+  label,
+  type,
+  value,
+  locked,
+  onSaved,
+}: {
+  label: string;
+  type: "I" | "E";
+  value: number | null;
+  locked: boolean;
+  onSaved: () => Promise<void>;
+}) {
+  const [input, setInput] = useState(value != null ? String(value) : "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    setError(null);
+    const trimmed = input.trim();
+    const folioNumber = trimmed === "" ? null : Number(trimmed);
+    if (folioNumber !== null && (!Number.isInteger(folioNumber) || folioNumber < 1)) {
+      setError("Debe ser un número entero mayor o igual a 1");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/settings/starting-folio", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, folioNumber }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Error al guardar");
+        return;
+      }
+      await onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <p className="text-xs font-medium text-foreground">{label}</p>
+        {locked && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <CheckCircle2 className="w-3 h-3" />
+            Ya se emitió la primera — folio bloqueado (siguiente folio a asignar)
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          min={1}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          disabled={locked}
+          placeholder="Ej. 111 (vacío = empezar en 1)"
+          className="max-w-xs"
+        />
+        <Button size="sm" variant="outline" onClick={handleSave} disabled={locked || saving}>
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+          Guardar
+        </Button>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
   );
 }
 

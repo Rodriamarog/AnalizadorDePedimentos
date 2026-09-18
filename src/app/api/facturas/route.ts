@@ -4,6 +4,7 @@ import { requireOrgId } from "@/lib/auth";
 import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 import { FacturapiError } from "@/lib/facturapi";
 import { saveFactura } from "@/lib/saveFactura";
+import { applyStartingFolio } from "@/lib/startingFolio";
 import { withOrg } from "@/lib/db/withOrg";
 import { facturas } from "@/lib/db/schema";
 
@@ -94,6 +95,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const pedimentoId: string | null = body.pedimento_id ?? null;
   delete body.pedimento_id;
+
+  const type = typeof body.type === "string" ? body.type : "I";
+  await applyStartingFolio(orgId, type, body);
 
   try {
     const inv = await client.post<{ id: string }>("invoices", body);
