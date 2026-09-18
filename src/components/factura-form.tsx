@@ -13,6 +13,7 @@ import { AutomapOverlay } from "@/components/automap-overlay";
 import { useAutomapProgress } from "@/hooks/use-automap-progress";
 import {
   CartaPorteFields,
+  cartaPorteStateFromComplement,
   cartaPorteStateToInput,
   defaultCartaPorteState,
   mercanciaRowFromPrefill,
@@ -31,6 +32,7 @@ import {
   buildCartaPorteComplement,
   formatPedimentoNumber,
   mapPedimentoToMercancias,
+  type CartaPorteDataInput,
   type PedimentoForCartaPorte,
 } from "@/lib/buildCartaPorte";
 
@@ -375,6 +377,11 @@ export interface FacturaDraftDetail {
   id: string;
   status?: string;
   type?: "I" | "E" | "P" | "N" | "T";
+  // Our own tag, stashed on save to disambiguate document types that share
+  // a CFDI type (recibo_honorarios/carta_porte_ingreso both use "I") — see
+  // resolveDraftDocumentType below. FacturAPI has no generic metadata field;
+  // this (ab)uses external_id, which round-trips through GET untouched.
+  external_id?: string;
   use?: string;
   payment_form?: string;
   payment_method?: "PUE" | "PPD";
@@ -392,6 +399,7 @@ export interface FacturaDraftDetail {
       taxes?: { type: string; rate: number; withholding?: boolean }[];
     };
   }[];
+  complements?: { type: string; data?: unknown }[];
 }
 
 const CFDI_TO_DOCUMENT_TYPE: Record<string, DocumentType> = {
@@ -399,6 +407,17 @@ const CFDI_TO_DOCUMENT_TYPE: Record<string, DocumentType> = {
   E: "nota_credito",
   T: "carta_porte",
 };
+
+// "I" alone can't tell factura/recibo_honorarios/carta_porte_ingreso apart —
+// external_id (set by buildInvoiceBody for the two ambiguous types) resolves
+// it when present; older drafts saved before this tag existed just fall back
+// to "factura", same as before.
+function resolveDraftDocumentType(draft: FacturaDraftDetail): DocumentType {
+  if (draft.external_id === "recibo_honorarios" || draft.external_id === "carta_porte_ingreso") {
+    return draft.external_id;
+  }
+  return CFDI_TO_DOCUMENT_TYPE[draft.type ?? "I"] ?? "factura";
+}
 
 interface FacturaFormProps {
   // Called when the user cancels out of the form without saving.
@@ -495,7 +514,14 @@ export function FacturaForm({
 
     if (draft) {
       setUse(draft.use ?? "G03");
-      onDocumentTypeChange(CFDI_TO_DOCUMENT_TYPE[draft.type ?? "I"] ?? "factura");
+      const resolvedType = resolveDraftDocumentType(draft);
+      onDocumentTypeChange(resolvedType);
+      if (resolvedType === "carta_porte" || resolvedType === "carta_porte_ingreso") {
+        const complement = draft.complements?.find((c) => c.type === "carta_porte");
+        if (complement?.data) {
+          setCartaPorte(cartaPorteStateFromComplement(complement.data as CartaPorteDataInput));
+        }
+      }
       setPaymentForm(draft.payment_form ?? "03");
       setPaymentMethod(draft.payment_method ?? "PUE");
       setCurrency(draft.currency ?? "MXN");
@@ -869,6 +895,12 @@ export function FacturaForm({
       body.payment_method = paymentMethod;
     }
     if (customerId) body.customer = customerId;
+    // Tags the two document types that collapse to CFDI type "I" so a
+    // reopened draft can tell itself apart from a plain factura — see
+    // resolveDraftDocumentType.
+    if (documentType === "recibo_honorarios" || documentType === "carta_porte_ingreso") {
+      body.external_id = documentType;
+    }
     if (documentType === "nota_credito" && relatedInvoice) {
       body.related_documents = [{ relationship: relationshipCode, documents: [relatedInvoice.uuid] }];
     }

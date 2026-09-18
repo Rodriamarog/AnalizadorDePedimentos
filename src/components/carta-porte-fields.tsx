@@ -23,6 +23,7 @@ import {
 } from "@/lib/cartaPorteOptions";
 import type {
   CartaPorteComplementInput,
+  CartaPorteDataInput,
   CartaPorteDomicilio,
   DocumentacionAduaneraInput,
   MercanciaInput,
@@ -303,6 +304,101 @@ export function cartaPorteStateToInput(state: CartaPorteFormState): CartaPorteCo
           viaEntradaSalida: state.viaEntradaSalida,
         }
       : undefined,
+  };
+}
+
+function ubicacionFieldsFromWire(u?: CartaPorteDataInput["Ubicaciones"][number]): UbicacionFields {
+  if (!u) return defaultUbicacion();
+  const d = u.Domicilio;
+  return {
+    rfc: u.RFCRemitenteDestinatario ?? "",
+    nombre: u.NombreRemitenteDestinatario ?? "",
+    // Stored as "AAAA-MM-DDThh:mm:ss" (buildUbicacion always sends seconds);
+    // the datetime-local input only accepts "AAAA-MM-DDThh:mm".
+    fechaHoraSalidaLlegada: (u.FechaHoraSalidaLlegada ?? "").slice(0, 16),
+    calle: d?.Calle ?? "",
+    numeroExterior: d?.NumeroExterior ?? "",
+    numeroInterior: d?.NumeroInterior ?? "",
+    colonia: d?.Colonia ?? "",
+    municipio: d?.Municipio ?? "",
+    localidad: d?.Localidad ?? "",
+    estado: d?.Estado ?? "",
+    pais: d?.Pais ?? "MEX",
+    codigoPostal: d?.CodigoPostal ?? "",
+    // The saved-dirección link is UI-only and never sent to FacturAPI (see
+    // cartaPorteStateToInput above), so it can't be recovered from the
+    // stored complement — reopened ubicaciones always land in manual mode.
+    googlePlaceId: null,
+  };
+}
+
+function mercanciaRowFromWire(m: CartaPorteDataInput["Mercancias"]["Mercancia"][number]): MercanciaRow {
+  return {
+    key: crypto.randomUUID(),
+    bienesTransp: m.BienesTransp ?? "",
+    descripcion: m.Descripcion ?? "",
+    cantidad: String(m.Cantidad ?? 1),
+    claveUnidad: m.ClaveUnidad ?? "",
+    pesoEnKg: String(m.PesoEnKg ?? 0),
+    materialPeligroso: m.MaterialPeligroso === "Sí",
+    cveMaterialPeligroso: m.CveMaterialPeligroso ?? "",
+    embalaje: m.Embalaje ?? "",
+    descripEmbalaje: m.DescripEmbalaje ?? "",
+    documentacionAduanera: m.DocumentacionAduanera?.map((d) => ({
+      tipoDocumento: d.TipoDocumento,
+      numPedimento: d.NumPedimento,
+      identDocAduanero: d.IdentDocAduanero,
+      rfcImpo: d.RFCImpo,
+    })),
+  };
+}
+
+// Inverse of cartaPorteStateToInput + buildCartaPorteComplement, applied to
+// the raw complement FacturAPI hands back on GET /api/facturas/[id] — lets a
+// reopened Carta Porte draft rehydrate its form state instead of showing up
+// blank. vehiculoId/choferId can't be recovered (see ubicacionFieldsFromWire's
+// comment on googlePlaceId — same reasoning applies to the saved
+// vehículo/chofer registry links), so those pickers land in manual mode with
+// their text data intact.
+export function cartaPorteStateFromComplement(data: CartaPorteDataInput): CartaPorteFormState {
+  const autotransporte = data.Mercancias.Autotransporte;
+  return {
+    ubicacionOrigen: ubicacionFieldsFromWire(data.Ubicaciones.find((u) => u.TipoUbicacion === "Origen")),
+    ubicacionDestino: ubicacionFieldsFromWire(data.Ubicaciones.find((u) => u.TipoUbicacion === "Destino")),
+    mercancias:
+      data.Mercancias.Mercancia.length > 0 ? data.Mercancias.Mercancia.map(mercanciaRowFromWire) : [newMercanciaRow()],
+    pesoBrutoTotal: String(data.Mercancias.PesoBrutoTotal ?? 0),
+    unidadPeso: data.Mercancias.UnidadPeso ?? "KGM",
+    distanciaRecorridaKm: data.TotalDistRec !== undefined ? String(data.TotalDistRec) : "",
+    internacionalEnabled: data.TranspInternac === "Sí",
+    entradaSalidaMerc: data.EntradaSalidaMerc === "Entrada" ? "Entrada" : "Salida",
+    paisOrigenDestino: data.PaisOrigenDestino ?? "",
+    viaEntradaSalida: data.ViaEntradaSalida ?? "01",
+    vehiculoId: "",
+    autotransporte: {
+      permisoSct: autotransporte?.PermSCT ?? "",
+      numeroPermisoSct: autotransporte?.NumPermisoSCT ?? "",
+      configVehicular: autotransporte?.IdentificacionVehicular?.ConfigVehicular ?? "",
+      placa: autotransporte?.IdentificacionVehicular?.PlacaVM ?? "",
+      pesoBrutoVehicular:
+        autotransporte?.IdentificacionVehicular?.PesoBrutoVehicular !== undefined
+          ? String(autotransporte.IdentificacionVehicular.PesoBrutoVehicular)
+          : "",
+      anioModeloVehiculo: autotransporte?.IdentificacionVehicular?.AnioModeloVM ?? "",
+      aseguradoraCarga: autotransporte?.Seguros?.AseguraCarga ?? "",
+      polizaCarga: autotransporte?.Seguros?.PolizaCarga ?? "",
+      aseguradoraRespCivil: autotransporte?.Seguros?.AseguraRespCivil ?? "",
+      polizaRespCivil: autotransporte?.Seguros?.PolizaRespCivil ?? "",
+      remolques: autotransporte?.Remolques?.map((r) => ({ subTipoRemolque: r.SubTipoRem ?? "", placa: r.Placa ?? "" })) ?? [],
+    },
+    figuras: (data.FiguraTransporte ?? []).map((f) => ({
+      key: crypto.randomUUID(),
+      choferId: "",
+      nombre: f.NombreFigura ?? "",
+      rfc: f.RFCFigura ?? "",
+      numeroLicencia: f.NumLicencia ?? "",
+      tipoFigura: f.TipoFigura ?? "",
+    })),
   };
 }
 
