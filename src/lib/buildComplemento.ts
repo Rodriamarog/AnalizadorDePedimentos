@@ -77,14 +77,33 @@ const TH_STYLE =
   'style="text-align:left;padding:4px 8px;border-bottom:2px solid #2f6fed;font-size:11px"';
 const TD_STYLE = 'style="padding:4px 8px;border-bottom:1px solid #e0e0e0;font-size:11px"';
 
-function buildPagoPdfCustomSection(params: {
+interface PagoPdfRow {
   monto: number;
   ivaBase: number;
   ivaRate: number;
   ivaAmount: number;
-}) {
-  const { monto, ivaBase, ivaRate, ivaAmount } = params;
-  const ivaPct = (ivaRate * 100).toFixed(2).replace(/\.?0+$/, "");
+}
+
+function buildPagoPdfCustomSection(params: { nodos: PagoPdfRow[] }) {
+  const { nodos } = params;
+  const totalMonto = roundMoney(nodos.reduce((sum, n) => sum + n.monto, 0));
+  const totalIvaBase = roundMoney(nodos.reduce((sum, n) => sum + n.ivaBase, 0));
+  const totalIvaAmount = roundMoney(nodos.reduce((sum, n) => sum + n.ivaAmount, 0));
+
+  const rows = nodos
+    .map((n) => {
+      const ivaPct = (n.ivaRate * 100).toFixed(2).replace(/\.?0+$/, "");
+      return `
+        <tr>
+          <td ${TD_STYLE}>$${formatMoney(n.ivaBase)}</td>
+          <td ${TD_STYLE}>IVA</td>
+          <td ${TD_STYLE}>Tasa</td>
+          <td ${TD_STYLE}>${ivaPct}%</td>
+          <td ${TD_STYLE}>$${formatMoney(n.ivaAmount)}</td>
+        </tr>
+      `;
+    })
+    .join("");
 
   return `
     <h4>Impuestos trasladados</h4>
@@ -99,33 +118,49 @@ function buildPagoPdfCustomSection(params: {
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <td ${TD_STYLE}>$${formatMoney(ivaBase)}</td>
-          <td ${TD_STYLE}>IVA</td>
-          <td ${TD_STYLE}>Tasa</td>
-          <td ${TD_STYLE}>${ivaPct}%</td>
-          <td ${TD_STYLE}>$${formatMoney(ivaAmount)}</td>
-        </tr>
+        ${rows}
       </tbody>
     </table>
-    <p style="margin-top:8px"><strong>Total traslados base IVA ${ivaPct}%:</strong> $${formatMoney(ivaBase)}</p>
-    <p><strong>Total traslados impuesto IVA ${ivaPct}%:</strong> $${formatMoney(ivaAmount)}</p>
-    <p><strong>Monto total del pago:</strong> $${formatMoney(monto)}</p>
+    <p style="margin-top:8px"><strong>Total traslados base IVA:</strong> $${formatMoney(totalIvaBase)}</p>
+    <p><strong>Total traslados impuesto IVA:</strong> $${formatMoney(totalIvaAmount)}</p>
+    <p><strong>Monto total del pago:</strong> $${formatMoney(totalMonto)}</p>
   `;
+}
+
+export interface ComplementNodoInput {
+  formaPago: string;
+  monto: number;
+  fechaPagoStr: string; // YYYY-MM-DD
+  numeroOperacion?: string;
 }
 
 export interface ComplementInput {
   facturaFacturapiId: string;
-  formaPago: string;
-  monto: number;
-  fechaPagoStr: string; // YYYY-MM-DD
+  nodos: ComplementNodoInput[];
+}
+
+// Shared by POST /api/complementos and its /preview sibling so the wire
+// shape (snake_case, matching the rest of this app's internal API) only has
+// one place to change.
+export function parseNodosBody(nodos: unknown): ComplementNodoInput[] {
+  if (!Array.isArray(nodos)) return [];
+  return nodos.map((n: Record<string, unknown>) => ({
+    formaPago: String(n.forma_pago),
+    monto: Number(n.monto),
+    fechaPagoStr: String(n.fecha_pago),
+    numeroOperacion: n.numero_operacion ? String(n.numero_operacion) : undefined,
+  }));
+}
+
+export interface ComplementBuildResultNodo extends ComplementNodoInput {
+  installment: number;
+  lastBalance: number;
 }
 
 export interface ComplementBuildResult {
   inv: FacturapiInvoice;
   complementBody: Record<string, unknown>;
-  installment: number;
-  lastBalance: number;
+  nodos: ComplementBuildResultNodo[];
 }
 
 export interface ComplementBuildError {
@@ -140,23 +175,23 @@ export async function buildComplementForInvoice(
   client: FacturapiClient,
   input: ComplementInput
 ): Promise<ComplementBuildResult | ComplementBuildError> {
-  const { facturaFacturapiId, formaPago, monto, fechaPagoStr } = input;
+  const { facturaFacturapiId, nodos } = input;
 
   const inv = await client.get<FacturapiInvoice>(`invoices/${facturaFacturapiId}`);
 
   const uuid = inv.uuid;
-  const total = Number(inv.total ?? monto);
+  const totalMontoNodos = roundMoney(nodos.reduce((sum, n) => sum + n.monto, 0));
+  const total = Number(inv.total ?? totalMontoNodos);
   const customerId = typeof inv.customer?.id === "string" ? inv.customer.id : undefined;
 
   const { priorPaid, count } = await getPriorPayments(client, uuid, customerId);
-  const installment = count + 1;
-  const lastBalance = roundMoney(total - priorPaid);
+  const startingBalance = roundMoney(total - priorPaid);
 
-  if (lastBalance <= 0) {
+  if (startingBalance <= 0) {
     return { error: "Esta factura ya está completamente pagada", status: 400 };
   }
-  if (monto - lastBalance > 0.01) {
-    return { error: `El monto excede el saldo pendiente ($${lastBalance})`, status: 400 };
+  if (totalMontoNodos - startingBalance > 0.01) {
+    return { error: `El monto excede el saldo pendiente ($${startingBalance})`, status: 400 };
   }
 
   // The complement's tax breakdown must mirror the rate actually used on
@@ -166,8 +201,42 @@ export async function buildComplementForInvoice(
     ?.flatMap((it) => it.product?.taxes ?? [])
     .find((t) => t.type === "IVA" && !t.withholding);
   const ivaRate = ivaEntry?.rate ?? 0.16;
-  const ivaBase = Math.round((monto / (1 + ivaRate)) * 1e6) / 1e6;
-  const ivaAmount = roundMoney(monto - ivaBase);
+
+  // Each node's last_balance is the running balance before it is applied —
+  // node 1 sees the current saldo pendiente, node 2 sees what's left after
+  // node 1, and so on. installment increments per node, continuing from
+  // whatever installment count FacturAPI already has on record.
+  let runningBalance = startingBalance;
+  const resultNodos: ComplementBuildResultNodo[] = [];
+  const dataEntries: Record<string, unknown>[] = [];
+  const pdfNodos: PagoPdfRow[] = [];
+
+  nodos.forEach((nodo, i) => {
+    const installment = count + i + 1;
+    const lastBalance = runningBalance;
+    const ivaBase = Math.round((nodo.monto / (1 + ivaRate)) * 1e6) / 1e6;
+    const ivaAmount = roundMoney(nodo.monto - ivaBase);
+    runningBalance = roundMoney(runningBalance - nodo.monto);
+
+    resultNodos.push({ ...nodo, installment, lastBalance });
+    pdfNodos.push({ monto: nodo.monto, ivaBase, ivaRate, ivaAmount });
+    dataEntries.push({
+      payment_form: nodo.formaPago,
+      date: `${nodo.fechaPagoStr}T12:00:00`,
+      ...(nodo.numeroOperacion ? { numOperacion: nodo.numeroOperacion } : {}),
+      related_documents: [
+        {
+          uuid,
+          amount: nodo.monto,
+          installment,
+          last_balance: lastBalance,
+          taxes: [{ base: ivaBase, type: "IVA", rate: ivaRate, factor: "Tasa", withholding: false }],
+          taxability: "02",
+        },
+      ],
+    });
+  });
+
   // FacturAPI returns read-only fields on the customer sub-object; strip
   // them before re-submitting it inline on the complement invoice.
   const customerObj = { ...(inv.customer ?? {}) };
@@ -179,29 +248,14 @@ export async function buildComplementForInvoice(
   const complementBody = {
     type: "P",
     customer: customerObj,
-    pdf_custom_section: buildPagoPdfCustomSection({ monto, ivaBase, ivaRate, ivaAmount }),
+    pdf_custom_section: buildPagoPdfCustomSection({ nodos: pdfNodos }),
     complements: [
       {
         type: "pago",
-        data: [
-          {
-            payment_form: formaPago,
-            date: `${fechaPagoStr}T12:00:00`,
-            related_documents: [
-              {
-                uuid,
-                amount: monto,
-                installment,
-                last_balance: lastBalance,
-                taxes: [{ base: ivaBase, type: "IVA", rate: ivaRate, factor: "Tasa", withholding: false }],
-                taxability: "02",
-              },
-            ],
-          },
-        ],
+        data: dataEntries,
       },
     ],
   };
 
-  return { inv, complementBody, installment, lastBalance };
+  return { inv, complementBody, nodos: resultNodos };
 }

@@ -66,6 +66,20 @@ interface Complemento {
   formaPago: string;
 }
 
+// One row of the "Registrar pago" dialog — each node carries its own
+// monto/fecha/forma de pago/número de operación (a factor's commission node
+// and the deudor's transferencia node genuinely land on different dates).
+interface PagoNodo {
+  monto: string;
+  fecha: string;
+  forma: string;
+  numeroOperacion: string;
+}
+
+function emptyPagoNodo(monto = ""): PagoNodo {
+  return { monto, fecha: new Date().toISOString().slice(0, 10), forma: "03", numeroOperacion: "" };
+}
+
 export default function FacturasPage() {
   const router = useRouter();
   const { user } = useUser();
@@ -92,9 +106,7 @@ export default function FacturasPage() {
   const [complementos, setComplementos] = useState<Complemento[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [pagoTarget, setPagoTarget] = useState<Factura | null>(null);
-  const [pagoMonto, setPagoMonto] = useState("");
-  const [pagoFecha, setPagoFecha] = useState(() => new Date().toISOString().slice(0, 10));
-  const [pagoForma, setPagoForma] = useState("03");
+  const [pagoNodos, setPagoNodos] = useState<PagoNodo[]>([emptyPagoNodo()]);
   const [pagoSaving, setPagoSaving] = useState(false);
   const [pagoPreviewing, setPagoPreviewing] = useState(false);
   const [pagoError, setPagoError] = useState<string | null>(null);
@@ -159,34 +171,59 @@ export default function FacturasPage() {
 
   function openRegistrarPago(f: Factura) {
     setPagoTarget(f);
-    setPagoMonto(String(saldoPendiente(f)));
-    setPagoFecha(new Date().toISOString().slice(0, 10));
-    setPagoForma("03");
+    setPagoNodos([emptyPagoNodo(String(saldoPendiente(f)))]);
     setPagoError(null);
+  }
+
+  function addPagoNodo() {
+    setPagoNodos((prev) => [...prev, emptyPagoNodo()]);
+  }
+
+  function removePagoNodo(i: number) {
+    setPagoNodos((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function updatePagoNodo(i: number, patch: Partial<PagoNodo>) {
+    setPagoNodos((prev) => prev.map((n, idx) => (idx === i ? { ...n, ...patch } : n)));
+  }
+
+  function pagoNodosTotal(): number {
+    return pagoNodos.reduce((sum, n) => sum + (Number(n.monto) || 0), 0);
+  }
+
+  function pagoSaldoRestante(): number {
+    if (!pagoTarget) return 0;
+    return Math.round((saldoPendiente(pagoTarget) - pagoNodosTotal()) * 100) / 100;
   }
 
   function buildPagoBody(): Record<string, unknown> | null {
     if (!pagoTarget) return null;
     setPagoError(null);
-    const montoNum = Number(pagoMonto);
-    if (!montoNum || montoNum <= 0) {
-      setPagoError("Ingresa un monto válido");
-      return null;
+    for (const n of pagoNodos) {
+      const montoNum = Number(n.monto);
+      if (!montoNum || montoNum <= 0) {
+        setPagoError("Ingresa un monto válido en cada renglón");
+        return null;
+      }
+      if (!n.fecha) {
+        setPagoError("Ingresa la fecha de pago en cada renglón");
+        return null;
+      }
     }
-    if (!pagoFecha) {
-      setPagoError("Ingresa la fecha de pago");
-      return null;
-    }
+    const total = pagoNodosTotal();
     const saldo = saldoPendiente(pagoTarget);
-    if (montoNum - saldo > 0.01) {
+    if (total - saldo > 0.01) {
       setPagoError(`El monto excede el saldo pendiente ($${saldo})`);
       return null;
     }
     return {
       factura_facturapi_id: pagoTarget.id,
-      monto: montoNum,
-      fecha_pago: pagoFecha,
-      forma_pago: pagoForma,
+      nodos: pagoNodos.map((n) => ({
+        monto: Number(n.monto),
+        fecha_pago: n.fecha,
+        forma_pago: n.forma,
+        ...(n.numeroOperacion.trim() ? { numero_operacion: n.numeroOperacion.trim() } : {}),
+      })),
     };
   }
 
@@ -782,54 +819,84 @@ export default function FacturasPage() {
       </Dialog>
 
       <Dialog open={!!pagoTarget} onOpenChange={(open) => !open && setPagoTarget(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Registrar pago</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3">
             {pagoTarget && (
               <p className="text-xs text-muted-foreground">
-                Saldo pendiente:{" "}
-                <span className="font-medium text-foreground">
-                  ${saldoPendiente(pagoTarget).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
-                </span>
+                Saldo restante:{" "}
+                <span className={`font-medium ${pagoSaldoRestante() < 0 ? "text-red-600" : "text-foreground"}`}>
+                  ${pagoSaldoRestante().toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                </span>{" "}
+                de ${saldoPendiente(pagoTarget).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
               </p>
             )}
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Monto</label>
-              <InputGroup>
-                <InputGroupAddon>
-                  <InputGroupText>$</InputGroupText>
-                </InputGroupAddon>
-                <InputGroupInput
-                  type="number"
-                  className="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                  value={pagoMonto}
-                  onChange={(e) => setPagoMonto(e.target.value)}
-                />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupText>MXN</InputGroupText>
-                </InputGroupAddon>
-              </InputGroup>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Fecha de pago</label>
-              <Input type="date" value={pagoFecha} onChange={(e) => setPagoFecha(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Forma de pago</label>
-              <select
-                className="w-full rounded-md border border-input px-3 py-2 text-sm"
-                value={pagoForma}
-                onChange={(e) => setPagoForma(e.target.value)}
-              >
-                {PAYMENT_FORM_OPTIONS.map(([code, label]) => (
-                  <option key={code} value={code}>
-                    {code} – {label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {pagoNodos.map((nodo, i) => (
+              <div key={i} className="flex flex-col gap-2 rounded-md border border-border p-3">
+                {pagoNodos.length > 1 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Pago {i + 1}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-red-600"
+                      onClick={() => removePagoNodo(i)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Monto</label>
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <InputGroupText>$</InputGroupText>
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      type="number"
+                      className="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      value={nodo.monto}
+                      onChange={(e) => updatePagoNodo(i, { monto: e.target.value })}
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>MXN</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Fecha de pago</label>
+                  <Input type="date" value={nodo.fecha} onChange={(e) => updatePagoNodo(i, { fecha: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Forma de pago</label>
+                  <select
+                    className="w-full rounded-md border border-input px-3 py-2 text-sm"
+                    value={nodo.forma}
+                    onChange={(e) => updatePagoNodo(i, { forma: e.target.value })}
+                  >
+                    {PAYMENT_FORM_OPTIONS.map(([code, label]) => (
+                      <option key={code} value={code}>
+                        {code} – {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Número de operación (opcional)</label>
+                  <Input
+                    value={nodo.numeroOperacion}
+                    onChange={(e) => updatePagoNodo(i, { numeroOperacion: e.target.value })}
+                  />
+                </div>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" className="gap-1.5 self-start text-xs" onClick={addPagoNodo}>
+              <Plus className="w-3.5 h-3.5" />
+              Agregar otra forma de pago
+            </Button>
             {pagoError && <p className="text-xs text-red-600">{pagoError}</p>}
           </div>
           <DialogFooter>

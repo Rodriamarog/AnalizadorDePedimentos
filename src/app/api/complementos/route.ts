@@ -6,7 +6,7 @@ import { FacturapiError } from "@/lib/facturapi";
 import { complementosPago, facturas } from "@/lib/db/schema";
 import { withOrg } from "@/lib/db/withOrg";
 import { saveFactura } from "@/lib/saveFactura";
-import { buildComplementForInvoice } from "@/lib/buildComplemento";
+import { buildComplementForInvoice, parseNodosBody } from "@/lib/buildComplemento";
 
 export async function GET() {
   const orgId = await requireOrgId();
@@ -43,16 +43,12 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const facturaFacturapiId: string = body.factura_facturapi_id;
-  const formaPago: string = body.forma_pago;
-  const monto = Number(body.monto);
-  const fechaPagoStr: string = body.fecha_pago; // YYYY-MM-DD
+  const nodos = parseNodosBody(body.nodos);
 
   try {
     const result = await buildComplementForInvoice(client, {
       facturaFacturapiId,
-      formaPago,
-      monto,
-      fechaPagoStr,
+      nodos,
     });
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
@@ -63,15 +59,17 @@ export async function POST(req: NextRequest) {
 
     await withOrg(orgId, async (tx) => {
       const localFactura = await saveFactura(tx, orgId, inv, null);
-      await tx.insert(complementosPago).values({
-        orgId,
-        facturapiId: comp.id,
-        uuid: comp.uuid ?? null,
-        facturaId: localFactura.id,
-        fechaPago: fechaPagoStr,
-        monto,
-        formaPago,
-      });
+      for (const nodo of result.nodos) {
+        await tx.insert(complementosPago).values({
+          orgId,
+          facturapiId: comp.id,
+          uuid: comp.uuid ?? null,
+          facturaId: localFactura.id,
+          fechaPago: nodo.fechaPagoStr,
+          monto: nodo.monto,
+          formaPago: nodo.formaPago,
+        });
+      }
     });
 
     return NextResponse.json(comp, { status: 201 });

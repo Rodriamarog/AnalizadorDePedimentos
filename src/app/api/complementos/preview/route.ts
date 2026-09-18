@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireOrgId } from "@/lib/auth";
 import { getOrgFacturapiClient } from "@/lib/orgFacturapi";
 import { FacturapiError } from "@/lib/facturapi";
-import { buildComplementForInvoice } from "@/lib/buildComplemento";
+import { buildComplementForInvoice, parseNodosBody } from "@/lib/buildComplemento";
 
 // Shares buildComplementForInvoice with the real POST /api/complementos
 // route so the previewed PDF reflects the exact same balance/installment/tax
@@ -16,16 +16,12 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const facturaFacturapiId: string = body.factura_facturapi_id;
-  const formaPago: string = body.forma_pago;
-  const monto = Number(body.monto);
-  const fechaPagoStr: string = body.fecha_pago; // YYYY-MM-DD
+  const nodos = parseNodosBody(body.nodos);
 
   try {
     const result = await buildComplementForInvoice(client, {
       facturaFacturapiId,
-      formaPago,
-      monto,
-      fechaPagoStr,
+      nodos,
     });
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
