@@ -233,6 +233,14 @@ returns. A Traslado invoice almost always needs a Carta Porte complement
     "Clave c_ClaveProdServ del SAT. También se reutiliza como BienesTransp a menos que se indique bienes_transp.",
   "SAT c_BienesTransp key, if it differs from clave_prod_serv.":
     "Clave c_BienesTransp del SAT, si difiere de clave_prod_serv.",
+  'SAT c_TipoMateria key, e.g. "01" (Materias primas y auxiliares). Only meaningful (and only sent) when the request builds an international haul (see entrada_salida_merc); defaults to "01" when omitted.':
+    'Clave c_TipoMateria del SAT, ej. "01" (Materias primas y auxiliares). Solo aplica (y solo se envía) cuando la solicitud construye un traslado internacional (ver entrada_salida_merc); por defecto "01" si se omite.',
+  "Whether the mercancía is entering or leaving Mexico. Requires pais_origen_destino and via_entrada_salida.":
+    "Indica si la mercancía entra o sale de México. Requiere pais_origen_destino y via_entrada_salida.",
+  'SAT c_Pais key of the other country involved, e.g. "USA". Requires entrada_salida_merc and via_entrada_salida.':
+    'Clave c_Pais del SAT del otro país involucrado, ej. "USA". Requiere entrada_salida_merc y via_entrada_salida.',
+  'SAT c_ViaEntradaSalida key, e.g. "01" (Autotransporte). Requires entrada_salida_merc and pais_origen_destino.':
+    'Clave c_ViaEntradaSalida del SAT, ej. "01" (Autotransporte). Requiere entrada_salida_merc y pais_origen_destino.',
   "Inline mercancía data, mutually exclusive with pedimento_id.":
     "Datos de mercancía en línea, mutuamente excluyentes con pedimento_id.",
   "When true, inline mercancías (mercancias[]) missing a resolvable clave_prod_serv are classified via an automated classification pipeline and persisted to productos when keyed by fraccion. Adds latency to the request, so it defaults to false. Only applies to the inline mercancías path.":

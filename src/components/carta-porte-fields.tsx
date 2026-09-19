@@ -18,6 +18,7 @@ import {
   FIGURA_TRANSPORTE_OPTIONS,
   PERMISO_SCT_OPTIONS,
   TIPO_EMBALAJE_OPTIONS,
+  TIPO_MATERIA_OPTIONS,
   UNIDAD_PESO_OPTIONS,
   VIA_ENTRADA_SALIDA_OPTIONS,
 } from "@/lib/cartaPorteOptions";
@@ -122,6 +123,10 @@ export interface MercanciaRow {
   cveMaterialPeligroso: string;
   embalaje: string;
   descripEmbalaje: string;
+  // Only meaningful (and only sent — see cartaPorteStateToInput) when
+  // internacionalEnabled; defaults to "01" per SAT's usual case, editable
+  // per mercancía since not every imported good is a raw material.
+  tipoMateria: string;
   // Not user-editable — carried through as-is from the linked pedimento's
   // prefill (see mapPedimentoToMercancias) into the built complement.
   documentacionAduanera?: DocumentacionAduaneraInput[];
@@ -139,6 +144,7 @@ function newMercanciaRow(): MercanciaRow {
     cveMaterialPeligroso: "",
     embalaje: "",
     descripEmbalaje: "",
+    tipoMateria: "01",
   };
 }
 
@@ -271,6 +277,10 @@ export function cartaPorteStateToInput(state: CartaPorteFormState): CartaPorteCo
       cveMaterialPeligroso: m.materialPeligroso ? m.cveMaterialPeligroso.trim() || undefined : undefined,
       embalaje: m.embalaje || undefined,
       descripEmbalaje: m.descripEmbalaje.trim() || undefined,
+      // Only kept when the haul is actually international — buildCartaPorteComplement
+      // strips it otherwise, but sending it here too would round-trip an odd value
+      // into mercanciaRowFromWire if the toggle is later turned off.
+      tipoMateria: state.internacionalEnabled ? m.tipoMateria.trim() || undefined : undefined,
       documentacionAduanera: m.documentacionAduanera,
     })),
     pesoBrutoTotal: Number(state.pesoBrutoTotal) || 0,
@@ -344,6 +354,7 @@ function mercanciaRowFromWire(m: CartaPorteDataInput["Mercancias"]["Mercancia"][
     cveMaterialPeligroso: m.CveMaterialPeligroso ?? "",
     embalaje: m.Embalaje ?? "",
     descripEmbalaje: m.DescripEmbalaje ?? "",
+    tipoMateria: m.TipoMateria ?? "01",
     documentacionAduanera: m.DocumentacionAduanera?.map((d) => ({
       tipoDocumento: d.TipoDocumento,
       numPedimento: d.NumPedimento,
@@ -1967,6 +1978,27 @@ export function CartaPorteFields({
                             value={m.descripEmbalaje}
                             onChange={(e) => updateMercancia(m.key, { descripEmbalaje: e.target.value })}
                           />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  {value.internacionalEnabled && (
+                    <tr className="bg-muted/20">
+                      <td />
+                      <td colSpan={6} className="px-2 py-1.5">
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] text-muted-foreground">Tipo de materia</label>
+                          <select
+                            className="rounded-md border border-input px-2 py-1 text-xs h-7"
+                            value={m.tipoMateria}
+                            onChange={(e) => updateMercancia(m.key, { tipoMateria: e.target.value })}
+                          >
+                            {TIPO_MATERIA_OPTIONS.map(([code, label]) => (
+                              <option key={code} value={code}>
+                                {code} – {label}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </td>
                     </tr>

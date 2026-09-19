@@ -158,6 +158,57 @@ describe("/api/v1/cartas-porte POST", () => {
     expect(json.id).toEqual(expect.any(String));
   }, 20000);
 
+  it("rejects a partial international payload (#81)", async () => {
+    const res = await post(basePayload({ entrada_salida_merc: "Entrada", pais_origen_destino: "USA" }), {
+      ...authHeaders(token),
+      "idempotency-key": randomUUID(),
+    });
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error.code).toBe("invalid_parameter");
+    expect(json.error.details).toEqual([{ field: "via_entrada_salida", issue: "missing" }]);
+  });
+
+  it("builds an international complement with TipoMateria per mercancía, defaulted when omitted (#81)", async () => {
+    const res = await post(
+      basePayload({
+        entrada_salida_merc: "Entrada",
+        pais_origen_destino: "usa",
+        via_entrada_salida: "01",
+        mercancias: [{ ...inlineMercancias[0], tipo_materia: "02" }],
+      }),
+      { ...authHeaders(token), "idempotency-key": randomUUID() }
+    );
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    const complement = json.complements?.find((c: { type: string }) => c.type === "carta_porte");
+    expect(complement.data.TranspInternac).toBe("Sí");
+    expect(complement.data.EntradaSalidaMerc).toBe("Entrada");
+    expect(complement.data.PaisOrigenDestino).toBe("USA");
+    expect(complement.data.ViaEntradaSalida).toBe("01");
+    expect(complement.data.Mercancias.Mercancia[0].TipoMateria).toBe("02");
+  }, 20000);
+
+  it("defaults TipoMateria to 01 on an international complement when not supplied (#81)", async () => {
+    const res = await post(
+      basePayload({ entrada_salida_merc: "Salida", pais_origen_destino: "USA", via_entrada_salida: "01" }),
+      { ...authHeaders(token), "idempotency-key": randomUUID() }
+    );
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    const complement = json.complements?.find((c: { type: string }) => c.type === "carta_porte");
+    expect(complement.data.Mercancias.Mercancia[0].TipoMateria).toBe("01");
+  }, 20000);
+
+  it("does not include TipoMateria on a domestic complement (#81)", async () => {
+    const res = await post(basePayload(), { ...authHeaders(token), "idempotency-key": randomUUID() });
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    const complement = json.complements?.find((c: { type: string }) => c.type === "carta_porte");
+    expect(complement.data.TranspInternac).toBe("No");
+    expect(complement.data.Mercancias.Mercancia[0].TipoMateria).toBeUndefined();
+  }, 20000);
+
   it("rejects an inline party with a malformed RFC before calling FacturAPI (#71)", async () => {
     const res = await post(basePayload({ chofer: { ...inlineChofer, rfc: "NOT-A-RFC" } }), {
       ...authHeaders(token),

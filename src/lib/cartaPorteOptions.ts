@@ -104,3 +104,15 @@ export const ENTRADA_SALIDA_OPTIONS = [
   ["Entrada", "Entrada"],
   ["Salida", "Salida"],
 ] as const;
+
+// SAT's c_TipoMateria — only valid (and required) on an international
+// mercancía; see buildCartaPorteComplement, which strips it on a domestic
+// haul and defaults it to "01" when the caller didn't set one.
+export const TIPO_MATERIA_OPTIONS = [
+  ["01", "Materias primas y auxiliares"],
+  ["02", "Productos terminados"],
+  ["03", "Productos semiterminados"],
+  ["04", "Retorno de mercancía en su misma condición"],
+  ["05", "Retorno de mercancía con proceso de transformación"],
+  ["06", "Otros"],
+] as const;

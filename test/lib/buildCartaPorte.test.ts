@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildFraccionArancelaria, mapPedimentoToMercancias, type PedimentoForCartaPorte } from "@/lib/buildCartaPorte";
+import {
+  buildCartaPorteComplement,
+  buildFraccionArancelaria,
+  mapPedimentoToMercancias,
+  type CartaPorteComplementInput,
+  type PedimentoForCartaPorte,
+} from "@/lib/buildCartaPorte";
 
 function fixturePedimento(overrides: Partial<PedimentoForCartaPorte> = {}): PedimentoForCartaPorte {
   return {
@@ -51,5 +57,70 @@ describe("mapPedimentoToMercancias", () => {
     );
 
     expect(mercancias[0].fraccionArancelaria).toBeUndefined();
+  });
+});
+
+function fixtureComplementInput(overrides: Partial<CartaPorteComplementInput> = {}): CartaPorteComplementInput {
+  return {
+    ubicacionOrigen: {
+      rfc: "AARC700811CL4",
+      fechaHoraSalidaLlegada: "2026-01-15T08:00:00",
+      domicilio: { Estado: "BCN", Pais: "MEX", CodigoPostal: "22504" },
+    },
+    ubicacionDestino: {
+      rfc: "AARC700811CL4",
+      fechaHoraSalidaLlegada: "2026-01-15T20:00:00",
+      domicilio: { Estado: "BCN", Pais: "MEX", CodigoPostal: "22010" },
+    },
+    mercancias: [
+      { bienesTransp: "24122004", descripcion: "TAPA", cantidad: 2, claveUnidad: "KGM", pesoEnKg: 5.26 },
+    ],
+    pesoBrutoTotal: 5.26,
+    unidadPeso: "KGM",
+    autotransporte: {},
+    figurasTransporte: [],
+    distanciaRecorridaKm: 18,
+    ...overrides,
+  };
+}
+
+// SAT's c_TipoMateria is only valid (and required) on international
+// mercancías — Facturapi rejects it outright otherwise (confirmed against
+// the sandbox: see scripts/test-carta-porte-fraccion-arancelaria-pdf.ts).
+describe("buildCartaPorteComplement TipoMateria gating", () => {
+  it("does not set TipoMateria on a domestic (non-internacional) haul", () => {
+    const complement = buildCartaPorteComplement(fixtureComplementInput());
+
+    expect(complement.data.Mercancias.Mercancia[0]).not.toHaveProperty("TipoMateria");
+  });
+
+  it("defaults TipoMateria to 01 on an internacional haul when not supplied", () => {
+    const complement = buildCartaPorteComplement(
+      fixtureComplementInput({
+        internacional: { entradaSalidaMerc: "Entrada", paisOrigenDestino: "USA", viaEntradaSalida: "01" },
+      })
+    );
+
+    expect(complement.data.Mercancias.Mercancia[0].TipoMateria).toBe("01");
+  });
+
+  it("preserves a caller-supplied TipoMateria on an internacional haul", () => {
+    const complement = buildCartaPorteComplement(
+      fixtureComplementInput({
+        mercancias: [
+          {
+            bienesTransp: "24122004",
+            descripcion: "TAPA",
+            cantidad: 2,
+            claveUnidad: "KGM",
+            pesoEnKg: 5.26,
+            tipoMateria: "02",
+          },
+        ],
+        internacional: { entradaSalidaMerc: "Entrada", paisOrigenDestino: "USA", viaEntradaSalida: "01" },
+      })
+    );
+
+    expect(complement.data.Mercancias.Mercancia[0].TipoMateria).toBe("02");
   });
 });

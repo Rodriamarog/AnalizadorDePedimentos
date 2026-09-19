@@ -40,6 +40,11 @@ const mercanciaInlineSchema = z.object({
   bienes_transp: z.string().optional().meta({ description: "SAT c_BienesTransp key, if it differs from clave_prod_serv." }),
   valor_mercancia: z.number().optional(),
   moneda: z.string().optional(),
+  tipo_materia: z.string().optional().meta({
+    description:
+      'SAT c_TipoMateria key, e.g. "01" (Materias primas y auxiliares). Only meaningful (and only sent) ' +
+      "when the request builds an international haul (see entrada_salida_merc); defaults to \"01\" when omitted.",
+  }),
 });
 
 const createCartaPorteSchema = z.object({
@@ -69,6 +74,20 @@ const createCartaPorteSchema = z.object({
   fecha_hora_salida: z.string().meta({ description: "AAAA-MM-DDThh:mm:ss, the Origen ubicación's departure time." }),
   fecha_hora_llegada: z.string().meta({ description: "AAAA-MM-DDThh:mm:ss, the Destino ubicación's arrival time." }),
   distancia_recorrida_km: z.number(),
+  // International transport (TranspInternac="Sí") — all three or none. A
+  // pedimento-sourced haul always attaches DocumentacionAduanera (pedimento
+  // reference data), which SAT rejects unless the complement is
+  // international, so these are required whenever the caller wants that
+  // data to actually appear on the stamped Carta Porte.
+  entrada_salida_merc: z.enum(["Entrada", "Salida"]).optional().meta({
+    description: "Whether the mercancía is entering or leaving Mexico. Requires pais_origen_destino and via_entrada_salida.",
+  }),
+  pais_origen_destino: z.string().optional().meta({
+    description: 'SAT c_Pais key of the other country involved, e.g. "USA". Requires entrada_salida_merc and via_entrada_salida.',
+  }),
+  via_entrada_salida: z.string().optional().meta({
+    description: 'SAT c_ViaEntradaSalida key, e.g. "01" (Autotransporte). Requires entrada_salida_merc and pais_origen_destino.',
+  }),
   external_reference: z.string().optional().meta({
     description:
       "This app's own field, not a stamping-provider one — a caller-supplied trip/operation id, echoed back on " +
@@ -97,6 +116,27 @@ function validateExclusive(idValue: unknown, inlineValue: unknown, field: string
   return null;
 }
 
+// The three international-transport fields must all be present or all be
+// absent — a partial set can't build a valid TranspInternac="Sí" complement
+// (see InternacionalInput in buildCartaPorte.ts, which requires all three).
+function validateInternacional(body: CreateCartaPorteBody): NextResponse | null {
+  const fields: { name: "entrada_salida_merc" | "pais_origen_destino" | "via_entrada_salida"; value: unknown }[] = [
+    { name: "entrada_salida_merc", value: body.entrada_salida_merc },
+    { name: "pais_origen_destino", value: body.pais_origen_destino },
+    { name: "via_entrada_salida", value: body.via_entrada_salida },
+  ];
+  const present = fields.filter((f) => f.value !== undefined);
+  if (present.length === 0 || present.length === fields.length) return null;
+
+  const missing = fields.filter((f) => f.value === undefined);
+  return apiError(
+    400,
+    "invalid_parameter",
+    "entrada_salida_merc, pais_origen_destino, and via_entrada_salida must all be provided together for an international haul",
+    missing.map((f) => ({ field: f.name, issue: "missing" }))
+  );
+}
+
 function validateBody(body: CreateCartaPorteBody): NextResponse | null {
   return (
     validateExclusive(body.pedimento_id, body.mercancias, "pedimento_id") ??
@@ -104,7 +144,8 @@ function validateBody(body: CreateCartaPorteBody): NextResponse | null {
     validateExclusive(body.direccion_origen_id, body.direccion_origen, "direccion_origen_id") ??
     validateExclusive(body.direccion_destino_id, body.direccion_destino, "direccion_destino_id") ??
     validateExclusive(body.vehiculo_id, body.vehiculo, "vehiculo_id") ??
-    validateExclusive(body.chofer_id, body.chofer, "chofer_id")
+    validateExclusive(body.chofer_id, body.chofer, "chofer_id") ??
+    validateInternacional(body)
   );
 }
 

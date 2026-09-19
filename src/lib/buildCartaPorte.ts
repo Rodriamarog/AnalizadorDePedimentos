@@ -86,6 +86,11 @@ export interface CartaPorteMercancia {
   Moneda?: string;
   FraccionArancelaria?: string;
   DocumentacionAduanera?: CartaPorteDocumentacionAduanera[];
+  // SAT's c_TipoMateria — only valid (and required) when the haul is
+  // international; see buildCartaPorteComplement, which strips this on a
+  // domestic haul and defaults it to "01" on an international one when the
+  // caller didn't supply a value.
+  TipoMateria?: string;
 }
 
 export interface CartaPorteMercancias {
@@ -165,6 +170,7 @@ export interface MercanciaInput {
   moneda?: string;
   fraccionArancelaria?: string;
   documentacionAduanera?: DocumentacionAduaneraInput[];
+  tipoMateria?: string;
 }
 
 export interface AutotransporteInput {
@@ -257,6 +263,7 @@ function buildMercancia(m: MercanciaInput): CartaPorteMercancia {
       m.documentacionAduanera && m.documentacionAduanera.length > 0
         ? m.documentacionAduanera.map(buildDocumentacionAduanera)
         : undefined,
+    TipoMateria: m.tipoMateria,
   };
 }
 
@@ -312,6 +319,21 @@ export function buildCartaPorteComplement(input: CartaPorteComplementInput): Car
     distanciaRecorridaKm,
   } = input;
 
+  // SAT's c_TipoMateria is only valid on an international mercancía —
+  // FacturAPI rejects it outright on a domestic one, so it's stripped here
+  // rather than left to every caller (UI form, pedimento prefill, v1 API) to
+  // remember; and required when international, so it's defaulted to "01"
+  // (Materias primas y auxiliares) whenever a caller didn't already set a
+  // more specific value per mercancía.
+  const builtMercancias = mercancias.map(buildMercancia);
+  for (const m of builtMercancias) {
+    if (internacional) {
+      m.TipoMateria ??= "01";
+    } else {
+      delete m.TipoMateria;
+    }
+  }
+
   const cartaPorte: CartaPorteDataInput = {
     IdCCP: generateIdCCP(),
     TranspInternac: internacional ? "Sí" : "No",
@@ -324,7 +346,7 @@ export function buildCartaPorteComplement(input: CartaPorteComplementInput): Car
       PesoBrutoTotal: pesoBrutoTotal,
       UnidadPeso: unidadPeso,
       NumTotalMercancias: numTotalMercancias ?? mercancias.length,
-      Mercancia: mercancias.map(buildMercancia),
+      Mercancia: builtMercancias,
       Autotransporte: buildAutotransporte(autotransporte),
     },
     FiguraTransporte: figurasTransporte.length > 0 ? figurasTransporte.map(buildFiguraTransporte) : undefined,

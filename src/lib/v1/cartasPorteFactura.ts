@@ -86,6 +86,7 @@ export interface MercanciaInlineInput {
   bienes_transp?: string;
   valor_mercancia?: number;
   moneda?: string;
+  tipo_materia?: string;
 }
 
 export interface CreateCartaPorteInput {
@@ -106,6 +107,10 @@ export interface CreateCartaPorteInput {
   fecha_hora_salida: string;
   fecha_hora_llegada: string;
   distancia_recorrida_km: number;
+  // All three or none — validated by the route before this runs.
+  entrada_salida_merc?: "Entrada" | "Salida";
+  pais_origen_destino?: string;
+  via_entrada_salida?: string;
 }
 
 export interface BuiltCartaPorteInvoice {
@@ -261,6 +266,11 @@ async function resolveInlineMercancias(
     // NICO available for an inline caller-supplied fraccion, so only pass
     // it through when it already looks like the full 10-digit key.
     fraccionArancelaria: m.fraccion && FRACCION_ARANCELARIA_PATTERN.test(m.fraccion) ? m.fraccion : undefined,
+    // Only meaningful on an international haul — buildCartaPorteComplement
+    // strips it (and defaults a missing value to "01") based on whether
+    // `internacional` was actually built, so passing it through
+    // unconditionally here is safe even on a domestic request.
+    tipoMateria: m.tipo_materia,
   }));
 
   const items: CartaPorteItem[] = inline.map((m, index) => ({
@@ -489,6 +499,14 @@ export async function buildCartaPorteFacturaBody(
     autotransporte: vehiculoRowToAutotransporteInput(vehiculo),
     figurasTransporte: [choferRowToFiguraTransporteInput(chofer, input.tipo_figura)],
     distanciaRecorridaKm: input.distancia_recorrida_km,
+    // All three or none — validated by the route before this runs.
+    internacional: input.entrada_salida_merc
+      ? {
+          entradaSalidaMerc: input.entrada_salida_merc,
+          paisOrigenDestino: input.pais_origen_destino!.toUpperCase(),
+          viaEntradaSalida: input.via_entrada_salida!,
+        }
+      : undefined,
   });
 
   const invoiceBody: Record<string, unknown> = {
