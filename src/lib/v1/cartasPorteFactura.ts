@@ -8,6 +8,7 @@ import { runAutomap, runAutomapDescripciones } from "@/lib/automap";
 import {
   buildCartaPorteComplement,
   mapPedimentoToMercancias,
+  FRACCION_ARANCELARIA_PATTERN,
   type BienesTranspLookup,
   type PedimentoForCartaPorte,
   type MercanciaInput,
@@ -252,7 +253,14 @@ async function resolveInlineMercancias(
     pesoEnKg: m.peso_kg,
     valorMercancia: m.valor_mercancia,
     moneda: m.valor_mercancia !== undefined ? (m.moneda ?? "MXN") : m.moneda,
-    fraccionArancelaria: m.fraccion,
+    // `fraccion` is documented (and used elsewhere in this file) as the bare
+    // 8-digit fracción, but SAT's Carta Porte FraccionArancelaria catalog
+    // only accepts the 10-digit fraccion+NICO key (see
+    // buildFraccionArancelaria in buildCartaPorte.ts) — sending the bare
+    // 8-digit value gets rejected by FacturAPI at stamp time. There's no
+    // NICO available for an inline caller-supplied fraccion, so only pass
+    // it through when it already looks like the full 10-digit key.
+    fraccionArancelaria: m.fraccion && FRACCION_ARANCELARIA_PATTERN.test(m.fraccion) ? m.fraccion : undefined,
   }));
 
   const items: CartaPorteItem[] = inline.map((m, index) => ({
@@ -418,6 +426,7 @@ async function resolvePedimentoMercancias(
     identificadoresDocAduanero: pedimento.identificadoresDocAduanero,
     partidas: mappedRows.map((p) => ({
       fraccion: p.fraccion,
+      subd: p.subd,
       descripcion: p.descripcion,
       cantidad: p.cantidad,
       umc: p.umc,

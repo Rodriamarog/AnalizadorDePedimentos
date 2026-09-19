@@ -343,11 +343,37 @@ export function buildCartaPorteComplement(input: CartaPorteComplementInput): Car
 
 export interface PedimentoPartidaForCartaPorte {
   fraccion: string;
+  // The pedimento's "SUBD" column — the 2-digit NICO suffix that, appended
+  // to `fraccion`, forms the 10-digit key SAT's c_FraccionArancelaria
+  // catalog actually validates against (FacturAPI rejects the bare 8-digit
+  // fraccion outright — see buildFraccionArancelaria below). Null when the
+  // pedimento line didn't parse one.
+  subd: string | null;
   descripcion: string;
   cantidad: number;
   umc: string | null;
   paisOrigen: string | null;
   pesoKg: number | null;
+}
+
+// SAT/FacturAPI's Carta Porte FraccionArancelaria is a 10-digit key (8-digit
+// fraccion + 2-digit NICO/subdivisión, e.g. "7615100299"), not the bare
+// 8-digit fraccion this app otherwise treats as "the" fraccion everywhere
+// else (productos.fraccion, automap, etc.). Sending just the 8-digit
+// fraccion gets rejected by FacturAPI at stamp time ("no fue encontrado en
+// el catálogo para carta porte") — every FraccionArancelaria this app
+// builds, from either buildFraccionArancelaria below or a caller-supplied
+// value (see cartasPorteFactura.ts's inline mercancía path), must satisfy
+// this pattern so the two call sites can't drift apart on what "valid"
+// means here.
+export const FRACCION_ARANCELARIA_PATTERN = /^\d{10}$/;
+
+// Only returns a value when subd is present and well-formed, leaving the
+// field omitted (its pre-existing, safe default) otherwise.
+export function buildFraccionArancelaria(fraccion: string, subd: string | null): string | undefined {
+  if (!subd || !/^\d{2}$/.test(subd)) return undefined;
+  const combined = `${fraccion}${subd}`;
+  return FRACCION_ARANCELARIA_PATTERN.test(combined) ? combined : undefined;
 }
 
 export interface PedimentoForCartaPorte {
@@ -426,7 +452,7 @@ export function mapPedimentoToMercancias(
     cantidad: p.cantidad,
     claveUnidad: umcToUnitKey(p.umc),
     pesoEnKg: p.pesoKg ?? 0,
-    fraccionArancelaria: p.fraccion,
+    fraccionArancelaria: buildFraccionArancelaria(p.fraccion, p.subd),
     documentacionAduanera,
   }));
 
